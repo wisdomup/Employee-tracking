@@ -45,7 +45,7 @@ export interface Task {
   updatedAt: string;
 }
 
-export type TaskCreateUpdate = Partial<Omit<Task, '_id' | 'createdAt' | 'updatedAt'>> & {
+export type TaskCreateUpdate = Partial<Omit<Task, '_id' | 'createdAt' | 'updatedAt' | 'document'>> & {
   document?: File;
 };
 

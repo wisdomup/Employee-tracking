@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.docker
+uploads
+*.log
+npm-debug.log*
+.DS_Store
+*.tsbuildinfo
+coverage
