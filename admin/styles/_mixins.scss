@@ -1,0 +1,80 @@
+// Flexbox mixins
+@mixin flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+// Responsive breakpoint mixins
+@mixin mobile {
+  @media (max-width: $mobile-breakpoint) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: #{$mobile-breakpoint + 1px}) and (max-width: $tablet-breakpoint) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: #{$tablet-breakpoint + 1px}) {
+    @content;
+  }
+}
+
+@mixin hover-supported {
+  @media (hover: hover) and (pointer: fine) {
+    @content;
+  }
+}
+
+// Typography mixins
+@mixin heading($size: 32px, $weight: 600) {
+  font-size: $size;
+  font-weight: $weight;
+  line-height: 1.2;
+}
+
+@mixin body-text($size: 16px) {
+  font-size: $size;
+  line-height: 1.5;
+}
+
+// Button mixins
+@mixin button-base {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 $spacing-md;
+  border-radius: $border-radius-full;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: $transition-normal;
+  font-weight: 500;
+}
+
+// Utility mixins
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin reset-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}

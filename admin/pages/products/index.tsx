@@ -1,0 +1,204 @@
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Layout from '../../components/Layout/Layout';
+import ProtectedRoute from '../../components/Auth/ProtectedRoute';
+import Table from '../../components/UI/Table';
+import { productService, Product } from '../../services/productService';
+import { categoryService, Category } from '../../services/categoryService';
+import { toast } from 'react-toastify';
+import styles from '../../styles/ListPage.module.scss';
+
+const ProductsPage: React.FC = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [categoryFilter]);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const data = await productService.getProducts({
+        categoryId: categoryFilter || undefined,
+      });
+      setProducts(data);
+    } catch (error) {
+      toast.error('Failed to fetch products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const data = await categoryService.getCategories();
+      setCategories(data);
+    } catch (error) {
+      // non-critical
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    try {
+      await productService.deleteProduct(id);
+      toast.success('Product deleted successfully');
+      fetchProducts();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete product');
+    }
+  };
+
+  const filtered = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.barcode.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const columns = [
+    {
+      key: 'image',
+      title: 'Image',
+      render: (value: string) =>
+        value ? (
+          <img
+            src={`${process.env.NEXT_PUBLIC_API_URL}${value}`}
+            alt="product"
+            style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: '0.375rem' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              background: '#f3f4f6',
+              borderRadius: '0.375rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#9ca3af',
+              fontSize: '1.25rem',
+            }}
+          >
+            📦
+          </div>
+        ),
+    },
+    { key: 'barcode', title: 'Barcode' },
+    { key: 'name', title: 'Name' },
+    {
+      key: 'categoryId',
+      title: 'Category',
+      render: (value: any) => value?.name || '-',
+    },
+    {
+      key: 'salePrice',
+      title: 'Sale Price',
+      render: (value: number) => (value !== undefined ? `Rs. ${value.toFixed(2)}` : '-'),
+    },
+    {
+      key: 'quantity',
+      title: 'Qty',
+      render: (value: number) => (value !== undefined ? value : '-'),
+    },
+    {
+      key: 'createdBy',
+      title: 'Created By',
+      render: (value: any) =>
+        value ? `${value.username ?? value.userID ?? '-'}${value.role ? ` (${value.role})` : ''}` : '-',
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (_: any, row: Product) => (
+        <div className={styles.actions}>
+          <button
+            className={styles.editButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/products/${row._id}`);
+            }}
+          >
+            View
+          </button>
+          <button
+            className={styles.editButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/products/${row._id}/edit`);
+            }}
+          >
+            Edit
+          </button>
+          <button
+            className={styles.deleteButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row._id);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <Layout>
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <h1>Products</h1>
+          <button className={styles.addButton} onClick={() => router.push('/products/create')}>
+            + Add Product
+          </button>
+        </div>
+        <div className={styles.searchBar}>
+          <input
+            type="text"
+            placeholder="Search by name or barcode..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={styles.searchInput}
+          />
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className={styles.searchInput}
+            style={{ maxWidth: 200 }}
+          >
+            <option value="">All Categories</option>
+            {categories.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Table
+          columns={columns}
+          data={filtered}
+          loading={loading}
+          onRowClick={(row) => router.push(`/products/${row._id}`)}
+        />
+      </div>
+    </Layout>
+  );
+};
+
+export default function ProductsPageWrapper() {
+  return (
+    <ProtectedRoute>
+      <ProductsPage />
+    </ProtectedRoute>
+  );
+}

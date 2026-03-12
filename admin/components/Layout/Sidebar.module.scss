@@ -1,0 +1,97 @@
+/* Above Leaflet map panes (map uses ~200-700) so sidebar/overlay stay on top */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1100;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+
+  &.overlayVisible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.sidebar {
+  width: 250px;
+  height: 100vh;
+  background-color: #1f2937;
+  color: white;
+  position: fixed;
+  left: 0;
+  top: 0;
+  overflow-y: auto;
+  z-index: 1200;
+  transition: transform 0.25s ease;
+}
+
+.logo {
+  padding: 1.5rem;
+  border-bottom: 1px solid #374151;
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+  }
+}
+
+.nav {
+  padding: 1rem 0;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  padding: 0.875rem 1.5rem;
+  color: #d1d5db;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #374151;
+    color: white;
+  }
+
+  &.active {
+    background-color: #3b82f6;
+    color: white;
+  }
+}
+
+.icon {
+  margin-right: 0.75rem;
+  font-size: 1.25rem;
+}
+
+.label {
+  font-size: 0.938rem;
+  font-weight: 500;
+}
+
+// Tablet & mobile (≤900px): sidebar is overlay, closed by default
+.sidebarCollapsed {
+  width: 260px;
+  max-width: 85vw;
+  transform: translateX(-100%);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+
+  .logo h2 {
+    font-size: 1rem;
+  }
+}
+
+.sidebarCollapsed.sidebarOpen {
+  transform: translateX(0);
+}
+
+@media (min-width: 901px) {
+  .overlay {
+    display: none;
+  }
+}

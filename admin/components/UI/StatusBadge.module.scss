@@ -1,0 +1,39 @@
+.statusBadge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.notAssigned {
+  background-color: #e5e7eb;
+  color: #6b7280;
+}
+
+.toDo {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.inProgress {
+  background-color: #fed7aa;
+  color: #c2410c;
+}
+
+.completed {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.active {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.inactive {
+  background-color: #fee2e2;
+  color: #991b1b;
+}

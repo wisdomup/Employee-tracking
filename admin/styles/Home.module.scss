@@ -1,0 +1,144 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+// Page-specific color overrides
+$page-background-light: #fafafa;
+$page-foreground-light: #fff;
+$page-background-dark: #000;
+$page-foreground-dark: #000;
+
+.page {
+  --background: #{$page-background-light};
+  --foreground: #{$page-foreground-light};
+  --text-primary: #{$text-primary-light};
+  --text-secondary: #{$text-secondary-light};
+  --button-primary-hover: #{$button-primary-hover-light};
+  --button-secondary-hover: #{$button-secondary-hover-light};
+  --button-secondary-border: #{$button-secondary-border-light};
+
+  @include flex-center;
+  min-height: 100vh;
+  font-family: var(--font-geist-sans);
+  background-color: var(--background);
+}
+
+.main {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 800px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  background-color: var(--foreground);
+  padding: 120px 60px;
+
+  @media (max-width: $mobile-breakpoint) {
+    padding: 48px 24px;
+  }
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 24px;
+
+  @media (max-width: $mobile-breakpoint) {
+    gap: 16px;
+  }
+
+  h1 {
+    max-width: 320px;
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 48px;
+    letter-spacing: -2.4px;
+    text-wrap: balance;
+    color: var(--text-primary);
+
+    @media (max-width: $mobile-breakpoint) {
+      font-size: 32px;
+      line-height: 40px;
+      letter-spacing: -1.92px;
+    }
+  }
+
+  p {
+    max-width: 440px;
+    font-size: 18px;
+    line-height: 32px;
+    text-wrap: balance;
+    color: var(--text-secondary);
+  }
+
+  a {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+}
+
+.ctas {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  max-width: 440px;
+  gap: 16px;
+  font-size: 14px;
+
+  a {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 128px;
+    border: 1px solid transparent;
+    transition: 0.2s;
+    cursor: pointer;
+    width: fit-content;
+    font-weight: 500;
+  }
+}
+
+a.primary {
+  background: var(--text-primary);
+  color: var(--background);
+  gap: 8px;
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background: var(--button-primary-hover);
+      border-color: transparent;
+    }
+  }
+}
+
+a.secondary {
+  border-color: var(--button-secondary-border);
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background: var(--button-secondary-hover);
+      border-color: transparent;
+    }
+  }
+}
+
+// Dark mode
+@media (prefers-color-scheme: dark) {
+  .logo {
+    filter: invert(1);
+  }
+
+  .page {
+    --background: #{$page-background-dark};
+    --foreground: #{$page-foreground-dark};
+    --text-primary: #{$text-primary-dark};
+    --text-secondary: #{$text-secondary-dark};
+    --button-primary-hover: #{$button-primary-hover-dark};
+    --button-secondary-hover: #{$button-secondary-hover-dark};
+    --button-secondary-border: #{$button-secondary-border-dark};
+  }
+}

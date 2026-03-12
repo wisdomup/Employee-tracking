@@ -1,0 +1,266 @@
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Layout from '../../components/Layout/Layout';
+import ProtectedRoute from '../../components/Auth/ProtectedRoute';
+import Table from '../../components/UI/Table';
+import StatusBadge from '../../components/UI/StatusBadge';
+import { taskService, Task } from '../../services/taskService';
+import { employeeService, Employee } from '../../services/employeeService';
+import { toast } from 'react-toastify';
+import styles from '../../styles/ListPage.module.scss';
+import modalStyles from '../../styles/Modal.module.scss';
+
+const TasksPage: React.FC = () => {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignTaskId, setAssignTaskId] = useState<string | null>(null);
+  const [assignEmployeeId, setAssignEmployeeId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchTasks();
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchTasks = async () => {
+    setLoading(true);
+    try {
+      const data = await taskService.getTasks({
+        status: statusFilter || undefined,
+      });
+      setTasks(data);
+    } catch (error) {
+      toast.error('Failed to fetch tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const data = await employeeService.getEmployees();
+      setEmployees(data);
+    } catch {
+      // non-critical
+    }
+  };
+
+  const openAssignModal = (taskId: string) => {
+    setAssignTaskId(taskId);
+    setAssignEmployeeId('');
+    setShowAssignModal(true);
+  };
+
+  const closeAssignModal = () => {
+    setShowAssignModal(false);
+    setAssignTaskId(null);
+    setAssignEmployeeId('');
+  };
+
+  const handleAssignTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignTaskId || !assignEmployeeId) {
+      toast.error('Please select an employee');
+      return;
+    }
+    setAssigning(true);
+    try {
+      await taskService.assignTask(assignTaskId, assignEmployeeId);
+      toast.success('Task assigned successfully');
+      closeAssignModal();
+      fetchTasks();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Failed to assign task');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+    try {
+      await taskService.deleteTask(id);
+      toast.success('Task deleted successfully');
+      fetchTasks();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete task');
+    }
+  };
+
+  const filteredTasks = tasks.filter((task) =>
+    task.taskName.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const columns = [
+    { key: 'taskName', title: 'Task Name' },
+    {
+      key: 'dealerId',
+      title: 'Dealer',
+      render: (value: any) => value?.name || '-',
+    },
+    {
+      key: 'routeId',
+      title: 'Route',
+      render: (value: any) => value?.name || '-',
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      render: (value: string) => (
+        <StatusBadge status={value as Task['status']} />
+      ),
+    },
+    {
+      key: 'assignedTo',
+      title: 'Assigned To',
+      render: (value: any) => value?.username || '-',
+    },
+    {
+      key: 'quantity',
+      title: 'Quantity',
+      render: (value: number) => value || '-',
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (_: unknown, row: Task) => (
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.editButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/tasks/${row._id}`);
+            }}
+          >
+            View
+          </button>
+          {row.status !== 'in_progress' && (
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssignModal(row._id);
+              }}
+            >
+              Assign
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.deleteButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row._id);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <Layout>
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <h1>Tasks</h1>
+          <button className={styles.addButton} onClick={() => router.push('/tasks/create')}>
+            + Add Task
+          </button>
+        </div>
+
+        <div className={styles.searchBar}>
+          <input
+            type="text"
+            placeholder="Search by task name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={styles.searchInput}
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={styles.searchInput}
+            style={{ maxWidth: 180 }}
+          >
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+
+        <Table
+          columns={columns}
+          data={filteredTasks}
+          loading={loading}
+          onRowClick={(row) => router.push(`/tasks/${row._id}`)}
+        />
+
+        {showAssignModal && (
+          <div className={modalStyles.modalOverlay} onClick={closeAssignModal}>
+            <div className={modalStyles.modalContent} onClick={(e) => e.stopPropagation()}>
+              <div className={modalStyles.modalHeader}>
+                <h2>Assign Task</h2>
+              </div>
+              <form onSubmit={handleAssignTask}>
+                <div className={modalStyles.formGroup}>
+                  <label htmlFor="employeeSelect">Select Employee *</label>
+                  <select
+                    id="employeeSelect"
+                    value={assignEmployeeId}
+                    onChange={(e) => setAssignEmployeeId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select an employee</option>
+                    {employees.map((emp) => (
+                      <option key={emp._id} value={emp._id}>
+                        {emp.username} — {emp.role} — {emp.phone}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={modalStyles.modalActions}>
+                  <button
+                    type="button"
+                    className={modalStyles.cancelButton}
+                    onClick={closeAssignModal}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className={modalStyles.submitButton}
+                    disabled={assigning}
+                  >
+                    {assigning ? 'Assigning...' : 'Assign'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+export default function TasksPageWrapper() {
+  return (
+    <ProtectedRoute>
+      <TasksPage />
+    </ProtectedRoute>
+  );
+}

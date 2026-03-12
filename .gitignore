@@ -1,0 +1,42 @@
+# User app - not part of this repo
+/user
+
+# Dependencies
+node_modules/
+
+# Environment and secrets (never commit)
+.env
+.env.*
+!.env.example
+!.env*.example
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Logs and debug
+*.log
+npm-debug.log*
+.DS_Store
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.temp
+.tmp
+
+# Testing and coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.tsbuildinfo
+.vercel
+
+# Uploaded files (backend)
+backend/uploads/
+uploads/*
