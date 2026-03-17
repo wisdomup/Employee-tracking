@@ -29,6 +29,9 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           script: |
             set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm use 22
             cd ${{ secrets.VPS_APP_PATH }}
             git pull origin main
             cd backend
@@ -57,6 +60,9 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           script: |
             set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm use 22
             cd ${{ secrets.VPS_APP_PATH }}
             git pull origin main
             cd admin
@@ -85,6 +91,9 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           script: |
             set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm use 22
             cd ${{ secrets.VPS_APP_PATH }}
             git pull origin main
             cd user
