@@ -58,7 +58,7 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/catalogs', catalogsRouter);
 
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).json({ message: 'GPS Tracking App is running' });
+  res.status(200).json({ message: 'GPS Tracking App backend is running' });
 });
 
 // 404
