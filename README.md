@@ -145,6 +145,61 @@ Use the Swagger UI at `http://localhost:3000/api/docs` to explore and test all A
 
 ---
 
+## CI/CD — Deployment
+
+Deployments are triggered by pushing a **Git tag** to `main`. GitHub Actions SSHs into the VPS, pulls the latest code, rebuilds the service, and restarts the PM2 process.
+
+### Tag Convention
+
+| Tag pattern | Deploys |
+|---|---|
+| `deploy-backend-*` | Backend only (`tracking.backend`) |
+| `deploy-admin-*` | Admin panel only (`tracking.admin`) |
+| `deploy-user-*` | User app only (`tracking.user`) |
+| `deploy-all-*` | All three services |
+
+### How to Deploy
+
+```bash
+# Deploy only the backend
+git tag deploy-backend-v1.1
+git push origin deploy-backend-v1.1
+
+# Deploy only the admin panel
+git tag deploy-admin-v1.1
+git push origin deploy-admin-v1.1
+
+# Deploy everything at once
+git tag deploy-all-v1.1
+git push origin deploy-all-v1.1
+```
+
+Tags must be unique — increment the suffix on each deploy (e.g. `v1.1`, `v1.2`, or use a date like `20260317`).
+
+### Required GitHub Secrets
+
+Go to **GitHub repo → Settings → Secrets and variables → Actions** and add:
+
+| Secret | Description |
+|---|---|
+| `VPS_HOST` | VPS IP address or domain |
+| `VPS_USER` | SSH username (e.g. `ubuntu`, `root`) |
+| `SSH_PRIVATE_KEY` | Contents of `~/.ssh/id_rsa` (private key) |
+| `VPS_PORT` | SSH port (usually `22`) |
+| `VPS_APP_PATH` | Absolute path to the repo on the VPS (e.g. `/var/www/tracking-app`) |
+
+### PM2 Process Reference
+
+Defined in [`pm2/ecosystem.config.js`](pm2/ecosystem.config.js). To start all processes on a fresh VPS:
+
+```bash
+pm2 start pm2/ecosystem.config.js
+pm2 save
+pm2 startup
+```
+
+---
+
 ## License
 
 Private project.

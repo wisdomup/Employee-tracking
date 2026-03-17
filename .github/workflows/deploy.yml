@@ -1,0 +1,94 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "deploy-backend-*"
+      - "deploy-admin-*"
+      - "deploy-user-*"
+      - "deploy-all-*"
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # BACKEND  (PM2 process: tracking.backend)
+  # Trigger: deploy-backend-* | deploy-all-*
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    if: |
+      startsWith(github.ref_name, 'deploy-backend') ||
+      startsWith(github.ref_name, 'deploy-all')
+    steps:
+      - name: SSH → pull → build → restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_APP_PATH }}
+            git pull origin main
+            cd backend
+            npm ci
+            npm run build
+            pm2 restart tracking.backend
+            pm2 save
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # ADMIN  (PM2 process: tracking.admin)
+  # Trigger: deploy-admin-* | deploy-all-*
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-admin:
+    name: Deploy Admin
+    runs-on: ubuntu-latest
+    if: |
+      startsWith(github.ref_name, 'deploy-admin') ||
+      startsWith(github.ref_name, 'deploy-all')
+    steps:
+      - name: SSH → pull → build → restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_APP_PATH }}
+            git pull origin main
+            cd admin
+            npm ci
+            npm run build
+            pm2 restart tracking.admin
+            pm2 save
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # USER  (PM2 process: tracking.user)
+  # Trigger: deploy-user-* | deploy-all-*
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-user:
+    name: Deploy User App
+    runs-on: ubuntu-latest
+    if: |
+      startsWith(github.ref_name, 'deploy-user') ||
+      startsWith(github.ref_name, 'deploy-all')
+    steps:
+      - name: SSH → pull → build → restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_APP_PATH }}
+            git pull origin main
+            cd user
+            npm ci
+            npm run build
+            pm2 restart tracking.user
+            pm2 save
