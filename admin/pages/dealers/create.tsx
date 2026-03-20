@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -6,6 +6,8 @@ import { dealerService, Dealer } from '../../services/dealerService';
 import { routeService, Route } from '../../services/routeService';
 import { ImageUpload } from '../../components/UI/ImageUpload';
 import MapPicker from '../../components/Map/MapPicker';
+import GeolocationPromptDialog from '../../components/UI/GeolocationPromptDialog';
+import { useGeolocationPicker } from '../../hooks/useGeolocationPicker';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
 
@@ -43,6 +45,18 @@ const CreateDealerPage: React.FC = () => {
   useEffect(() => {
     routeService.getRoutes().then(setRoutes).catch(() => toast.error('Failed to load routes'));
   }, []);
+
+  const onLocationSuccess = useCallback((lat: number, lng: number) => {
+    setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+  }, []);
+
+  const {
+    locationLoading,
+    geoVariant,
+    openPicker,
+    confirmConsent,
+    closeDialog,
+  } = useGeolocationPicker(onLocationSuccess);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -249,6 +263,15 @@ const CreateDealerPage: React.FC = () => {
             <p className={styles.hint} style={{ marginBottom: '0.75rem', color: '#6b7280', fontSize: '0.875rem' }}>
               Click on the map to pick a location, or enter latitude and longitude below.
             </p>
+            <button
+              type="button"
+              className={styles.cancelButton}
+              onClick={() => void openPicker()}
+              disabled={locationLoading}
+              style={{ marginBottom: '0.75rem' }}
+            >
+              {locationLoading ? 'Getting location…' : 'Use current location'}
+            </button>
             <div className={styles.formRow}>
               <div className={styles.formGroup}>
                 <label htmlFor="latitude">Latitude</label>
@@ -387,6 +410,12 @@ const CreateDealerPage: React.FC = () => {
             </button>
           </div>
         </form>
+
+        <GeolocationPromptDialog
+          variant={geoVariant}
+          onClose={closeDialog}
+          onConsentContinue={confirmConsent}
+        />
       </div>
     </Layout>
   );

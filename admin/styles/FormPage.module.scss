@@ -181,21 +181,3 @@
     background-color: #d1d5db;
   }
 }
-
-/* Full-width date picker when used in forms (DatePickerFilter with fullWidth) */
-:global(.date-picker-full-width) {
-  width: 100%;
-  min-width: 0; /* allow grid/flex shrink */
-
-  /* react-datepicker wrapper is inline-block by default; force full width */
-  :global(.react-datepicker-wrapper) {
-    display: block !important;
-    width: 100%;
-  }
-
-  input {
-    width: 100% !important;
-    max-width: none !important; /* override ListPage .searchInput max-width: 400px */
-    box-sizing: border-box;
-  }
-}

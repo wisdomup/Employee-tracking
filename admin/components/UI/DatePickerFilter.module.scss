@@ -1,0 +1,15 @@
+.fullWidth {
+  width: 100%;
+  min-width: 0;
+
+  :global(.react-datepicker-wrapper) {
+    display: block !important;
+    width: 100%;
+  }
+
+  input {
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box;
+  }
+}

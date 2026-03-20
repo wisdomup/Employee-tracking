@@ -1,7 +1,8 @@
 import React from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import styles from '../../styles/ListPage.module.scss';
+import listStyles from '../../styles/ListPage.module.scss';
+import pickerStyles from './DatePickerFilter.module.scss';
 
 interface DatePickerFilterProps {
   value: string;
@@ -31,7 +32,7 @@ const DatePickerFilter: React.FC<DatePickerFilterProps> = ({
       style={{
         ...(useFullWidth ? { width: '100%' } : { maxWidth: 160 }),
       }}
-      className={useFullWidth ? 'date-picker-full-width' : undefined}
+      className={useFullWidth ? pickerStyles.fullWidth : undefined}
     >
       <DatePicker
         id={id}
@@ -49,7 +50,7 @@ const DatePickerFilter: React.FC<DatePickerFilterProps> = ({
         dateFormat="MMM d, yyyy"
         placeholderText={placeholder}
         title={title}
-        className={styles.searchInput}
+        className={listStyles.searchInput}
         isClearable
         showMonthDropdown
         showYearDropdown
