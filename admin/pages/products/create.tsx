@@ -25,6 +25,7 @@ const CreateProductPage: React.FC = () => {
     image: '',
     salePrice: '',
     purchasePrice: '',
+    onlinePrice: '',
     quantity: '',
     categoryId: '',
   });
@@ -91,6 +92,7 @@ const CreateProductPage: React.FC = () => {
         image: formData.image || undefined,
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
+        onlinePrice: formData.onlinePrice ? parseFloat(formData.onlinePrice) : undefined,
         quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
         categoryId: formData.categoryId,
         extras,
@@ -180,6 +182,20 @@ const CreateProductPage: React.FC = () => {
                 id="purchasePrice"
                 name="purchasePrice"
                 value={formData.purchasePrice}
+                onChange={handleChange}
+                className={styles.input}
+                min={0}
+                step="0.01"
+                placeholder="0.00"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="onlinePrice">Online Price</label>
+              <input
+                type="number"
+                id="onlinePrice"
+                name="onlinePrice"
+                value={formData.onlinePrice}
                 onChange={handleChange}
                 className={styles.input}
                 min={0}

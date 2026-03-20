@@ -208,6 +208,12 @@ const RouteDetailPage: React.FC = () => {
                 <span className={styles.label}>End:</span>
                 <span className={styles.value}>{route.endingPoint}</span>
               </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Dealers assigned:</span>
+                <span className={styles.value}>
+                  {route.dealerCount !== undefined ? route.dealerCount : dealers.length}
+                </span>
+              </div>
               {routeAssignment?.employeeId && (
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Assigned To:</span>
@@ -230,7 +236,11 @@ const RouteDetailPage: React.FC = () => {
 
           <div className={styles.section}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <h2 style={{ margin: 0 }}>Dealers on this route</h2>
+              <h2 style={{ margin: 0 }}>
+                Dealers on this route (
+                {route.dealerCount !== undefined ? route.dealerCount : dealers.length}
+                )
+              </h2>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
                 <button
                   type="button"

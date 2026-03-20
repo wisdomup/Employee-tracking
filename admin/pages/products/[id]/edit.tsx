@@ -28,6 +28,7 @@ const EditProductPage: React.FC = () => {
     image: '',
     salePrice: '',
     purchasePrice: '',
+    onlinePrice: '',
     quantity: '',
     categoryId: '',
   });
@@ -47,6 +48,7 @@ const EditProductPage: React.FC = () => {
         image: data.image || '',
         salePrice: data.salePrice !== undefined ? data.salePrice.toString() : '',
         purchasePrice: data.purchasePrice !== undefined ? data.purchasePrice.toString() : '',
+        onlinePrice: data.onlinePrice !== undefined ? data.onlinePrice.toString() : '',
         quantity: data.quantity !== undefined ? data.quantity.toString() : '',
         categoryId: data.categoryId?._id || data.categoryId || '',
       });
@@ -120,6 +122,7 @@ const EditProductPage: React.FC = () => {
         image: formData.image || undefined,
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
+        onlinePrice: formData.onlinePrice ? parseFloat(formData.onlinePrice) : undefined,
         quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
         categoryId: formData.categoryId,
         extras: extras !== undefined ? extras : {},
@@ -208,6 +211,19 @@ const EditProductPage: React.FC = () => {
                 id="purchasePrice"
                 name="purchasePrice"
                 value={formData.purchasePrice}
+                onChange={handleChange}
+                className={styles.input}
+                min={0}
+                step="0.01"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="onlinePrice">Online Price</label>
+              <input
+                type="number"
+                id="onlinePrice"
+                name="onlinePrice"
+                value={formData.onlinePrice}
                 onChange={handleChange}
                 className={styles.input}
                 min={0}

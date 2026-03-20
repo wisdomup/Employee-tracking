@@ -12,6 +12,9 @@ export const DEALER_CATEGORIES = {
   WHOLESELLER: 'wholesaler'
 } as const;
 
+/** Maximum dealers that can be linked to a single route (dealer.route). */
+export const MAX_DEALERS_PER_ROUTE = 20;
+
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 export type DealerCategory = (typeof DEALER_CATEGORIES)[keyof typeof DEALER_CATEGORIES];

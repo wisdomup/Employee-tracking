@@ -106,6 +106,11 @@ const ProductsPage: React.FC = () => {
       render: (value: number) => (value !== undefined ? `Rs. ${value.toFixed(2)}` : '-'),
     },
     {
+      key: 'onlinePrice',
+      title: 'Online',
+      render: (value: number) => (value !== undefined ? `Rs. ${value.toFixed(2)}` : '-'),
+    },
+    {
       key: 'quantity',
       title: 'Qty',
       render: (value: number) => (value !== undefined ? value : '-'),

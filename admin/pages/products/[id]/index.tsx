@@ -79,6 +79,12 @@ const ProductDetailPage: React.FC = () => {
                 </span>
               </div>
               <div className={styles.infoItem}>
+                <span className={styles.label}>Online Price:</span>
+                <span className={styles.value}>
+                  {product.onlinePrice !== undefined ? `Rs. ${product.onlinePrice.toFixed(2)}` : '-'}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
                 <span className={styles.label}>Stock Quantity:</span>
                 <span className={styles.value}>
                   {product.quantity !== undefined ? product.quantity : '-'}

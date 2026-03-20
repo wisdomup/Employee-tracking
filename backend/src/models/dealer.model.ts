@@ -1,5 +1,5 @@
 import { Schema, model, Document, Types } from 'mongoose';
-import { DEALER_CATEGORIES, DealerCategory } from 'src/constants/global';
+import { DEALER_CATEGORIES, DealerCategory } from '../constants/global';
 
 export interface IDealer extends Document {
   _id: Types.ObjectId;
@@ -29,7 +29,7 @@ export interface IDealer extends Document {
 const dealerSchema = new Schema<IDealer>(
   {
     name: { type: String, required: true },
-    phone: { type: String, required: true },
+    phone: { type: String, required: true, unique: true, trim: true },
     email: { type: String },
     address: {
       street: String,

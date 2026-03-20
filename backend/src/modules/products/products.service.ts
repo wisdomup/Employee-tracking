@@ -10,6 +10,7 @@ export async function createProduct(
     image?: string;
     salePrice?: number;
     purchasePrice?: number;
+    onlinePrice?: number;
     quantity?: number;
     categoryId: string;
     extras?: Record<string, string>;

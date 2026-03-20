@@ -5,6 +5,8 @@ export interface Route {
   name: string;
   startingPoint: string;
   endingPoint: string;
+  /** Present on GET /routes/:id — dealers linked via dealer.route */
+  dealerCount?: number;
   createdBy?: { _id: string; username?: string; userID?: string; role?: string };
   assignedEmployee?: { username?: string; userID?: string } | null;
   createdAt: string;

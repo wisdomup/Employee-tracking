@@ -8,6 +8,7 @@ export interface Product {
   image?: string;
   salePrice?: number;
   purchasePrice?: number;
+  onlinePrice?: number;
   quantity?: number;
   categoryId: any;
   createdBy?: any;

@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { DealerModel } from '../../models/dealer.model';
 import { RouteModel } from '../../models/route.model';
 import { RouteAssignmentModel } from '../../models/route-assignment.model';
 import { notFound } from '../../utils/app-error';
@@ -66,7 +67,8 @@ export async function findById(id: string) {
     throw notFound('Route not found');
   }
 
-  return route;
+  const dealerCount = await DealerModel.countDocuments({ route: new Types.ObjectId(id) }).exec();
+  return { ...route.toObject({ flattenMaps: true }), dealerCount };
 }
 
 export async function updateRoute(id: string, data: object) {

@@ -1,7 +1,52 @@
 import { Types } from 'mongoose';
+import { MAX_DEALERS_PER_ROUTE } from '../../constants/global';
 import { DealerModel } from '../../models/dealer.model';
 import { calculateDistance } from '../../services/distance.service';
-import { notFound } from '../../utils/app-error';
+import { badRequest, notFound } from '../../utils/app-error';
+
+const ROUTE_DEALER_LIMIT_MESSAGE =
+  `This route already has the maximum of ${MAX_DEALERS_PER_ROUTE} dealers. You cannot add this dealer or any more dealers to this route — max limit reached. Create another route to add dealers.`;
+
+const DEALER_PHONE_EXISTS_MESSAGE =
+  'This phone number already exists. Another dealer is already registered with this phone number — please enter a different phone number.';
+
+/** Match duplicates ignoring leading/trailing spaces (consistent with stored trimmed values). */
+async function assertDealerPhoneAvailable(phone: string, excludeDealerId?: string) {
+  const normalized = phone.trim();
+  if (!normalized) {
+    throw badRequest('Phone number is required.');
+  }
+  const filter: Record<string, unknown> = {
+    $expr: { $eq: [{ $trim: { input: '$phone' } }, normalized] },
+  };
+  if (excludeDealerId) {
+    filter._id = { $ne: new Types.ObjectId(excludeDealerId) };
+  }
+  const existing = await DealerModel.findOne(filter).exec();
+  if (existing) {
+    throw badRequest(DEALER_PHONE_EXISTS_MESSAGE);
+  }
+}
+
+function isPhoneDuplicateKey(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return false;
+  if ((err as { code: number }).code !== 11000) return false;
+  const o = err as { keyPattern?: Record<string, unknown>; keyValue?: Record<string, unknown> };
+  if (o.keyPattern && Object.prototype.hasOwnProperty.call(o.keyPattern, 'phone')) return true;
+  if (o.keyValue && Object.prototype.hasOwnProperty.call(o.keyValue, 'phone')) return true;
+  return false;
+}
+
+async function assertCanAssignDealerToRoute(routeId: string, excludeDealerId?: string) {
+  const filter: Record<string, unknown> = { route: new Types.ObjectId(routeId) };
+  if (excludeDealerId) {
+    filter._id = { $ne: new Types.ObjectId(excludeDealerId) };
+  }
+  const count = await DealerModel.countDocuments(filter).exec();
+  if (count >= MAX_DEALERS_PER_ROUTE) {
+    throw badRequest(ROUTE_DEALER_LIMIT_MESSAGE);
+  }
+}
 
 export async function createDealer(
   data: {
@@ -20,12 +65,23 @@ export async function createDealer(
   },
   userId?: string,
 ) {
-  const payload: Record<string, unknown> = { ...data };
+  await assertDealerPhoneAvailable(data.phone);
+  if (data.route) {
+    await assertCanAssignDealerToRoute(data.route);
+  }
+  const payload: Record<string, unknown> = { ...data, phone: data.phone.trim() };
   if (data.route) {
     payload.route = new Types.ObjectId(data.route);
   }
   if (userId) payload.createdBy = new Types.ObjectId(userId);
-  return DealerModel.create(payload);
+  try {
+    return await DealerModel.create(payload);
+  } catch (err) {
+    if (isPhoneDuplicateKey(err)) {
+      throw badRequest(DEALER_PHONE_EXISTS_MESSAGE);
+    }
+    throw err;
+  }
 }
 
 export async function findAll(filters?: { status?: string; search?: string; routeId?: string }) {
@@ -89,11 +145,27 @@ export async function updateDealer(
   }
 
   const update: Record<string, unknown> = { ...data };
+  if (data.phone !== undefined) {
+    await assertDealerPhoneAvailable(data.phone, id);
+    update.phone = data.phone.trim();
+  }
   if (data.route !== undefined) {
+    const targetRouteId = data.route || null;
+    const currentRouteId = dealer.route ? dealer.route.toString() : null;
+    if (targetRouteId && targetRouteId !== currentRouteId) {
+      await assertCanAssignDealerToRoute(targetRouteId, id);
+    }
     update.route = data.route ? new Types.ObjectId(data.route) : null;
   }
   Object.assign(dealer, update);
-  await dealer.save();
+  try {
+    await dealer.save();
+  } catch (err) {
+    if (isPhoneDuplicateKey(err)) {
+      throw badRequest(DEALER_PHONE_EXISTS_MESSAGE);
+    }
+    throw err;
+  }
 
   return dealer.populate('route');
 }
