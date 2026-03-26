@@ -34,7 +34,7 @@ export interface Visit {
 
 export const visitService = {
   async getVisits(filters?: {
-    dealerId?: string;
+    clientId?: string;
     employeeId?: string;
     routeId?: string;
     status?: string;
@@ -42,7 +42,7 @@ export const visitService = {
     endDate?: string;
   }) {
     const params = new URLSearchParams();
-    if (filters?.dealerId) params.append('dealerId', filters.dealerId);
+    if (filters?.clientId) params.append('dealerId', filters.clientId);
     if (filters?.employeeId) params.append('employeeId', filters.employeeId);
     if (filters?.routeId) params.append('routeId', filters.routeId);
     if (filters?.status) params.append('status', filters.status);

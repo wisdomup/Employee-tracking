@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { orderService } from '../../services/orderService';
-import { dealerService, Dealer } from '../../services/dealerService';
+import { clientService, Client } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { productService, Product } from '../../services/productService';
 import { toast } from 'react-toastify';
@@ -19,14 +19,14 @@ interface LineItem {
 const CreateOrderPage: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { productId: '', quantity: 1, price: 0 },
   ]);
   const [formData, setFormData] = useState({
-    dealerId: '',
+    clientId: '',
     routeId: '',
     paymentType: '' as '' | 'online' | 'adjustment' | 'cash' | 'credit',
     discount: '',
@@ -36,7 +36,7 @@ const CreateOrderPage: React.FC = () => {
   });
 
   useEffect(() => {
-    dealerService.getDealers().then(setDealers).catch(() => {});
+    clientService.getClients().then(setClients).catch(() => {});
     routeService.getRoutes().then(setRoutes).catch(() => {});
     productService.getProducts().then(setProducts).catch(() => {});
   }, []);
@@ -111,8 +111,8 @@ const CreateOrderPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.dealerId) {
-      toast.error('Please select a dealer');
+    if (!formData.clientId) {
+      toast.error('Please select a client');
       return;
     }
     const validItems = lineItems.filter((item) => item.productId);
@@ -136,7 +136,7 @@ const CreateOrderPage: React.FC = () => {
     setLoading(true);
     try {
       await orderService.createOrder({
-        dealerId: formData.dealerId,
+        dealerId: formData.clientId,
         routeId: formData.routeId || undefined,
         paymentType: formData.paymentType || undefined,
         products: validItems.map((item) => ({
@@ -169,17 +169,17 @@ const CreateOrderPage: React.FC = () => {
         </div>
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="dealerId">Dealer *</label>
+            <label htmlFor="clientId">Client *</label>
             <select
-              id="dealerId"
-              name="dealerId"
-              value={formData.dealerId}
+              id="clientId"
+              name="clientId"
+              value={formData.clientId}
               onChange={handleChange}
               required
               className={styles.select}
             >
-              <option value="">Select a dealer</option>
-              {dealers.map((d) => (
+              <option value="">Select a client</option>
+              {clients.map((d) => (
                 <option key={d._id} value={d._id}>
                   {d.name} — {d.phone}
                 </option>

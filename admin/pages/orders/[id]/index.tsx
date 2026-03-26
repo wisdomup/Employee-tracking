@@ -25,6 +25,17 @@ const OrderDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const handleApprove = async () => {
+    if (!order) return;
+    try {
+      const updatedOrder = await orderService.approveOrder(order._id);
+      setOrder(updatedOrder);
+      toast.success('Order approved');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to approve order');
+    }
+  };
+
   if (loading) return <Layout><Loader /></Layout>;
   if (!order) return <Layout><div>Order not found</div></Layout>;
 
@@ -38,6 +49,11 @@ const OrderDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Order Details</h1>
           <div className={styles.headerActions}>
+            {order.status === 'pending' && (
+              <button className={styles.approveButton} onClick={handleApprove}>
+                Approve
+              </button>
+            )}
             <button className={styles.editButton} onClick={() => router.push(`/orders/${id}/edit`)}>
               Edit
             </button>
@@ -60,7 +76,7 @@ const OrderDetailPage: React.FC = () => {
                 <span className={styles.value}><StatusBadge status={order.status} /></span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Dealer:</span>
+                <span className={styles.label}>Client:</span>
                 <span className={styles.value}>{order.dealerId?.name || '-'}</span>
               </div>
               {order.routeId && (

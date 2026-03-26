@@ -5,7 +5,7 @@ import styles from './MapView.module.scss';
 interface Marker {
   lat: number;
   lng: number;
-  type: 'dealer' | 'completion';
+  type: 'client' | 'completion';
   label?: string;
 }
 
@@ -66,8 +66,8 @@ const MapView: React.FC<MapViewProps> = ({ markers, height = '400px' }) => {
     if (markers.length === 0) return;
 
     // Create custom icons
-    const dealerIcon = L.divIcon({
-      className: 'custom-marker dealer-marker',
+    const clientIcon = L.divIcon({
+      className: 'custom-marker client-marker',
       html: '<div style="background-color: #3b82f6; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
       iconSize: [30, 30],
     });
@@ -80,7 +80,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, height = '400px' }) => {
 
     // Add markers
     markers.forEach((marker) => {
-      const icon = marker.type === 'dealer' ? dealerIcon : completionIcon;
+      const icon = marker.type === 'client' ? clientIcon : completionIcon;
       const markerInstance = L.marker([marker.lat, marker.lng], { icon }).addTo(
         map
       );

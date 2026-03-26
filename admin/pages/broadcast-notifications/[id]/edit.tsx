@@ -122,7 +122,7 @@ const EditBroadcastNotificationPage: React.FC = () => {
             >
               <option value="all">All</option>
               <option value="employees">Employees</option>
-              <option value="dealers">Dealers</option>
+              <option value="clients">Clients</option>
               <option value="customers">Customers</option>
             </select>
           </div>

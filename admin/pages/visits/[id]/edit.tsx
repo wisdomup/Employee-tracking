@@ -96,7 +96,7 @@ const EditVisitPage: React.FC = () => {
         toast.success('Visit marked as completed');
         router.push(`/visits/${id}`);
       } else {
-        const dealerId =
+        const clientId =
           typeof visit?.dealerId === 'string'
             ? visit.dealerId
             : (visit?.dealerId as { _id?: string })?._id ?? visit?.dealerId;
@@ -104,13 +104,13 @@ const EditVisitPage: React.FC = () => {
           typeof visit?.employeeId === 'string'
             ? visit.employeeId
             : (visit?.employeeId as { _id?: string })?._id ?? visit?.employeeId;
-        if (!dealerId || !employeeId) {
-          toast.error('Visit data is missing dealer or employee. Cannot update.');
+        if (!clientId || !employeeId) {
+          toast.error('Visit data is missing client or employee. Cannot update.');
           setLoading(false);
           return;
         }
         await visitService.updateVisit(id as string, {
-          dealerId,
+          dealerId: clientId,
           employeeId,
           visitDate: formData.visitDate || undefined,
           status: formData.status as Visit['status'],

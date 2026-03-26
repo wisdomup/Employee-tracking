@@ -14,6 +14,7 @@ const addressSchema = Joi.object({
 
 export const createDealerSchema = Joi.object({
   name: Joi.string().required(),
+  shopName: Joi.string().allow('').optional(),
   phone: Joi.string().required(),
   email: Joi.string().email().optional(),
   address: addressSchema,
@@ -29,6 +30,7 @@ export const createDealerSchema = Joi.object({
 
 export const updateDealerSchema = Joi.object({
   name: Joi.string().required(),
+  shopName: Joi.string().allow('').optional(),
   phone: Joi.string().required(),
   email: Joi.string().email().optional(),
   address: addressSchema,

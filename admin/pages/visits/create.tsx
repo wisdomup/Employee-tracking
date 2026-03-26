@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { visitService, Visit, VisitCompletionImage } from '../../services/visitService';
-import { dealerService, Dealer } from '../../services/dealerService';
+import { clientService, Client } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { ImageUpload } from '../../components/UI/ImageUpload';
@@ -13,11 +13,11 @@ import styles from '../../styles/FormPage.module.scss';
 const CreateVisitPage: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [formData, setFormData] = useState({
-    dealerId: '',
+    clientId: '',
     employeeId: '',
     routeId: '',
     visitDate: '',
@@ -31,7 +31,7 @@ const CreateVisitPage: React.FC = () => {
   const [selfieImageUrl, setSelfieImageUrl] = useState('');
 
   useEffect(() => {
-    dealerService.getDealers().then(setDealers).catch(() => {});
+    clientService.getClients().then(setClients).catch(() => {});
     routeService.getRoutes().then(setRoutes).catch(() => {});
     employeeService.getEmployees().then(setEmployees).catch(() => {});
   }, []);
@@ -66,8 +66,8 @@ const CreateVisitPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.dealerId || !formData.employeeId) {
-      toast.error('Please select dealer and employee');
+    if (!formData.clientId || !formData.employeeId) {
+      toast.error('Please select client and employee');
       return;
     }
     const isCompleting = formData.status === 'completed';
@@ -81,12 +81,12 @@ const CreateVisitPage: React.FC = () => {
     try {
       if (isCompleting) {
         const created = await visitService.createVisit({
-          dealerId: formData.dealerId,
+          dealerId: formData.clientId,
           employeeId: formData.employeeId,
           routeId: formData.routeId || undefined,
           visitDate: formData.visitDate || undefined,
           status: 'todo',
-        });
+        } as any);
         const newId = (created as { _id: string })._id;
         const completionImages: VisitCompletionImage[] = [
           { type: 'shop', url: shopImageUrl },
@@ -101,7 +101,7 @@ const CreateVisitPage: React.FC = () => {
         router.push(`/visits/${newId}`);
       } else {
         await visitService.createVisit({
-          dealerId: formData.dealerId,
+          dealerId: formData.clientId,
           employeeId: formData.employeeId,
           routeId: formData.routeId || undefined,
           visitDate: formData.visitDate || undefined,
@@ -132,17 +132,17 @@ const CreateVisitPage: React.FC = () => {
         </div>
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="dealerId">Dealer *</label>
+            <label htmlFor="clientId">Client *</label>
             <select
-              id="dealerId"
-              name="dealerId"
-              value={formData.dealerId}
+              id="clientId"
+              name="clientId"
+              value={formData.clientId}
               onChange={handleChange}
               required
               className={styles.select}
             >
-              <option value="">Select a dealer</option>
-              {dealers.map((d) => (
+              <option value="">Select a client</option>
+              {clients.map((d) => (
                 <option key={d._id} value={d._id}>
                   {d.name} — {d.phone}
                 </option>

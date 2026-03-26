@@ -133,5 +133,7 @@ router.put('/:id', requireRoles('admin'), validate(updateProductSchema), control
  *       404: { description: Product not found }
  */
 router.delete('/:id', requireRoles('admin'), controller.remove);
+router.patch('/:id/restore', requireRoles('admin'), controller.restore);
+router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
 
 export default router;

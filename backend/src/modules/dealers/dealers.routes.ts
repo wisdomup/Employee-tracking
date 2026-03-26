@@ -25,7 +25,8 @@ router.use(authMiddleware);
  *             type: object
  *             required: [name, phone]
  *             properties:
- *               name: { type: string, example: ABC Store }
+ *               name: { type: string, example: Asad Ali }
+ *               shopName: { type: string, example: ABC Store }
  *               phone: { type: string, example: '03001234567' }
  *               email: { type: string, example: store@example.com }
  *               latitude: { type: number, example: 31.5204 }
@@ -167,6 +168,7 @@ router.get('/:id', requireRoles('admin', 'employee'), controller.findOne);
  *             type: object
  *             properties:
  *               name: { type: string }
+ *               shopName: { type: string }
  *               phone: { type: string }
  *               email: { type: string }
  *               latitude: { type: number }
@@ -206,5 +208,7 @@ router.put('/:id', requireRoles('admin', 'employee'), validate(updateDealerSchem
  *       404: { description: Dealer not found }
  */
 router.delete('/:id', requireRoles('admin'), controller.remove);
+router.patch('/:id/restore', requireRoles('admin'), controller.restore);
+router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
 
 export default router;

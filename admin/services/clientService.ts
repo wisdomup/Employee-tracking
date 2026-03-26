@@ -7,9 +7,10 @@ export interface RouteRef {
   endingPoint?: string;
 }
 
-export interface Dealer {
+export interface Client {
   _id: string;
-  name: string;
+  name: string; // client/person name
+  shopName?: string; // shop/business name
   phone: string;
   email?: string;
   address?: {
@@ -32,8 +33,8 @@ export interface Dealer {
   updatedAt: string;
 }
 
-export const dealerService = {
-  async getDealers(filters?: { status?: string; search?: string; routeId?: string }) {
+export const clientService = {
+  async getClients(filters?: { status?: string; search?: string; routeId?: string }) {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.search) params.append('search', filters.search);
@@ -43,22 +44,22 @@ export const dealerService = {
     return response.data;
   },
 
-  async getDealer(id: string) {
+  async getClient(id: string) {
     const response = await api.get(`/dealers/${id}`);
     return response.data;
   },
 
-  async createDealer(data: Partial<Dealer>) {
+  async createClient(data: Partial<Client>) {
     const response = await api.post('/dealers', data);
     return response.data;
   },
 
-  async updateDealer(id: string, data: Partial<Dealer>) {
+  async updateClient(id: string, data: Partial<Client>) {
     const response = await api.put(`/dealers/${id}`, data);
     return response.data;
   },
 
-  async deleteDealer(id: string) {
+  async deleteClient(id: string) {
     const response = await api.delete(`/dealers/${id}`);
     return response.data;
   },

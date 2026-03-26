@@ -55,7 +55,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const visit = await visitsService.updateVisit(req.params.id, req.body);
+    const visit = await visitsService.updateVisit(req.params.id, req.body, req.user?.userId);
     res.json(visit);
   } catch (err) {
     next(err);
@@ -64,7 +64,25 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await visitsService.deleteVisit(req.params.id);
+    const result = await visitsService.deleteVisit(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restore(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await visitsService.restoreVisit(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePermanent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await visitsService.permanentlyDeleteVisit(req.params.id, req.user?.userId);
     res.json(result);
   } catch (err) {
     next(err);

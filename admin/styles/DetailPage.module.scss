@@ -44,6 +44,7 @@
 }
 
 .editButton,
+.approveButton,
 .backButton {
   padding: 0.75rem 1.5rem;
   border: none;
@@ -59,6 +60,15 @@
 
   &:hover {
     background-color: #2563eb;
+  }
+}
+
+.approveButton {
+  background-color: #22c55e;
+  color: white;
+
+  &:hover {
+    background-color: #16a34a;
   }
 }
 

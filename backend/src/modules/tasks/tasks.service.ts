@@ -195,10 +195,11 @@ export async function startTask(
 
   await logActivity({
     employeeId,
+    module: 'task',
+    entityId: taskId,
     taskId,
     action: 'started_task',
-    latitude: data.latitude,
-    longitude: data.longitude,
+    meta: { taskName: task.taskName },
   });
 
   return task;
@@ -243,10 +244,11 @@ export async function completeTask(
 
   await logActivity({
     employeeId,
+    module: 'task',
+    entityId: taskId,
     taskId,
     action: 'completed_task',
-    latitude: data.latitude,
-    longitude: data.longitude,
+    meta: { taskName: task.taskName },
   });
 
   return task;

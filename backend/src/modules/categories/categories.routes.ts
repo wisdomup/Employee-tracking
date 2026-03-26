@@ -119,5 +119,7 @@ router.put('/:id', requireRoles('admin'), validate(updateCategorySchema), contro
  *       404: { description: Category not found }
  */
 router.delete('/:id', requireRoles('admin'), controller.remove);
+router.patch('/:id/restore', requireRoles('admin'), controller.restore);
+router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
 
 export default router;

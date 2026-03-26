@@ -3,8 +3,16 @@ import * as activityLogsService from './activity-logs.service';
 
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
-    const { employeeId, startDate, endDate } = req.query as Record<string, string>;
-    const logs = await activityLogsService.findAll({ employeeId, startDate, endDate });
+    const { employeeId, module, action, startDate, endDate, limit } = req.query as Record<string, string>;
+    const limitNum = limit ? parseInt(limit, 10) : 100;
+    const logs = await activityLogsService.findAll({
+      employeeId,
+      module,
+      action,
+      startDate,
+      endDate,
+      limit: limitNum,
+    });
     res.json(logs);
   } catch (err) {
     next(err);

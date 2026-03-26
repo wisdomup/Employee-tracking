@@ -6,7 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import { orderService, Order } from '../../services/orderService';
-import { dealerService, Dealer } from '../../services/dealerService';
+import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -14,10 +14,10 @@ import styles from '../../styles/ListPage.module.scss';
 
 const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dealerFilter, setDealerFilter] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -25,19 +25,19 @@ const OrdersPage: React.FC = () => {
   const router = useRouter();
 
   useEffect(() => {
-    dealerService.getDealers().then(setDealers).catch(() => {});
+    clientService.getClients().then(setClients).catch(() => {});
     employeeService.getEmployees().then(setEmployees).catch(() => {});
   }, []);
 
   useEffect(() => {
     fetchOrders();
-  }, [dealerFilter, statusFilter, employeeFilter, startDate, endDate]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate]);
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
       const data = await orderService.getOrders({
-        dealerId: dealerFilter || undefined,
+        clientId: clientFilter || undefined,
         status: statusFilter || undefined,
         createdBy: employeeFilter || undefined,
         startDate: startDate || undefined,
@@ -62,6 +62,16 @@ const OrdersPage: React.FC = () => {
     }
   };
 
+  const handleApprove = async (id: string) => {
+    try {
+      await orderService.approveOrder(id);
+      toast.success('Order approved');
+      fetchOrders();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to approve order');
+    }
+  };
+
   const columns = [
     {
       key: '_id',
@@ -70,7 +80,7 @@ const OrdersPage: React.FC = () => {
     },
     {
       key: 'dealerId',
-      title: 'Dealer',
+      title: 'Client',
       render: (value: any) => value?.name || '-',
     },
     {
@@ -116,6 +126,17 @@ const OrdersPage: React.FC = () => {
       title: 'Actions',
       render: (_: any, row: Order) => (
         <div className={styles.actions}>
+          {row.status === 'pending' && (
+            <button
+              className={styles.approveButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleApprove(row._id);
+              }}
+            >
+              Approve
+            </button>
+          )}
           <button
             className={styles.editButton}
             onClick={(e) => {
@@ -159,13 +180,13 @@ const OrdersPage: React.FC = () => {
         </div>
         <div className={styles.searchBar}>
           <select
-            value={dealerFilter}
-            onChange={(e) => setDealerFilter(e.target.value)}
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
             className={styles.searchInput}
             style={{ maxWidth: 220 }}
           >
-            <option value="">All Dealers</option>
-            {dealers.map((d) => (
+            <option value="">All Clients</option>
+            {clients.map((d) => (
               <option key={d._id} value={d._id}>
                 {d.name}
               </option>
@@ -179,7 +200,7 @@ const OrdersPage: React.FC = () => {
           >
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
+            <option value="approved">Approved</option>
             <option value="packed">Packed</option>
             <option value="dispatched">Dispatched</option>
             <option value="delivered">Delivered</option>

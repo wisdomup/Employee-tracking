@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout/Layout';
-import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
-import { dealerService, Dealer } from '../../../services/dealerService';
-import { routeService, Route } from '../../../services/routeService';
-import { ImageUpload } from '../../../components/UI/ImageUpload';
-import MapPicker from '../../../components/Map/MapPicker';
-import GeolocationPromptDialog from '../../../components/UI/GeolocationPromptDialog';
-import { useGeolocationPicker } from '../../../hooks/useGeolocationPicker';
+import Layout from '../../components/Layout/Layout';
+import ProtectedRoute from '../../components/Auth/ProtectedRoute';
+import { clientService, Client } from '../../services/clientService';
+import { routeService, Route } from '../../services/routeService';
+import { ImageUpload } from '../../components/UI/ImageUpload';
+import MapPicker from '../../components/Map/MapPicker';
+import GeolocationPromptDialog from '../../components/UI/GeolocationPromptDialog';
+import { useGeolocationPicker } from '../../hooks/useGeolocationPicker';
 import { toast } from 'react-toastify';
-import Loader from '../../../components/UI/Loader';
-import styles from '../../../styles/FormPage.module.scss';
+import styles from '../../styles/FormPage.module.scss';
 
 const DEALER_CATEGORIES = [
   { value: '', label: '— Select category —' },
@@ -18,19 +17,13 @@ const DEALER_CATEGORIES = [
   { value: 'wholesaler', label: 'Wholesaler' },
 ];
 
-const getRouteId = (route: Dealer['route']): string => {
-  if (!route) return '';
-  return typeof route === 'string' ? route : route._id;
-};
-
-const EditDealerPage: React.FC = () => {
+const CreateClientPage: React.FC = () => {
   const router = useRouter();
-  const { id } = router.query;
   const [loading, setLoading] = useState(false);
-  const [fetchLoading, setFetchLoading] = useState(true);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [formData, setFormData] = useState({
     name: '',
+    shopName: '',
     phone: '',
     email: '',
     address: {
@@ -51,12 +44,6 @@ const EditDealerPage: React.FC = () => {
   });
 
   useEffect(() => {
-    if (id) {
-      fetchDealer();
-    }
-  }, [id]);
-
-  useEffect(() => {
     routeService.getRoutes().then(setRoutes).catch(() => toast.error('Failed to load routes'));
   }, []);
 
@@ -72,39 +59,7 @@ const EditDealerPage: React.FC = () => {
     closeDialog,
   } = useGeolocationPicker(onLocationSuccess);
 
-  const fetchDealer = async () => {
-    try {
-      const data = await dealerService.getDealer(id as string);
-      setFormData({
-        name: data.name,
-        phone: data.phone,
-        email: data.email || '',
-        address: data.address || {
-          street: '',
-          city: '',
-          state: '',
-          country: '',
-          postalCode: '',
-        },
-        latitude: data.latitude ?? 0,
-        longitude: data.longitude ?? 0,
-        shopImage: data.shopImage || '',
-        profilePicture: data.profilePicture || '',
-        category: data.category || '',
-        rating: data.rating ?? '',
-        status: data.status,
-        routeId: getRouteId(data.route),
-      });
-    } catch (error) {
-      toast.error('Failed to fetch dealer');
-    } finally {
-      setFetchLoading(false);
-    }
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
     if (name.startsWith('address.')) {
@@ -136,6 +91,10 @@ const EditDealerPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.routeId) {
+      toast.error('Please select a route');
+      return;
+    }
     if (!formData.shopImage) {
       toast.error('Please upload a shop image');
       return;
@@ -145,7 +104,7 @@ const EditDealerPage: React.FC = () => {
       return;
     }
     if (formData.latitude === 0 && formData.longitude === 0) {
-      toast.error('Please pick a dealer location on the map');
+      toast.error('Please pick a client location on the map');
       return;
     }
     if (!formData.category) {
@@ -159,45 +118,40 @@ const EditDealerPage: React.FC = () => {
 
       const payload: Record<string, unknown> = {
         name: formData.name,
+        shopName: formData.shopName,
         phone: formData.phone,
+        route: formData.routeId,
         status: formData.status,
         shopImage: formData.shopImage,
         profilePicture: formData.profilePicture,
         latitude: formData.latitude,
         longitude: formData.longitude,
         category: formData.category,
-        ...(formData.routeId        && { route: formData.routeId }),
-        ...(formData.email          && { email: formData.email }),
-        ...(formData.rating !== ''  && formData.rating != null && { rating: formData.rating }),
+        ...(formData.email         && { email: formData.email }),
+        ...(formData.rating !== '' && formData.rating != null && { rating: formData.rating }),
         ...(addressEntries.length > 0 && { address: Object.fromEntries(addressEntries) }),
       };
 
-      await dealerService.updateDealer(id as string, payload as Partial<Dealer>);
-      toast.success('Dealer updated successfully');
-      router.push('/dealers');
+      await clientService.createClient(payload as Partial<Client>);
+      toast.success('Client created successfully');
+      router.push('/clients');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to update dealer');
+      toast.error(
+        error.response?.data?.message || 'Failed to create client'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  if (fetchLoading) {
-    return (
-      <Layout>
-        <Loader />
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Edit Dealer</h1>
+          <h1>Create Client</h1>
           <button
             className={styles.backButton}
-            onClick={() => router.push('/dealers')}
+            onClick={() => router.push('/clients')}
           >
             ← Back
           </button>
@@ -205,7 +159,7 @@ const EditDealerPage: React.FC = () => {
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="name">Dealer Name *</label>
+            <label htmlFor="name">Client Name *</label>
             <input
               type="text"
               id="name"
@@ -213,6 +167,18 @@ const EditDealerPage: React.FC = () => {
               value={formData.name}
               onChange={handleChange}
               required
+              className={styles.input}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="shopName">Shop Name</label>
+            <input
+              type="text"
+              id="shopName"
+              name="shopName"
+              value={formData.shopName}
+              onChange={handleChange}
               className={styles.input}
             />
           </div>
@@ -307,7 +273,7 @@ const EditDealerPage: React.FC = () => {
           </div>
 
           <div className={styles.formGroup}>
-            <label>Dealer location *</label>
+            <label>Client location *</label>
             <p className={styles.hint} style={{ marginBottom: '0.75rem', color: '#6b7280', fontSize: '0.875rem' }}>
               Click on the map to pick a location, or enter latitude and longitude below.
             </p>
@@ -415,6 +381,7 @@ const EditDealerPage: React.FC = () => {
               name="routeId"
               value={formData.routeId}
               onChange={handleChange}
+              required
               className={styles.select}
             >
               <option value="">— Select route —</option>
@@ -444,7 +411,7 @@ const EditDealerPage: React.FC = () => {
             <button
               type="button"
               className={styles.cancelButton}
-              onClick={() => router.push('/dealers')}
+              onClick={() => router.push('/clients')}
             >
               Cancel
             </button>
@@ -453,7 +420,7 @@ const EditDealerPage: React.FC = () => {
               className={styles.submitButton}
               disabled={loading}
             >
-              {loading ? 'Updating...' : 'Update Dealer'}
+              {loading ? 'Creating...' : 'Create Client'}
             </button>
           </div>
         </form>
@@ -468,10 +435,10 @@ const EditDealerPage: React.FC = () => {
   );
 };
 
-export default function EditDealerPageWrapper() {
+export default function CreateClientPageWrapper() {
   return (
     <ProtectedRoute>
-      <EditDealerPage />
+      <CreateClientPage />
     </ProtectedRoute>
   );
 }

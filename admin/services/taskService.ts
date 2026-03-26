@@ -39,7 +39,7 @@ export interface Task {
   completionImages?: CompletionImage[];
   latitude?: number;
   longitude?: number;
-  distanceFromDealer?: number;
+  distanceFromClient?: number;
   createdBy: any;
   createdAt: string;
   updatedAt: string;
@@ -61,8 +61,8 @@ function appendTaskFormData(form: FormData, data: TaskCreateUpdate): void {
   if (data.referenceImage != null) form.append('referenceImage', String(data.referenceImage));
   if (data.employeeNotes != null) form.append('employeeNotes', String(data.employeeNotes));
   if (data.quantity != null) form.append('quantity', String(data.quantity));
-  const dealerId = toId(data.dealerId as string | { _id?: string } | undefined);
-  if (dealerId) form.append('dealerId', dealerId);
+  const clientId = toId(data.dealerId as string | { _id?: string } | undefined);
+  if (clientId) form.append('dealerId', clientId);
   const routeId = toId(data.routeId as string | { _id?: string } | undefined);
   if (routeId) form.append('routeId', routeId);
   if (data.document instanceof File) form.append('document', data.document);
@@ -70,13 +70,13 @@ function appendTaskFormData(form: FormData, data: TaskCreateUpdate): void {
 
 export const taskService = {
   async getTasks(filters?: {
-    dealerId?: string;
+    clientId?: string;
     routeId?: string;
     status?: string;
     assignedTo?: string;
   }) {
     const params = new URLSearchParams();
-    if (filters?.dealerId) params.append('dealerId', filters.dealerId);
+    if (filters?.clientId) params.append('dealerId', filters.clientId);
     if (filters?.routeId) params.append('routeId', filters.routeId);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.assignedTo) params.append('assignedTo', filters.assignedTo);

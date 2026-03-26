@@ -39,6 +39,7 @@ export async function register(data: {
 export async function login(data: { username: string; password: string }) {
   const user = await UserModel.findOne({
     $or: [{ username: data.username }, { phone: data.username }],
+    isTrashed: { $ne: true },
   });
 
   if (!user || !(await bcrypt.compare(data.password, user.password))) {
@@ -66,7 +67,7 @@ export async function login(data: { username: string; password: string }) {
 }
 
 export async function forgotPassword(email: string) {
-  const user = await UserModel.findOne({ email });
+  const user = await UserModel.findOne({ email, isTrashed: { $ne: true } });
 
   if (!user) {
     throw notFound('No account found with this email address');
@@ -116,6 +117,9 @@ export async function changePassword(
   newPassword: string,
 ) {
   const user = await UserModel.findById(userId);
+  if (user?.isTrashed) {
+    throw notFound('User not found');
+  }
 
   if (!user) {
     throw notFound('User not found');

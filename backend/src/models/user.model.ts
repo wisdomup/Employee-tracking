@@ -28,6 +28,9 @@ export interface IUser extends Document {
   target?: string;
   achivedTarget?: string;
   isActive: boolean;
+  isTrashed?: boolean;
+  trashedAt?: Date;
+  trashedBy?: Types.ObjectId;
   resetToken?: string;
   resetTokenExpiry?: Date;
   createdAt: Date;
@@ -65,6 +68,9 @@ const userSchema = new Schema<IUser>(
     target: { type: String },
     achivedTarget: { type: String },
     isActive: { type: Boolean, default: true },
+    isTrashed: { type: Boolean, default: false, index: true },
+    trashedAt: { type: Date },
+    trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     resetToken: { type: String },
     resetTokenExpiry: { type: Date },
   },
@@ -72,5 +78,7 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ role: 1 });
+userSchema.index({ isTrashed: 1, createdAt: -1 });
+userSchema.index({ isTrashed: 1, trashedAt: -1 });
 
 export const UserModel = model<IUser>('User', userSchema);

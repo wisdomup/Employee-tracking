@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { routeService, Route } from '../../../services/routeService';
-import { dealerService, Dealer } from '../../../services/dealerService';
+import { clientService, Client } from '../../../services/clientService';
 import { visitService, Visit } from '../../../services/visitService';
 import { routeAssignmentService, RouteAssignment } from '../../../services/routeAssignmentService';
 import StatusBadge from '../../../components/UI/StatusBadge';
@@ -19,7 +19,7 @@ const RouteDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const [route, setRoute] = useState<Route | null>(null);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [routeAssignment, setRouteAssignment] = useState<RouteAssignment | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [visitFilterDate, setVisitFilterDate] = useState<string>(() => {
@@ -35,7 +35,7 @@ const RouteDetailPage: React.FC = () => {
   useEffect(() => {
     if (id) {
       fetchRoute();
-      fetchDealersForRoute();
+      fetchClientsForRoute();
       fetchRouteAssignment();
     }
   }, [id]);
@@ -57,13 +57,13 @@ const RouteDetailPage: React.FC = () => {
     }
   };
 
-  const fetchDealersForRoute = async () => {
+  const fetchClientsForRoute = async () => {
     if (!id) return;
     try {
-      const data = await dealerService.getDealers({ routeId: id as string });
-      setDealers(data);
+      const data = await clientService.getClients({ routeId: id as string });
+      setClients(data);
     } catch {
-      setDealers([]);
+      setClients([]);
     }
   };
 
@@ -102,9 +102,9 @@ const RouteDetailPage: React.FC = () => {
       render: (value: Visit['employeeId']) => (value?.username ?? value?.userID ?? '-'),
     },
     {
-      key: 'dealerId',
-      title: 'Dealer',
-      render: (value: Visit['dealerId']) => value?.name ?? '-',
+      key: 'clientId',
+      title: 'Client',
+      render: (value: Visit['clientId']) => value?.name ?? '-',
     },
     {
       key: 'visitDate',
@@ -123,11 +123,11 @@ const RouteDetailPage: React.FC = () => {
     router.push(`/visits/${row._id}`);
   };
 
-  const canCreateVisits = Boolean(routeAssignment && dealers.length > 0);
+  const canCreateVisits = Boolean(routeAssignment && clients.length > 0);
   const createVisitsDisabledReason = !routeAssignment
     ? 'Assign an employee to this route first.'
-    : dealers.length === 0
-      ? 'Add dealers to this route first.'
+    : clients.length === 0
+      ? 'Add clients to this route first.'
       : null;
 
   const handleCreateVisits = async () => {
@@ -136,8 +136,8 @@ const RouteDetailPage: React.FC = () => {
       toast.error('Assign an employee to this route first.');
       return;
     }
-    if (dealers.length === 0) {
-      toast.error('Add dealers to this route first.');
+    if (clients.length === 0) {
+      toast.error('Add clients to this route first.');
       return;
     }
     setCreatingVisits(true);
@@ -209,9 +209,9 @@ const RouteDetailPage: React.FC = () => {
                 <span className={styles.value}>{route.endingPoint}</span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Dealers assigned:</span>
+                <span className={styles.label}>Clients assigned:</span>
                 <span className={styles.value}>
-                  {route.dealerCount !== undefined ? route.dealerCount : dealers.length}
+                  {route.clientCount !== undefined ? route.clientCount : clients.length}
                 </span>
               </div>
               {routeAssignment?.employeeId && (
@@ -237,8 +237,8 @@ const RouteDetailPage: React.FC = () => {
           <div className={styles.section}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <h2 style={{ margin: 0 }}>
-                Dealers on this route (
-                {route.dealerCount !== undefined ? route.dealerCount : dealers.length}
+                Clients on this route (
+                {route.clientCount !== undefined ? route.clientCount : clients.length}
                 )
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
@@ -258,13 +258,13 @@ const RouteDetailPage: React.FC = () => {
                 )}
               </div>
             </div>
-            {dealers.length === 0 ? (
-              <p style={{ color: '#6b7280', margin: 0 }}>No dealers assigned to this route.</p>
+            {clients.length === 0 ? (
+              <p style={{ color: '#6b7280', margin: 0 }}>No clients assigned to this route.</p>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {dealers.map((dealer) => (
+                {clients.map((client) => (
                   <li
-                    key={dealer._id}
+                    key={client._id}
                     style={{
                       padding: '0.75rem 0',
                       borderBottom: '1px solid #e5e7eb',
@@ -276,11 +276,11 @@ const RouteDetailPage: React.FC = () => {
                     }}
                   >
                     <span style={{ color: '#1f2937', fontSize: '1rem' }}>
-                      <strong>{dealer.name}</strong>
-                      {dealer.phone && ` — ${dealer.phone}`}
+                      <strong>{client.name}</strong>
+                      {client.phone && ` — ${client.phone}`}
                     </span>
-                    <Link href={`/dealers/${dealer._id}`} className={styles.editButton} style={{ textDecoration: 'none' }}>
-                      View dealer
+                    <Link href={`/clients/${client._id}`} className={styles.editButton} style={{ textDecoration: 'none' }}>
+                      View client
                     </Link>
                   </li>
                 ))}

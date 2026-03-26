@@ -16,6 +16,9 @@ export interface IVisit extends Document {
   latitude?: number;
   longitude?: number;
   completionImages?: IVisitCompletionImage[];
+  isTrashed?: boolean;
+  trashedAt?: Date;
+  trashedBy?: Types.ObjectId;
   createdBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -44,6 +47,9 @@ const visitSchema = new Schema<IVisit>(
     latitude: { type: Number },
     longitude: { type: Number },
     completionImages: { type: [visitCompletionImageSchema], default: [] },
+    isTrashed: { type: Boolean, default: false, index: true },
+    trashedAt: { type: Date },
+    trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },
@@ -53,5 +59,7 @@ visitSchema.index({ dealerId: 1 });
 visitSchema.index({ employeeId: 1 });
 visitSchema.index({ routeId: 1 });
 visitSchema.index({ status: 1 });
+visitSchema.index({ isTrashed: 1, createdAt: -1 });
+visitSchema.index({ isTrashed: 1, trashedAt: -1 });
 
 export const VisitModel = model<IVisit>('Visit', visitSchema);

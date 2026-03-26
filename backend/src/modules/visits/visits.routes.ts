@@ -143,5 +143,7 @@ router.put('/:id', requireRoles('admin', 'employee'), validate(updateVisitSchema
  *       404: { description: Visit not found }
  */
 router.delete('/:id', requireRoles('admin'), controller.remove);
+router.patch('/:id/restore', requireRoles('admin'), controller.restore);
+router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
 
 export default router;

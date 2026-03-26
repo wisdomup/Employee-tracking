@@ -3,7 +3,7 @@ import * as usersService from './users.service';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await usersService.createUser(req.body);
+    const result = await usersService.createUser(req.body, req.user?.userId);
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -45,7 +45,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const user = await usersService.updateUser(req.params.id, req.body);
+    const user = await usersService.updateUser(req.params.id, req.body, req.user?.userId);
     res.json(user);
   } catch (err) {
     next(err);
@@ -54,7 +54,25 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await usersService.deleteUser(req.params.id);
+    const result = await usersService.deleteUser(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restore(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await usersService.restoreUser(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePermanent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await usersService.permanentlyDeleteUser(req.params.id, req.user?.userId);
     res.json(result);
   } catch (err) {
     next(err);

@@ -1,6 +1,6 @@
 import api from './api';
 
-export type BroadcastTarget = 'all' | 'employees' | 'dealers' | 'customers';
+export type BroadcastTarget = 'all' | 'employees' | 'clients' | 'customers';
 
 export interface BroadcastNotification {
   _id: string;

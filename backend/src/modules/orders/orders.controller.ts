@@ -31,7 +31,16 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const order = await ordersService.updateOrder(req.params.id, req.body);
+    const order = await ordersService.updateOrder(req.params.id, req.body, req.user?.userId);
+    res.json(order);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function approve(req: Request, res: Response, next: NextFunction) {
+  try {
+    const order = await ordersService.approveOrder(req.params.id, req.user?.userId);
     res.json(order);
   } catch (err) {
     next(err);
@@ -40,7 +49,25 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await ordersService.deleteOrder(req.params.id);
+    const result = await ordersService.deleteOrder(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restore(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await ordersService.restoreOrder(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePermanent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await ordersService.permanentlyDeleteOrder(req.params.id, req.user?.userId);
     res.json(result);
   } catch (err) {
     next(err);

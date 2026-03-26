@@ -9,6 +9,9 @@ export interface IRoute extends Document {
   state?: string;
   country?: string;
   zipCode?: string;
+  isTrashed?: boolean;
+  trashedAt?: Date;
+  trashedBy?: Types.ObjectId;
   createdBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -23,11 +26,16 @@ const routeSchema = new Schema<IRoute>(
     state: { type: String },
     country: { type: String },
     zipCode: { type: String },
+    isTrashed: { type: Boolean, default: false, index: true },
+    trashedAt: { type: Date },
+    trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },
 );
 
 routeSchema.index({ name: 1 });
+routeSchema.index({ isTrashed: 1, createdAt: -1 });
+routeSchema.index({ isTrashed: 1, trashedAt: -1 });
 
 export const RouteModel = model<IRoute>('Route', routeSchema);

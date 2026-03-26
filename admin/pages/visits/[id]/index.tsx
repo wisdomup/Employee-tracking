@@ -49,14 +49,14 @@ const VisitDetailPage: React.FC = () => {
     );
   }
 
-  const dealer = visit.dealerId;
-  const markers: { lat: number; lng: number; type: 'dealer' | 'completion'; label: string }[] = [];
-  if (dealer?.latitude != null && dealer?.longitude != null) {
+  const client = visit.dealerId;
+  const markers: { lat: number; lng: number; type: 'client' | 'completion'; label: string }[] = [];
+  if (client?.latitude != null && client?.longitude != null) {
     markers.push({
-      lat: dealer.latitude,
-      lng: dealer.longitude,
-      type: 'dealer',
-      label: `Dealer: ${dealer.name}`,
+      lat: client.latitude,
+      lng: client.longitude,
+      type: 'client',
+      label: `Client: ${client.name}`,
     });
   }
   if (visit.status === 'completed' && visit.latitude != null && visit.longitude != null) {
@@ -97,8 +97,8 @@ const VisitDetailPage: React.FC = () => {
             <h2>Visit Information</h2>
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Dealer:</span>
-                <span className={styles.value}>{dealer?.name ?? '-'}</span>
+                <span className={styles.label}>Client:</span>
+                <span className={styles.value}>{client?.name ?? '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Employee:</span>
@@ -208,7 +208,7 @@ const VisitDetailPage: React.FC = () => {
                   </div>
                   {markers.length > 1 && (
                     <p style={{ fontSize: '0.875rem', color: '#374151', marginTop: '0.5rem' }}>
-                      Dealer location and completion location
+                      Client location and completion location
                     </p>
                   )}
                 </div>

@@ -39,7 +39,7 @@ router.use(authMiddleware);
  *               paidAmount: { type: number }
  *               dealerId: { type: string }
  *               routeId: { type: string }
- *               status: { type: string, enum: [pending, confirmed, packed, dispatched, delivered, cancelled] }
+ *               status: { type: string, enum: [pending, approved, packed, dispatched, delivered, cancelled] }
  *     responses:
  *       201: { description: Order created }
  *       400: { description: Validation error }
@@ -69,7 +69,7 @@ router.post(
  *         schema: { type: string }
  *       - in: query
  *         name: status
- *         schema: { type: string, enum: [pending, confirmed, packed, dispatched, delivered, cancelled] }
+ *         schema: { type: string, enum: [pending, approved, packed, dispatched, delivered, cancelled] }
  *       - in: query
  *         name: createdBy
  *         schema: { type: string }
@@ -118,7 +118,7 @@ router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.
  *           schema:
  *             type: object
  *             properties:
- *               status: { type: string, enum: [pending, confirmed, packed, dispatched, delivered, cancelled] }
+ *               status: { type: string, enum: [pending, approved, packed, dispatched, delivered, cancelled] }
  *     responses:
  *       200: { description: Order updated }
  *       404: { description: Order not found }
@@ -129,6 +129,26 @@ router.put(
   validate(updateOrderSchema),
   controller.update,
 );
+
+/**
+ * @openapi
+ * /api/orders/{id}/approve:
+ *   patch:
+ *     tags: [Orders]
+ *     summary: Approve a pending order [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Order approved }
+ *       400: { description: Order is not pending }
+ *       404: { description: Order not found }
+ */
+router.patch('/:id/approve', requireRoles('admin'), controller.approve);
 
 /**
  * @openapi
@@ -148,5 +168,7 @@ router.put(
  *       404: { description: Order not found }
  */
 router.delete('/:id', requireRoles('admin'), controller.remove);
+router.patch('/:id/restore', requireRoles('admin'), controller.restore);
+router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
 
 export default router;

@@ -13,9 +13,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) =
   const router = useRouter();
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: '📊' },
+    { path: '/dashboard', label: 'workspace', icon: '📊' },
     { path: '/employees', label: 'Employees', icon: '👥' },
-    { path: '/dealers', label: 'Dealers', icon: '🏪' },
+    { path: '/clients', label: 'Clients', icon: '🏪' },
     { path: '/routes', label: 'Routes', icon: '🛣️' },
     { path: '/tasks', label: 'Tasks', icon: '📋' },
     { path: '/activity-logs', label: 'Activity Logs', icon: '📈' },
@@ -23,9 +23,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) =
     { path: '/catalogs', label: 'Catalogs', icon: '📄' },
     { path: '/products', label: 'Products', icon: '📦' },
     { path: '/orders', label: 'Orders', icon: '🛒' },
-    { path: '/leaves', label: 'Leaves', icon: '🗓️' },
+    { path: '/leaves', label: 'Approvals', icon: '🗓️' },
     { path: '/visits', label: 'Visits', icon: '📍' },
     { path: '/returns', label: 'Returns', icon: '↩️' },
+    { path: '/reports', label: 'Reports', icon: '📉' },
+    { path: '/trash', label: 'Trash', icon: '🗑️' },
     { path: '/broadcast-notifications', label: 'Notifications', icon: '🔔' },
   ];
 

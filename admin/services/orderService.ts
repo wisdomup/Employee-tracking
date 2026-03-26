@@ -14,7 +14,7 @@ export interface Order {
   grandTotal?: number;
   paidAmount?: number;
   description?: string;
-  status: 'pending' | 'confirmed' | 'packed' | 'dispatched' | 'delivered' | 'cancelled';
+  status: 'pending' | 'approved' | 'packed' | 'dispatched' | 'delivered' | 'cancelled';
   paymentType?: 'online' | 'adjustment' | 'cash' | 'credit';
   orderDate?: string;
   deliveryDate?: string;
@@ -27,7 +27,7 @@ export interface Order {
 
 export const orderService = {
   async getOrders(filters?: {
-    dealerId?: string;
+    clientId?: string;
     routeId?: string;
     status?: string;
     createdBy?: string;
@@ -35,7 +35,7 @@ export const orderService = {
     endDate?: string;
   }) {
     const params = new URLSearchParams();
-    if (filters?.dealerId) params.append('dealerId', filters.dealerId);
+    if (filters?.clientId) params.append('dealerId', filters.clientId);
     if (filters?.routeId) params.append('routeId', filters.routeId);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.createdBy) params.append('createdBy', filters.createdBy);
@@ -57,6 +57,11 @@ export const orderService = {
 
   async updateOrder(id: string, data: Partial<Order>) {
     const response = await api.put(`/orders/${id}`, data);
+    return response.data;
+  },
+
+  async approveOrder(id: string) {
+    const response = await api.patch(`/orders/${id}/approve`);
     return response.data;
   },
 

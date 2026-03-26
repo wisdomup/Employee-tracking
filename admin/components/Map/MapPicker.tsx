@@ -60,14 +60,14 @@ const MapPicker: React.FC<MapPickerProps> = ({
       attribution: '© OpenStreetMap contributors',
     }).addTo(map);
 
-    const dealerIcon = L.divIcon({
-      className: 'custom-marker dealer-marker',
+    const clientIcon = L.divIcon({
+      className: 'custom-marker client-marker',
       html: '<div style="background-color: #3b82f6; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
       iconSize: [30, 30],
     });
 
     if (hasInitial) {
-      const marker = L.marker([latitude!, longitude!], { icon: dealerIcon }).addTo(map);
+      const marker = L.marker([latitude!, longitude!], { icon: clientIcon }).addTo(map);
       markerRef.current = marker;
     }
 
@@ -77,7 +77,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
         map.removeLayer(markerRef.current as Parameters<typeof map.removeLayer>[0]);
         markerRef.current = null;
       }
-      const marker = L.marker([lat, lng], { icon: dealerIcon }).addTo(map);
+      const marker = L.marker([lat, lng], { icon: clientIcon }).addTo(map);
       markerRef.current = marker;
       map.setView([lat, lng], PICKED_ZOOM);
       onLocationSelect(lat, lng);
@@ -109,12 +109,12 @@ const MapPicker: React.FC<MapPickerProps> = ({
     }
 
     if (isValidLocation(latitude, longitude)) {
-      const dealerIcon = L.divIcon({
-        className: 'custom-marker dealer-marker',
+      const clientIcon = L.divIcon({
+        className: 'custom-marker client-marker',
         html: '<div style="background-color: #3b82f6; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
         iconSize: [30, 30],
       });
-      const marker = L.marker([latitude!, longitude!], { icon: dealerIcon }).addTo(map);
+      const marker = L.marker([latitude!, longitude!], { icon: clientIcon }).addTo(map);
       markerRef.current = marker;
       map.setView([latitude!, longitude!], PICKED_ZOOM);
     }
@@ -135,7 +135,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
   return (
     <div>
       <p className={styles.hint} role="status">
-        Map to pick dealer location. Click on the map to set dealer location.
+        Map to pick client location. Click on the map to set client location.
       </p>
       <div ref={mapRef} className={styles.mapContainer} style={{ height }} />
       {hasLocation && (

@@ -6,7 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import { visitService, Visit } from '../../services/visitService';
-import { dealerService, Dealer } from '../../services/dealerService';
+import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -14,10 +14,10 @@ import styles from '../../styles/ListPage.module.scss';
 
 const VisitsPage: React.FC = () => {
   const [visits, setVisits] = useState<Visit[]>([]);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dealerFilter, setDealerFilter] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -25,19 +25,19 @@ const VisitsPage: React.FC = () => {
   const router = useRouter();
 
   useEffect(() => {
-    dealerService.getDealers().then(setDealers).catch(() => {});
+    clientService.getClients().then(setClients).catch(() => {});
     employeeService.getEmployees().then(setEmployees).catch(() => {});
   }, []);
 
   useEffect(() => {
     fetchVisits();
-  }, [dealerFilter, statusFilter, employeeFilter, startDate, endDate]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate]);
 
   const fetchVisits = async () => {
     setLoading(true);
     try {
       const data = await visitService.getVisits({
-        dealerId: dealerFilter || undefined,
+        clientId: clientFilter || undefined,
         status: statusFilter || undefined,
         employeeId: employeeFilter || undefined,
         startDate: startDate || undefined,
@@ -65,7 +65,7 @@ const VisitsPage: React.FC = () => {
   const columns = [
     {
       key: 'dealerId',
-      title: 'Dealer',
+      title: 'Client',
       render: (value: any) => value?.name || '-',
     },
     {
@@ -142,13 +142,13 @@ const VisitsPage: React.FC = () => {
         </div>
         <div className={styles.searchBar}>
           <select
-            value={dealerFilter}
-            onChange={(e) => setDealerFilter(e.target.value)}
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
             className={styles.searchInput}
             style={{ maxWidth: 220 }}
           >
-            <option value="">All Dealers</option>
-            {dealers.map((d) => (
+            <option value="">All Clients</option>
+            {clients.map((d) => (
               <option key={d._id} value={d._id}>
                 {d.name}
               </option>

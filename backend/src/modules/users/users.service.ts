@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
+import { Types } from 'mongoose';
 import { UserModel } from '../../models/user.model';
 import { conflict, notFound } from '../../utils/app-error';
+import { logActivityAsync } from '../activity-logs/activity-logs.service';
 
 export async function createUser(data: {
   userID: string;
@@ -19,7 +21,7 @@ export async function createUser(data: {
   achivedTarget?: string;
   extraNotes?: string;
   lastExperience?: string;
-}) {
+}, actorId?: string) {
   const existing = await UserModel.findOne({
     $or: [{ userID: data.userID }, { username: data.username }, { phone: data.phone }],
   });
@@ -34,11 +36,25 @@ export async function createUser(data: {
   const userObject: any = user.toObject();
   delete userObject.password;
 
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: 'created',
+    meta: {
+      username: user.username,
+      phone: user.phone,
+      userID: user.userID,
+      role: user.role,
+      isActive: user.isActive,
+    },
+  });
+
   return userObject;
 }
 
 export async function findAll(filters?: { role?: string; isActive?: boolean }) {
-  const query: Record<string, unknown> = {};
+  const query: Record<string, unknown> = { isTrashed: { $ne: true } };
 
   if (filters?.role) query.role = filters.role;
   if (filters?.isActive !== undefined) query.isActive = filters.isActive;
@@ -47,7 +63,7 @@ export async function findAll(filters?: { role?: string; isActive?: boolean }) {
 }
 
 export async function findById(id: string) {
-  const user = await UserModel.findById(id).select('-password').exec();
+  const user = await UserModel.findOne({ _id: id, isTrashed: { $ne: true } }).select('-password').exec();
 
   if (!user) {
     throw notFound('User not found');
@@ -57,7 +73,7 @@ export async function findById(id: string) {
 }
 
 export async function findByRole(role: string) {
-  return UserModel.find({ role, isActive: true }).select('-password').exec();
+  return UserModel.find({ role, isActive: true, isTrashed: { $ne: true } }).select('-password').exec();
 }
 
 export async function updateUser(
@@ -80,6 +96,7 @@ export async function updateUser(
     extraNotes?: string;
     lastExperience?: string;
   },
+  actorId?: string,
 ) {
   const user = await UserModel.findById(id);
 
@@ -101,6 +118,7 @@ export async function updateUser(
     }
   }
 
+  const previousActive = user.isActive;
   if (data.password) {
     data.password = await bcrypt.hash(data.password, 10);
   }
@@ -111,18 +129,96 @@ export async function updateUser(
   const userObject: any = user.toObject();
   delete userObject.password;
 
+  const activeChanged = data.isActive !== undefined && previousActive !== data.isActive;
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: activeChanged ? 'status_changed' : 'updated',
+    changes: activeChanged
+      ? { isActive: { from: previousActive, to: data.isActive } }
+      : undefined,
+    meta: {
+      username: user.username,
+      phone: user.phone,
+      userID: user.userID,
+      role: user.role,
+      isActive: user.isActive,
+    },
+  });
+
   return userObject;
 }
 
-export async function deleteUser(id: string) {
-  const user = await UserModel.findById(id);
+export async function deleteUser(id: string, actorId?: string) {
+  const user = await UserModel.findOne({ _id: id, isTrashed: { $ne: true } });
 
   if (!user) {
     throw notFound('User not found');
   }
 
-  user.isActive = false;
+  user.isTrashed = true;
+  user.trashedAt = new Date();
+  if (actorId) {
+    user.trashedBy = user.trashedBy ?? new Types.ObjectId(actorId);
+  }
   await user.save();
 
-  return { message: 'User deleted successfully' };
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: 'deleted',
+    changes: { isTrashed: { from: false, to: true } },
+    meta: {
+      username: user.username,
+      phone: user.phone,
+      userID: user.userID,
+      role: user.role,
+      isActive: user.isActive,
+      isTrashed: user.isTrashed,
+    },
+  });
+
+  return { message: 'User moved to trash successfully' };
+}
+
+export async function restoreUser(id: string, actorId?: string) {
+  const user = await UserModel.findOne({ _id: id, isTrashed: true });
+  if (!user) {
+    throw notFound('User not found in trash');
+  }
+
+  user.isTrashed = false;
+  user.trashedAt = undefined;
+  user.trashedBy = undefined;
+  await user.save();
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: 'updated',
+    changes: { isTrashed: { from: true, to: false } },
+    meta: { username: user.username, phone: user.phone, userID: user.userID, role: user.role },
+  });
+
+  return user.toObject();
+}
+
+export async function permanentlyDeleteUser(id: string, actorId?: string) {
+  const user = await UserModel.findOne({ _id: id, isTrashed: true });
+  if (!user) {
+    throw notFound('User not found in trash');
+  }
+
+  await UserModel.findByIdAndDelete(id);
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: 'deleted',
+    meta: { username: user.username, phone: user.phone, userID: user.userID, role: user.role, permanent: true },
+  });
+  return { message: 'User permanently deleted successfully' };
 }

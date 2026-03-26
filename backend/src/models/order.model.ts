@@ -14,12 +14,15 @@ export interface IOrder extends Document {
   grandTotal?: number;
   paidAmount?: number;
   description?: string;
-  status: 'pending' | 'confirmed' | 'packed' | 'dispatched' | 'delivered' | 'cancelled';
+  status: 'pending' | 'approved' | 'packed' | 'dispatched' | 'delivered' | 'cancelled';
   paymentType?: 'online' | 'adjustment' | 'cash' | 'credit';
   orderDate?: Date;
   deliveryDate?: Date;
   dealerId: Types.ObjectId;
   routeId?: Types.ObjectId;
+  isTrashed?: boolean;
+  trashedAt?: Date;
+  trashedBy?: Types.ObjectId;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -44,7 +47,7 @@ const orderSchema = new Schema<IOrder>(
     description: { type: String },
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'packed', 'dispatched', 'delivered', 'cancelled'],
+      enum: ['pending', 'approved', 'packed', 'dispatched', 'delivered', 'cancelled'],
       default: 'pending',
     },
     paymentType: { type: String, enum: ['online', 'adjustment', 'cash', 'credit'] },
@@ -52,6 +55,9 @@ const orderSchema = new Schema<IOrder>(
     deliveryDate: { type: Date },
     dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
     routeId: { type: Schema.Types.ObjectId, ref: 'Route' },
+    isTrashed: { type: Boolean, default: false, index: true },
+    trashedAt: { type: Date },
+    trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },
@@ -61,5 +67,7 @@ orderSchema.index({ dealerId: 1 });
 orderSchema.index({ routeId: 1 });
 orderSchema.index({ createdBy: 1 });
 orderSchema.index({ status: 1 });
+orderSchema.index({ isTrashed: 1, createdAt: -1 });
+orderSchema.index({ isTrashed: 1, trashedAt: -1 });
 
 export const OrderModel = model<IOrder>('Order', orderSchema);

@@ -87,15 +87,15 @@ const TaskDetailPage: React.FC = () => {
     );
   }
 
-  const dealer = task.dealerId;
-  const markers: { lat: number; lng: number; type: 'dealer' | 'completion'; label: string }[] = [];
+  const client = task.dealerId;
+  const markers: { lat: number; lng: number; type: 'client' | 'completion'; label: string }[] = [];
 
-  if (dealer?.latitude && dealer?.longitude) {
+  if (client?.latitude && client?.longitude) {
     markers.push({
-      lat: dealer.latitude,
-      lng: dealer.longitude,
-      type: 'dealer',
-      label: `Dealer: ${dealer.name}`,
+      lat: client.latitude,
+      lng: client.longitude,
+      type: 'client',
+      label: `Client: ${client.name}`,
     });
   }
   if (task.status === 'completed' && task.latitude && task.longitude) {
@@ -195,37 +195,37 @@ const TaskDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* Dealer Information */}
-          {dealer && (
+          {/* Client Information */}
+          {client && (
             <div className={styles.section}>
-              <h2>Dealer Information</h2>
+              <h2>Client Information</h2>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}>
-                  <span className={styles.label}>Dealer Name:</span>
-                  <span className={styles.value}>{dealer.name}</span>
+                  <span className={styles.label}>Client Name:</span>
+                  <span className={styles.value}>{client.name}</span>
                 </div>
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Phone:</span>
-                  <span className={styles.value}>{dealer.phone}</span>
+                  <span className={styles.value}>{client.phone}</span>
                 </div>
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Email:</span>
-                  <span className={styles.value}>{dealer.email || '-'}</span>
+                  <span className={styles.value}>{client.email || '-'}</span>
                 </div>
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Address:</span>
                   <span className={styles.value}>
-                    {dealer.address
-                      ? `${dealer.address.street || ''} ${dealer.address.city || ''} ${dealer.address.state || ''}`
+                    {client.address
+                      ? `${client.address.street || ''} ${client.address.city || ''} ${client.address.state || ''}`
                           .trim() || '-'
                       : '-'}
                   </span>
                 </div>
               </div>
-              {dealer.latitude && dealer.longitude && (
+              {client.latitude && client.longitude && (
                 <div style={{ marginTop: '1rem' }}>
                   <MapView
-                    markers={[{ lat: dealer.latitude, lng: dealer.longitude, type: 'dealer', label: dealer.name }]}
+                    markers={[{ lat: client.latitude, lng: client.longitude, type: 'client', label: client.name }]}
                     height="300px"
                   />
                 </div>
@@ -297,11 +297,11 @@ const TaskDetailPage: React.FC = () => {
                           Lat: {task.latitude.toFixed(6)}, Lng: {task.longitude.toFixed(6)}
                         </span>
                       </div>
-                      {task.distanceFromDealer !== undefined && (
+                      {task.distanceFromClient !== undefined && (
                         <div className={styles.infoItem}>
-                          <span className={styles.label} style={{ color: '#374151' }}>Distance from Dealer:</span>
+                          <span className={styles.label} style={{ color: '#374151' }}>Distance from Client:</span>
                           <span className={styles.value}>
-                            {task.distanceFromDealer.toFixed(2)} meters
+                            {task.distanceFromClient.toFixed(2)} meters
                           </span>
                         </div>
                       )}
@@ -357,7 +357,7 @@ const TaskDetailPage: React.FC = () => {
                     </div>
                     {markers.length > 1 && (
                       <p style={{ fontSize: '0.875rem', color: '#374151', marginTop: '0.5rem' }}>
-                        Blue marker: Dealer location | Green marker: Completion location
+                        Blue marker: Client location | Green marker: Completion location
                       </p>
                     )}
                   </div>

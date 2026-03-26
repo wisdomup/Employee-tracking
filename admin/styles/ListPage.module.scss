@@ -83,6 +83,7 @@
 }
 
 .editButton,
+.approveButton,
 .deleteButton {
   padding: 0.5rem 1rem;
   border: none;
@@ -99,6 +100,15 @@
 
   &:hover {
     background-color: #bfdbfe;
+  }
+}
+
+.approveButton {
+  background-color: #dcfce7;
+  color: #166534;
+
+  &:hover {
+    background-color: #bbf7d0;
   }
 }
 

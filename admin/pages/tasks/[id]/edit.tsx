@@ -4,7 +4,7 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { taskService, Task, getTaskDocumentUrl } from '../../../services/taskService';
 import type { CompletionImage } from '../../../services/taskService';
-import { dealerService, Dealer } from '../../../services/dealerService';
+import { clientService, Client } from '../../../services/clientService';
 import { routeService, Route } from '../../../services/routeService';
 import { ImageUpload } from '../../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
@@ -17,14 +17,14 @@ const EditTaskPage: React.FC = () => {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [formData, setFormData] = useState({
     taskName: '',
     description: '',
     employeeNotes: '',
     quantity: 0,
-    dealerId: '',
+    clientId: '',
     routeId: '',
     status: 'pending' as 'pending' | 'in_progress' | 'completed',
   });
@@ -40,7 +40,7 @@ const EditTaskPage: React.FC = () => {
   useEffect(() => {
     if (id) {
       fetchTask();
-      fetchDealers();
+      fetchClients();
       fetchRoutes();
     }
   }, [id]);
@@ -54,7 +54,7 @@ const EditTaskPage: React.FC = () => {
         description: data.description || '',
         employeeNotes: data.employeeNotes || '',
         quantity: data.quantity || 0,
-        dealerId: data.dealerId?._id || (data.dealerId as string) || '',
+        clientId: data.dealerId?._id || (data.dealerId as string) || '',
         routeId: data.routeId?._id || (data.routeId as string) || '',
         status: data.status,
       });
@@ -66,12 +66,12 @@ const EditTaskPage: React.FC = () => {
     }
   };
 
-  const fetchDealers = async () => {
+  const fetchClients = async () => {
     try {
-      const data = await dealerService.getDealers({ status: 'active' });
-      setDealers(data);
+      const data = await clientService.getClients({ status: 'active' });
+      setClients(data);
     } catch (error) {
-      toast.error('Failed to fetch dealers');
+      toast.error('Failed to fetch clients');
     }
   };
 
@@ -153,7 +153,7 @@ const EditTaskPage: React.FC = () => {
           description: formData.description || undefined,
           employeeNotes: formData.employeeNotes || undefined,
           quantity: formData.quantity || undefined,
-          dealerId: formData.dealerId || undefined,
+          clientId: formData.clientId || undefined,
           routeId: formData.routeId || undefined,
           status: formData.status,
           ...(documentFile && { document: documentFile }),
@@ -206,18 +206,18 @@ const EditTaskPage: React.FC = () => {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="dealerId">Dealer (optional)</label>
+            <label htmlFor="clientId">Client (optional)</label>
             <select
-              id="dealerId"
-              name="dealerId"
-              value={formData.dealerId}
+              id="clientId"
+              name="clientId"
+              value={formData.clientId}
               onChange={handleChange}
               className={styles.select}
             >
               <option value="">None</option>
-              {dealers.map((dealer) => (
-                <option key={dealer._id} value={dealer._id}>
-                  {dealer.name} - {dealer.phone}
+              {clients.map((client) => (
+                <option key={client._id} value={client._id}>
+                  {client.name} - {client.phone}
                 </option>
               ))}
             </select>

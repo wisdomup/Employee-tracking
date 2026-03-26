@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { orderService, Order } from '../../../services/orderService';
-import { dealerService, Dealer } from '../../../services/dealerService';
+import { clientService, Client } from '../../../services/clientService';
 import { routeService, Route } from '../../../services/routeService';
 import { productService, Product } from '../../../services/productService';
 import { toast } from 'react-toastify';
@@ -22,12 +22,13 @@ const EditOrderPage: React.FC = () => {
   const { id } = router.query;
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([{ productId: '', quantity: 1, price: 0 }]);
+  const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]);
   const [formData, setFormData] = useState({
-    dealerId: '',
+    clientId: '',
     routeId: '',
     status: 'pending' as Order['status'],
     paymentType: '' as '' | 'online' | 'adjustment' | 'cash' | 'credit',
@@ -38,7 +39,7 @@ const EditOrderPage: React.FC = () => {
   });
 
   useEffect(() => {
-    dealerService.getDealers().then(setDealers).catch(() => {});
+    clientService.getClients().then(setClients).catch(() => {});
     routeService.getRoutes().then(setRoutes).catch(() => {});
     productService.getProducts().then(setProducts).catch(() => {});
   }, []);
@@ -50,7 +51,7 @@ const EditOrderPage: React.FC = () => {
   const fetchOrder = async () => {
     try {
       const data: Order = await orderService.getOrder(id as string);
-      const dealerId =
+      const clientId =
         typeof data.dealerId === 'object' && data.dealerId != null
           ? (data.dealerId as { _id?: string })._id ?? ''
           : String(data.dealerId ?? '');
@@ -66,7 +67,7 @@ const EditOrderPage: React.FC = () => {
           }))
         : [{ productId: '', quantity: 1, price: 0 }];
       setFormData({
-        dealerId,
+        clientId,
         routeId,
         status: data.status ?? 'pending',
         paymentType: (data.paymentType ?? '') as '' | 'online' | 'adjustment' | 'cash' | 'credit',
@@ -75,7 +76,11 @@ const EditOrderPage: React.FC = () => {
         description: data.description || '',
         deliveryDate: data.deliveryDate ? data.deliveryDate.slice(0, 10) : '',
       });
-      setLineItems(items);
+      // Keep separate object references so delta checks compare against an immutable baseline.
+      const initialLineItems = items.map((item) => ({ ...item }));
+      const initialOriginalLineItems = items.map((item) => ({ ...item }));
+      setLineItems(initialLineItems);
+      setOriginalLineItems(initialOriginalLineItems);
     } catch (error) {
       toast.error('Failed to fetch order');
     } finally {
@@ -118,23 +123,48 @@ const EditOrderPage: React.FC = () => {
     const p = products.find((x) => x._id === productId);
     return p?.quantity ?? 0;
   };
+
+  const aggregateByProduct = (items: LineItem[]) => {
+    const map = new Map<string, number>();
+    for (const item of items) {
+      if (!item.productId) continue;
+      map.set(item.productId, (map.get(item.productId) ?? 0) + item.quantity);
+    }
+    return map;
+  };
+
+  const getAdditionalRequiredForProduct = (productId: string) => {
+    const currentMap = aggregateByProduct(lineItems);
+    const originalMap = aggregateByProduct(originalLineItems);
+    const currentQty = currentMap.get(productId) ?? 0;
+    const originalQty = originalMap.get(productId) ?? 0;
+    return Math.max(0, currentQty - originalQty);
+  };
   const getTotalOrderedForProduct = (productId: string) =>
     lineItems
       .filter((item) => item.productId === productId)
       .reduce((sum, item) => sum + item.quantity, 0);
   const getRemainingForProduct = (productId: string) => {
     const stock = getStockForProduct(productId);
-    const ordered = getTotalOrderedForProduct(productId);
-    return stock - ordered;
+    const additionalRequired = getAdditionalRequiredForProduct(productId);
+    return stock - additionalRequired;
   };
   const getStockExceededError = (): { name: string; stock: number; ordered: number } | null => {
-    const validItems = lineItems.filter((item) => item.productId);
-    for (const item of validItems) {
-      const stock = getStockForProduct(item.productId);
-      const ordered = getTotalOrderedForProduct(item.productId);
-      if (ordered > stock) {
-        const product = products.find((p) => p._id === item.productId);
-        return { name: product?.name ?? 'Unknown product', stock, ordered };
+    const currentMap = aggregateByProduct(lineItems);
+    const originalMap = aggregateByProduct(originalLineItems);
+    const allProductIds = new Set<string>([
+      ...currentMap.keys(),
+      ...originalMap.keys(),
+    ]);
+
+    for (const productId of allProductIds) {
+      const currentQty = currentMap.get(productId) ?? 0;
+      const originalQty = originalMap.get(productId) ?? 0;
+      const additionalRequired = Math.max(0, currentQty - originalQty);
+      const stock = getStockForProduct(productId);
+      if (additionalRequired > stock) {
+        const product = products.find((p) => p._id === productId);
+        return { name: product?.name ?? 'Unknown product', stock, ordered: additionalRequired };
       }
     }
     return null;
@@ -143,8 +173,8 @@ const EditOrderPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.dealerId) {
-      toast.error('Please select a dealer');
+    if (!formData.clientId) {
+      toast.error('Please select a client');
       return;
     }
     const validItems = lineItems.filter((item) => item.productId);
@@ -155,14 +185,14 @@ const EditOrderPage: React.FC = () => {
     const exceeded = getStockExceededError();
     if (exceeded) {
       toast.error(
-        `"${exceeded.name}" exceeds available stock. Stock: ${exceeded.stock}, ordered: ${exceeded.ordered}. Please reduce the quantity.`
+        `"${exceeded.name}" exceeds available stock. Stock: ${exceeded.stock}, additional required: ${exceeded.ordered}. Please reduce the quantity.`
       );
       return;
     }
     setLoading(true);
     try {
       await orderService.updateOrder(id as string, {
-        dealerId: formData.dealerId,
+        dealerId: formData.clientId,
         routeId: formData.routeId || undefined,
         status: formData.status,
         paymentType: formData.paymentType || undefined,
@@ -198,17 +228,17 @@ const EditOrderPage: React.FC = () => {
         </div>
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="dealerId">Dealer *</label>
+            <label htmlFor="clientId">Client *</label>
             <select
-              id="dealerId"
-              name="dealerId"
-              value={formData.dealerId}
+              id="clientId"
+              name="clientId"
+              value={formData.clientId}
               onChange={handleChange}
               required
               className={styles.select}
             >
-              <option value="">Select a dealer</option>
-              {dealers.map((d) => (
+              <option value="">Select a client</option>
+              {clients.map((d) => (
                 <option key={d._id} value={d._id}>
                   {d.name} — {d.phone}
                 </option>
@@ -285,6 +315,9 @@ const EditOrderPage: React.FC = () => {
                             <div>
                               <div>Stock: <strong>{stock}</strong></div>
                               <div style={{ marginTop: 2 }}>Ordered in this order: <strong>{totalOrdered}</strong></div>
+                              <div style={{ marginTop: 2 }}>
+                                Additional needed: <strong>{getAdditionalRequiredForProduct(item.productId)}</strong>
+                              </div>
                               <div style={{ marginTop: 2, color: remaining !== null && remaining < 0 ? '#b91c1c' : '#047857', fontWeight: 500 }}>
                                 {remaining !== null && remaining < 0 ? `Exceeds stock by ${Math.abs(remaining)}` : `Remaining after: ${remaining}`}
                               </div>
@@ -356,7 +389,7 @@ const EditOrderPage: React.FC = () => {
               className={styles.select}
             >
               <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed (approved)</option>
+              <option value="approved">Approved</option>
               <option value="packed">Packed (ready for delivery)</option>
               <option value="dispatched">Dispatched (out for delivery)</option>
               <option value="delivered">Delivered</option>

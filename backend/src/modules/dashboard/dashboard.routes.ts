@@ -59,4 +59,33 @@ router.use(authMiddleware);
  */
 router.get('/stats', requireRoles('admin'), controller.getStats);
 
+/**
+ * @openapi
+ * /api/dashboard/reports:
+ *   get:
+ *     tags: [Dashboard]
+ *     summary: Get dashboard reports with stock and sales analytics [Admin]
+ *     description: Hold stock includes pending/approved/packed/dispatched orders. Return metrics expose returned vs damaged quantities.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: endDate
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: groupBy
+ *         schema: { type: string, enum: [day, month, year] }
+ *       - in: query
+ *         name: viewBy
+ *         schema: { type: string, enum: [item, category] }
+ *     responses:
+ *       200: { description: Report payload with KPIs, trends, and stock breakdowns }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden — admin role required }
+ */
+router.get('/reports', requireRoles('admin'), controller.getReports);
+
 export default router;

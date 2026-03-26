@@ -104,7 +104,7 @@ const TasksPage: React.FC = () => {
     { key: 'taskName', title: 'Task Name' },
     {
       key: 'dealerId',
-      title: 'Dealer',
+      title: 'Client',
       render: (value: any) => value?.name || '-',
     },
     {

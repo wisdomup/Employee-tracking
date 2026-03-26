@@ -97,8 +97,8 @@ const EmployeeDetailPage: React.FC = () => {
       render: (value: string) => value || '-',
     },
     {
-      key: 'dealerId',
-      title: 'Dealer',
+      key: 'clientId',
+      title: 'Client',
       render: (value: any) => value?.name || '-',
     },
     {
@@ -126,8 +126,8 @@ const EmployeeDetailPage: React.FC = () => {
 
   const visitColumns = [
     {
-      key: 'dealerId',
-      title: 'Dealer',
+      key: 'clientId',
+      title: 'Client',
       render: (value: any) => value?.name ?? '-',
     },
     {

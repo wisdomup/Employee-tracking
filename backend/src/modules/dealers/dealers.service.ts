@@ -3,6 +3,7 @@ import { MAX_DEALERS_PER_ROUTE } from '../../constants/global';
 import { DealerModel } from '../../models/dealer.model';
 import { calculateDistance } from '../../services/distance.service';
 import { badRequest, notFound } from '../../utils/app-error';
+import { logActivityAsync } from '../activity-logs/activity-logs.service';
 
 const ROUTE_DEALER_LIMIT_MESSAGE =
   `This route already has the maximum of ${MAX_DEALERS_PER_ROUTE} dealers. You cannot add this dealer or any more dealers to this route — max limit reached. Create another route to add dealers.`;
@@ -51,6 +52,7 @@ async function assertCanAssignDealerToRoute(routeId: string, excludeDealerId?: s
 export async function createDealer(
   data: {
     name: string;
+    shopName: string;
     phone: string;
     email?: string;
     address?: object;
@@ -75,7 +77,15 @@ export async function createDealer(
   }
   if (userId) payload.createdBy = new Types.ObjectId(userId);
   try {
-    return await DealerModel.create(payload);
+    const dealer = await DealerModel.create(payload);
+    logActivityAsync({
+      employeeId: userId,
+      module: 'dealer',
+      entityId: String(dealer._id),
+      action: 'created',
+      meta: { name: dealer.name, shopName: dealer.shopName, phone: dealer.phone, status: dealer.status },
+    });
+    return dealer;
   } catch (err) {
     if (isPhoneDuplicateKey(err)) {
       throw badRequest(DEALER_PHONE_EXISTS_MESSAGE);
@@ -85,7 +95,7 @@ export async function createDealer(
 }
 
 export async function findAll(filters?: { status?: string; search?: string; routeId?: string }) {
-  const query: Record<string, unknown> = {};
+  const query: Record<string, unknown> = { isTrashed: { $ne: true } };
 
   if (filters?.status) query.status = filters.status;
   if (filters?.routeId) query.route = new Types.ObjectId(filters.routeId);
@@ -93,6 +103,7 @@ export async function findAll(filters?: { status?: string; search?: string; rout
   if (filters?.search) {
     query.$or = [
       { name: { $regex: filters.search, $options: 'i' } },
+      { shopName: { $regex: filters.search, $options: 'i' } },
       { phone: { $regex: filters.search, $options: 'i' } },
       { email: { $regex: filters.search, $options: 'i' } },
     ];
@@ -102,7 +113,7 @@ export async function findAll(filters?: { status?: string; search?: string; rout
 }
 
 export async function findById(id: string) {
-  const dealer = await DealerModel.findById(id).populate('route').populate('createdBy', '-password').exec();
+  const dealer = await DealerModel.findOne({ _id: id, isTrashed: { $ne: true } }).populate('route').populate('createdBy', '-password').exec();
 
   if (!dealer) {
     throw notFound('Dealer not found');
@@ -112,7 +123,7 @@ export async function findById(id: string) {
 }
 
 export async function findByLocation(lat: number, lng: number, radius: number) {
-  const dealers = await DealerModel.find({ status: 'active' }).exec();
+  const dealers = await DealerModel.find({ status: 'active', isTrashed: { $ne: true } }).exec();
 
   return dealers.filter((dealer) => {
     if (dealer.latitude == null || dealer.longitude == null) return false;
@@ -125,6 +136,7 @@ export async function updateDealer(
   id: string,
   data: {
     name?: string;
+    shopName?: string;
     phone?: string;
     email?: string;
     address?: object;
@@ -137,13 +149,15 @@ export async function updateDealer(
     status?: string;
     route?: string;
   },
+  actorId?: string,
 ) {
-  const dealer = await DealerModel.findById(id);
+  const dealer = await DealerModel.findOne({ _id: id, isTrashed: { $ne: true } });
 
   if (!dealer) {
     throw notFound('Dealer not found');
   }
 
+  const previousStatus = dealer.status;
   const update: Record<string, unknown> = { ...data };
   if (data.phone !== undefined) {
     await assertDealerPhoneAvailable(data.phone, id);
@@ -167,17 +181,78 @@ export async function updateDealer(
     throw err;
   }
 
+  const nextStatus = typeof data.status === 'string' ? data.status : undefined;
+  const statusChanged = nextStatus !== undefined && previousStatus !== nextStatus;
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'dealer',
+    entityId: String(dealer._id),
+    action: statusChanged ? 'status_changed' : 'updated',
+    changes: statusChanged
+      ? { status: { from: previousStatus, to: nextStatus } }
+      : undefined,
+    meta: { name: dealer.name, shopName: dealer.shopName, phone: dealer.phone, status: dealer.status },
+  });
+
   return dealer.populate('route');
 }
 
-export async function deleteDealer(id: string) {
-  const dealer = await DealerModel.findById(id);
+export async function deleteDealer(id: string, actorId?: string) {
+  const dealer = await DealerModel.findOne({ _id: id, isTrashed: { $ne: true } });
 
   if (!dealer) {
     throw notFound('Dealer not found');
   }
 
-  await DealerModel.findByIdAndDelete(id);
+  dealer.isTrashed = true;
+  dealer.trashedAt = new Date();
+  dealer.trashedBy = actorId ? new Types.ObjectId(actorId) : undefined;
+  await dealer.save();
 
-  return { message: 'Dealer deleted successfully' };
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'dealer',
+    entityId: String(dealer._id),
+    action: 'updated',
+    changes: { isTrashed: { from: false, to: true } },
+    meta: { name: dealer.name, shopName: dealer.shopName, phone: dealer.phone, status: dealer.status },
+  });
+
+  return { message: 'Dealer moved to trash successfully' };
+}
+
+export async function restoreDealer(id: string, actorId?: string) {
+  let dealer = await DealerModel.findOne({ _id: id, isTrashed: true });
+  if (!dealer) {
+    // Compatibility fallback: allow restore when legacy/partial states exist.
+    dealer = await DealerModel.findById(id);
+  }
+  if (!dealer) throw notFound('Dealer not found');
+  dealer.isTrashed = false;
+  dealer.trashedAt = undefined;
+  dealer.trashedBy = undefined;
+  await dealer.save();
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'dealer',
+    entityId: String(dealer._id),
+    action: 'updated',
+    changes: { isTrashed: { from: true, to: false } },
+    meta: { name: dealer.name, shopName: dealer.shopName, phone: dealer.phone, status: dealer.status },
+  });
+  return dealer;
+}
+
+export async function permanentlyDeleteDealer(id: string, actorId?: string) {
+  const dealer = await DealerModel.findOne({ _id: id, isTrashed: true });
+  if (!dealer) throw notFound('Dealer not found in trash');
+  await DealerModel.findByIdAndDelete(id);
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'dealer',
+    entityId: String(dealer._id),
+    action: 'deleted',
+    meta: { name: dealer.name, shopName: dealer.shopName, phone: dealer.phone, status: dealer.status, permanent: true },
+  });
+  return { message: 'Dealer permanently deleted successfully' };
 }

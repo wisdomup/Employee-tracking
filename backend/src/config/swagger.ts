@@ -74,7 +74,8 @@ const options: swaggerJsdoc.Options = {
           type: 'object',
           properties: {
             _id: { type: 'string', example: '64a7f3c2e4b0c123456789ef' },
-            name: { type: 'string', example: 'ABC Store' },
+            name: { type: 'string', example: 'Asad Ali' },
+            shopName: { type: 'string', example: 'ABC Store' },
             phone: { type: 'string', example: '03001234567' },
             email: { type: 'string', example: 'dealer@example.com' },
             address: {
@@ -153,10 +154,18 @@ const options: swaggerJsdoc.Options = {
           properties: {
             _id: { type: 'string' },
             employeeId: { $ref: '#/components/schemas/User' },
+            module: {
+              type: 'string',
+              enum: ['task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee'],
+            },
+            entityId: { type: 'string' },
             taskId: { $ref: '#/components/schemas/Task' },
-            action: { type: 'string', enum: ['started_task', 'completed_task'] },
-            latitude: { type: 'number' },
-            longitude: { type: 'number' },
+            action: {
+              type: 'string',
+              enum: ['created', 'updated', 'deleted', 'status_changed', 'started_task', 'completed_task'],
+            },
+            changes: { type: 'object' },
+            meta: { type: 'object' },
             timestamp: { type: 'string', format: 'date-time' },
           },
         },
@@ -207,7 +216,7 @@ const options: swaggerJsdoc.Options = {
             paidAmount: { type: 'number' },
             status: {
               type: 'string',
-              enum: ['pending', 'confirmed', 'packed', 'dispatched', 'delivered', 'cancelled'],
+              enum: ['pending', 'approved', 'packed', 'dispatched', 'delivered', 'cancelled'],
             },
             dealerId: { $ref: '#/components/schemas/Dealer' },
             routeId: { $ref: '#/components/schemas/Route' },

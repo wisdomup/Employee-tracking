@@ -4,56 +4,62 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
-import { dealerService, Dealer } from '../../services/dealerService';
+import { clientService, Client } from '../../services/clientService';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 
-const DealersPage: React.FC = () => {
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+const ClientsPage: React.FC = () => {
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const router = useRouter();
 
   useEffect(() => {
-    fetchDealers();
+    fetchClients();
   }, []);
 
-  const fetchDealers = async () => {
+  const fetchClients = async () => {
     try {
-      const data = await dealerService.getDealers();
-      setDealers(data);
+      const data = await clientService.getClients();
+      setClients(data);
     } catch (error) {
-      toast.error('Failed to fetch dealers');
+      toast.error('Failed to fetch clients');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this dealer?')) {
+    if (!window.confirm('Are you sure you want to delete this client?')) {
       return;
     }
 
     try {
-      await dealerService.deleteDealer(id);
-      toast.success('Dealer deleted successfully');
-      fetchDealers();
+      await clientService.deleteClient(id);
+      toast.success('Client deleted successfully');
+      fetchClients();
     } catch (error) {
-      toast.error('Failed to delete dealer');
+      toast.error('Failed to delete client');
     }
   };
 
-  const filteredDealers = dealers.filter(
-    (dealer) =>
-      dealer.name.toLowerCase().includes(search.toLowerCase()) ||
-      dealer.phone.includes(search) ||
-      (dealer.email && dealer.email.toLowerCase().includes(search.toLowerCase()))
+  const filteredClients = clients.filter(
+    (client) =>
+      client.name.toLowerCase().includes(search.toLowerCase()) ||
+      (client.shopName && client.shopName.toLowerCase().includes(search.toLowerCase())) ||
+      client.phone.includes(search) ||
+      (client.email && client.email.toLowerCase().includes(search.toLowerCase()))
   );
 
   const columns = [
     {
       key: 'name',
-      title: 'Name',
+      title: 'Client Name',
+    },
+    {
+      key: 'shopName',
+      title: 'Shop Name',
+      render: (value: string) => value || '-',
     },
     {
       key: 'phone',
@@ -95,13 +101,13 @@ const DealersPage: React.FC = () => {
     {
       key: 'actions',
       title: 'Actions',
-      render: (_: any, row: Dealer) => (
+      render: (_: any, row: Client) => (
         <div className={styles.actions}>
           <button
             className={styles.editButton}
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`/dealers/${row._id}`);
+              router.push(`/clients/${row._id}`);
             }}
           >
             View
@@ -124,12 +130,12 @@ const DealersPage: React.FC = () => {
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Dealers</h1>
+          <h1>Clients</h1>
           <button
             className={styles.addButton}
-            onClick={() => router.push('/dealers/create')}
+            onClick={() => router.push('/clients/create')}
           >
-            + Add Dealer
+            + Add Client
           </button>
         </div>
 
@@ -145,19 +151,19 @@ const DealersPage: React.FC = () => {
 
         <Table
           columns={columns}
-          data={filteredDealers}
+          data={filteredClients}
           loading={loading}
-          onRowClick={(row) => router.push(`/dealers/${row._id}`)}
+          onRowClick={(row) => router.push(`/clients/${row._id}`)}
         />
       </div>
     </Layout>
   );
 };
 
-export default function DealersPageWrapper() {
+export default function ClientsPageWrapper() {
   return (
     <ProtectedRoute>
-      <DealersPage />
+      <ClientsPage />
     </ProtectedRoute>
   );
 }

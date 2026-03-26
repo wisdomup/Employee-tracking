@@ -1,23 +1,65 @@
 import { ActivityLogModel } from '../../models/activity-log.model';
 
+type ActivityAction =
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  | 'status_changed'
+  | 'started_task'
+  | 'completed_task';
+
+type ActivityModule =
+  | 'task'
+  | 'order'
+  | 'product'
+  | 'category'
+  | 'dealer'
+  | 'route'
+  | 'return'
+  | 'visit'
+  | 'employee';
+
 export async function logActivity(data: {
-  employeeId: string;
-  taskId: string;
-  action: 'started_task' | 'completed_task';
-  latitude: number;
-  longitude: number;
+  employeeId?: string;
+  module: ActivityModule;
+  entityId: string;
+  action: ActivityAction;
+  taskId?: string;
+  changes?: Record<string, { from?: unknown; to?: unknown }>;
+  meta?: Record<string, unknown>;
 }) {
   return ActivityLogModel.create({ ...data, timestamp: new Date() });
 }
 
+export function logActivityAsync(data: {
+  employeeId?: string;
+  module: ActivityModule;
+  entityId: string;
+  action: ActivityAction;
+  taskId?: string;
+  changes?: Record<string, { from?: unknown; to?: unknown }>;
+  meta?: Record<string, unknown>;
+}) {
+  setImmediate(() => {
+    logActivity(data).catch((err) => {
+      console.error('Failed to write activity log:', err);
+    });
+  });
+}
+
 export async function findAll(filters?: {
   employeeId?: string;
+  module?: string;
+  action?: string;
   startDate?: string;
   endDate?: string;
+  limit?: number;
 }) {
   const query: Record<string, unknown> = {};
 
   if (filters?.employeeId) query.employeeId = filters.employeeId;
+  if (filters?.module) query.module = filters.module;
+  if (filters?.action) query.action = filters.action;
 
   if (filters?.startDate || filters?.endDate) {
     const dateRange: Record<string, Date> = {};
@@ -33,6 +75,7 @@ export async function findAll(filters?: {
       populate: { path: 'dealerId' },
     })
     .sort({ timestamp: -1 })
+    .limit(filters?.limit ?? 100)
     .exec();
 }
 

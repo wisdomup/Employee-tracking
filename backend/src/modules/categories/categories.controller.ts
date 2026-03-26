@@ -31,7 +31,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const category = await categoriesService.updateCategory(req.params.id, req.body);
+    const category = await categoriesService.updateCategory(req.params.id, req.body, req.user?.userId);
     res.json(category);
   } catch (err) {
     next(err);
@@ -40,7 +40,25 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await categoriesService.deleteCategory(req.params.id);
+    const result = await categoriesService.deleteCategory(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restore(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await categoriesService.restoreCategory(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePermanent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await categoriesService.permanentlyDeleteCategory(req.params.id, req.user?.userId);
     res.json(result);
   } catch (err) {
     next(err);

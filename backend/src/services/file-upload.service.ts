@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 const UPLOAD_PATH = process.env.UPLOAD_PATH || './uploads';
-const SUBDIRS = ['profiles', 'shops', 'tasks', 'completions', 'categories', 'products', 'general', 'catalogs', 'task-documents'];
+const SUBDIRS = ['profiles', 'shops', 'tasks', 'completions', 'categories', 'products', 'general', 'catalogs', 'task-documents', 'returns'];
 
 export function ensureUploadDirectories(): void {
   if (!fs.existsSync(UPLOAD_PATH)) {

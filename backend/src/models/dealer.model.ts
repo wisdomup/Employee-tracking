@@ -4,6 +4,7 @@ import { DEALER_CATEGORIES, DealerCategory } from '../constants/global';
 export interface IDealer extends Document {
   _id: Types.ObjectId;
   name: string;
+  shopName?: string;
   phone: string;
   email?: string;
   address?: {
@@ -21,6 +22,9 @@ export interface IDealer extends Document {
   rating?: number;
   route?: Types.ObjectId; // reference to a single route
   status: 'active' | 'inactive';
+  isTrashed?: boolean;
+  trashedAt?: Date;
+  trashedBy?: Types.ObjectId;
   createdBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -29,6 +33,7 @@ export interface IDealer extends Document {
 const dealerSchema = new Schema<IDealer>(
   {
     name: { type: String, required: true },
+    shopName: { type: String },
     phone: { type: String, required: true, unique: true, trim: true },
     email: { type: String },
     address: {
@@ -46,12 +51,18 @@ const dealerSchema = new Schema<IDealer>(
     profilePicture: { type: String },
     category: { type: String, enum: Object.values(DEALER_CATEGORIES as Record<string, string>) },
     rating: { type: Number },
+    isTrashed: { type: Boolean, default: false, index: true },
+    trashedAt: { type: Date },
+    trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },
 );
 
 dealerSchema.index({ status: 1 });
+dealerSchema.index({ shopName: 1 });
 dealerSchema.index({ latitude: 1, longitude: 1 });
+dealerSchema.index({ isTrashed: 1, createdAt: -1 });
+dealerSchema.index({ isTrashed: 1, trashedAt: -1 });
 
 export const DealerModel = model<IDealer>('Dealer', dealerSchema);

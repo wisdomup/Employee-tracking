@@ -1,6 +1,5 @@
-import React from 'react';
-import styles from './Table.module.scss';
-import Loader from './Loader';
+import React, { useMemo } from 'react';
+import GlobalDataTable, { TableColumn } from './GlobalDataTable';
 
 interface Column {
   key: string;
@@ -13,6 +12,11 @@ interface TableProps {
   data: any[];
   loading?: boolean;
   onRowClick?: (row: any) => void;
+  paginate?: boolean;
+  pageSize?: number;
+  noDataText?: string;
+  fixedHeader?: boolean;
+  fixedHeaderHeight?: string;
 }
 
 const Table: React.FC<TableProps> = ({
@@ -20,48 +24,37 @@ const Table: React.FC<TableProps> = ({
   data,
   loading = false,
   onRowClick,
+  paginate = true,
+  pageSize = 10,
+  noDataText,
+  fixedHeader = false,
+  fixedHeaderHeight,
 }) => {
-  if (loading) {
-    return <Loader />;
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className={styles.emptyState}>
-        <p>No data available</p>
-      </div>
-    );
-  }
+  const normalizedColumns = useMemo<TableColumn<any>[]>(
+    () =>
+      columns.map((column) => ({
+        name: column.title,
+        selector: (row: any) => row[column.key],
+        cell: column.render
+          ? (row: any) => column.render?.(row[column.key], row)
+          : undefined,
+        sortable: true,
+      })),
+    [columns],
+  );
 
   return (
-    <div className={styles.tableContainer}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column.key}>{column.title}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, index) => (
-            <tr
-              key={row._id || index}
-              onClick={() => onRowClick && onRowClick(row)}
-              className={onRowClick ? styles.clickableRow : ''}
-            >
-              {columns.map((column) => (
-                <td key={column.key}>
-                  {column.render
-                    ? column.render(row[column.key], row)
-                    : row[column.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <GlobalDataTable
+      columns={normalizedColumns}
+      data={data}
+      loading={loading}
+      onRowClick={onRowClick}
+      paginate={paginate}
+      pageSize={pageSize}
+      noDataText={noDataText}
+      fixedHeader={fixedHeader}
+      fixedHeaderHeight={fixedHeaderHeight}
+    />
   );
 };
 

@@ -40,6 +40,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
       case 'rejected':
       case 'cancelled':
         return styles.inactive;
+      case 'approved':
       case 'confirmed':
       case 'packed':
         return styles.active;

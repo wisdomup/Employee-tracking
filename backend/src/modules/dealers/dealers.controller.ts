@@ -51,7 +51,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const dealer = await dealersService.updateDealer(req.params.id, req.body);
+    const dealer = await dealersService.updateDealer(req.params.id, req.body, req.user?.userId);
     res.json(dealer);
   } catch (err) {
     next(err);
@@ -60,7 +60,25 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await dealersService.deleteDealer(req.params.id);
+    const result = await dealersService.deleteDealer(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restore(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await dealersService.restoreDealer(req.params.id, req.user?.userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePermanent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await dealersService.permanentlyDeleteDealer(req.params.id, req.user?.userId);
     res.json(result);
   } catch (err) {
     next(err);

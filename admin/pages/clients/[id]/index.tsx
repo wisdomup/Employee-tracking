@@ -6,17 +6,17 @@ import StatusBadge from '../../../components/UI/StatusBadge';
 import Table from '../../../components/UI/Table';
 import MapView from '../../../components/Map/MapView';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
-import { dealerService, Dealer } from '../../../services/dealerService';
+import { clientService, Client } from '../../../services/clientService';
 import { visitService, Visit } from '../../../services/visitService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import Loader from '../../../components/UI/Loader';
 import styles from '../../../styles/DetailPage.module.scss';
 
-const DealerDetailPage: React.FC = () => {
+const ClientDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const [dealer, setDealer] = useState<Dealer | null>(null);
+  const [client, setClient] = useState<Client | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [visitFilterDate, setVisitFilterDate] = useState<string>(() => {
     const d = new Date();
@@ -29,7 +29,7 @@ const DealerDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      fetchDealer();
+      fetchClient();
     }
   }, [id]);
 
@@ -39,12 +39,12 @@ const DealerDetailPage: React.FC = () => {
     }
   }, [id, visitFilterDate]);
 
-  const fetchDealer = async () => {
+  const fetchClient = async () => {
     try {
-      const data = await dealerService.getDealer(id as string);
-      setDealer(data);
+      const data = await clientService.getClient(id as string);
+      setClient(data);
     } catch (error) {
-      toast.error('Failed to fetch dealer');
+      toast.error('Failed to fetch client');
     } finally {
       setLoading(false);
     }
@@ -54,7 +54,7 @@ const DealerDetailPage: React.FC = () => {
     if (!id) return;
     try {
       const data = await visitService.getVisits({
-        dealerId: id as string,
+        clientId: id as string,
         startDate: visitFilterDate,
         endDate: visitFilterDate,
       });
@@ -65,7 +65,7 @@ const DealerDetailPage: React.FC = () => {
   };
 
   const handleEdit = () => {
-    router.push(`/dealers/${id}/edit`);
+    router.push(`/clients/${id}/edit`);
   };
 
   const visitColumns = [
@@ -104,22 +104,22 @@ const DealerDetailPage: React.FC = () => {
     );
   }
 
-  if (!dealer) {
+  if (!client) {
     return (
       <Layout>
-        <div>Dealer not found</div>
+        <div>Client not found</div>
       </Layout>
     );
   }
 
   const markers =
-    dealer.latitude != null && dealer.longitude != null
+    client.latitude != null && client.longitude != null
       ? [
           {
-            lat: dealer.latitude,
-            lng: dealer.longitude,
-            type: 'dealer' as const,
-            label: dealer.name,
+            lat: client.latitude,
+            lng: client.longitude,
+            type: 'client' as const,
+            label: client.name,
           },
         ]
       : [];
@@ -134,14 +134,14 @@ const DealerDetailPage: React.FC = () => {
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Dealer Details</h1>
+          <h1>Client Details</h1>
           <div className={styles.headerActions}>
             <button className={styles.editButton} onClick={handleEdit}>
               Edit
             </button>
             <button
               className={styles.backButton}
-              onClick={() => router.push('/dealers')}
+              onClick={() => router.push('/clients')}
             >
               ← Back
             </button>
@@ -153,55 +153,59 @@ const DealerDetailPage: React.FC = () => {
             <h2>Basic Information</h2>
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Name:</span>
-                <span className={styles.value}>{dealer.name}</span>
+                <span className={styles.label}>Client Name:</span>
+                <span className={styles.value}>{client.name}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Shop Name:</span>
+                <span className={styles.value}>{client.shopName || '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Phone:</span>
-                <span className={styles.value}>{dealer.phone}</span>
+                <span className={styles.value}>{client.phone}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Email:</span>
-                <span className={styles.value}>{dealer.email || '-'}</span>
+                <span className={styles.value}>{client.email || '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Status:</span>
                 <span className={styles.value}>
-                  <StatusBadge status={dealer.status as 'active' | 'inactive'} />
+                  <StatusBadge status={client.status as 'active' | 'inactive'} />
                 </span>
               </div>
-              {dealer.category && (
+              {client.category && (
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Category:</span>
-                  <span className={styles.value}>{dealer.category}</span>
+                  <span className={styles.value}>{client.category}</span>
                 </div>
               )}
-              {dealer.rating != null && (
+              {client.rating != null && (
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Rating:</span>
-                  <span className={styles.value}>{dealer.rating}</span>
+                  <span className={styles.value}>{client.rating}</span>
                 </div>
               )}
-              {dealer.createdBy && (
+              {client.createdBy && (
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Created By:</span>
                   <span className={styles.value}>
-                    {dealer.createdBy.username ?? dealer.createdBy.userID ?? '-'}
-                    {dealer.createdBy.role ? ` (${dealer.createdBy.role})` : ''}
+                    {client.createdBy.username ?? client.createdBy.userID ?? '-'}
+                    {client.createdBy.role ? ` (${client.createdBy.role})` : ''}
                   </span>
                 </div>
               )}
             </div>
           </div>
 
-          {dealer.shopImage && (
+          {client.shopImage && (
             <div className={styles.section}>
               <h2>Shop Image</h2>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}>
                   <img
-                    src={imageUrl(dealer.shopImage)}
-                    alt={`${dealer.name} shop`}
+                    src={imageUrl(client.shopImage)}
+                    alt={`${client.name} shop`}
                     style={{ maxWidth: 240, maxHeight: 240, objectFit: 'cover', borderRadius: 8 }}
                   />
                 </div>
@@ -209,14 +213,14 @@ const DealerDetailPage: React.FC = () => {
             </div>
           )}
 
-          {dealer.profilePicture && (
+          {client.profilePicture && (
             <div className={styles.section}>
               <h2>Profile Picture</h2>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}>
                   <img
-                    src={imageUrl(dealer.profilePicture)}
-                    alt={`${dealer.name} profile`}
+                    src={imageUrl(client.profilePicture)}
+                    alt={`${client.name} profile`}
                     style={{ maxWidth: 120, maxHeight: 120, borderRadius: 8 }}
                   />
                 </div>
@@ -229,31 +233,31 @@ const DealerDetailPage: React.FC = () => {
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Street:</span>
-                <span className={styles.value}>{dealer.address?.street || '-'}</span>
+                <span className={styles.value}>{client.address?.street || '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>City:</span>
-                <span className={styles.value}>{dealer.address?.city || '-'}</span>
+                <span className={styles.value}>{client.address?.city || '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>State:</span>
-                <span className={styles.value}>{dealer.address?.state || '-'}</span>
+                <span className={styles.value}>{client.address?.state || '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Country:</span>
-                <span className={styles.value}>{dealer.address?.country || '-'}</span>
+                <span className={styles.value}>{client.address?.country || '-'}</span>
               </div>
             </div>
           </div>
 
-          {dealer.latitude != null && dealer.longitude != null && markers.length > 0 && (
+          {client.latitude != null && client.longitude != null && markers.length > 0 && (
             <div className={styles.section}>
               <h2>Location</h2>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Coordinates:</span>
                   <span className={styles.value}>
-                    {dealer.latitude.toFixed(6)}, {dealer.longitude.toFixed(6)}
+                    {client.latitude.toFixed(6)}, {client.longitude.toFixed(6)}
                   </span>
                 </div>
               </div>
@@ -267,9 +271,9 @@ const DealerDetailPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <h2 style={{ margin: 0 }}>Visits ({visits.length})</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <label htmlFor="dealer-visit-date-filter" style={{ fontSize: '0.875rem', color: '#6b7280' }}>Date:</label>
+                <label htmlFor="client-visit-date-filter" style={{ fontSize: '0.875rem', color: '#6b7280' }}>Date:</label>
                 <DatePickerFilter
-                  id="dealer-visit-date-filter"
+                  id="client-visit-date-filter"
                   value={visitFilterDate}
                   onChange={setVisitFilterDate}
                   placeholder="Select date"
@@ -300,10 +304,10 @@ const DealerDetailPage: React.FC = () => {
   );
 };
 
-export default function DealerDetailPageWrapper() {
+export default function ClientDetailPageWrapper() {
   return (
     <ProtectedRoute>
-      <DealerDetailPage />
+      <ClientDetailPage />
     </ProtectedRoute>
   );
 }

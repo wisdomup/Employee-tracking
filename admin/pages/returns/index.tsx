@@ -3,34 +3,44 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
+import StatusBadge from '../../components/UI/StatusBadge';
 import { returnService, Return } from '../../services/returnService';
-import { dealerService, Dealer } from '../../services/dealerService';
+import { clientService, Client } from '../../services/clientService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
 
+const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  pending: { bg: '#fef3c7', color: '#92400e' },
+  approved: { bg: '#dbeafe', color: '#1e40af' },
+  picked: { bg: '#ede9fe', color: '#5b21b6' },
+  completed: { bg: '#d1fae5', color: '#065f46' },
+};
+
 const ReturnsPage: React.FC = () => {
   const [returns, setReturns] = useState<Return[]>([]);
-  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dealerFilter, setDealerFilter] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const router = useRouter();
 
   useEffect(() => {
-    dealerService.getDealers().then(setDealers).catch(() => {});
+    clientService.getClients().then(setClients).catch(() => {});
   }, []);
 
   useEffect(() => {
     fetchReturns();
-  }, [dealerFilter, typeFilter]);
+  }, [clientFilter, typeFilter, statusFilter]);
 
   const fetchReturns = async () => {
     setLoading(true);
     try {
       const data = await returnService.getReturns({
-        dealerId: dealerFilter || undefined,
+        clientId: clientFilter || undefined,
         returnType: typeFilter || undefined,
+        status: statusFilter || undefined,
       });
       setReturns(data);
     } catch (error) {
@@ -53,13 +63,8 @@ const ReturnsPage: React.FC = () => {
 
   const columns = [
     {
-      key: 'productId',
-      title: 'Product',
-      render: (value: any) => value?.name || '-',
-    },
-    {
       key: 'dealerId',
-      title: 'Dealer',
+      title: 'Client',
       render: (value: any) => value?.name || '-',
     },
     {
@@ -77,9 +82,45 @@ const ReturnsPage: React.FC = () => {
             color: value === 'return' ? '#1e40af' : '#92400e',
           }}
         >
-          {value.charAt(0).toUpperCase() + value.slice(1)}
+          {value ? value.charAt(0).toUpperCase() + value.slice(1) : '-'}
         </span>
       ),
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      render: (value: string) => {
+        const colors = STATUS_COLORS[value] || { bg: '#f3f4f6', color: '#374151' };
+        return (
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '0.25rem 0.75rem',
+              borderRadius: '1rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              background: colors.bg,
+              color: colors.color,
+            }}
+          >
+            {value ? value.charAt(0).toUpperCase() + value.slice(1) : '-'}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'products',
+      title: 'Products',
+      render: (value: any[]) => {
+        if (!value || value.length === 0) return '-';
+        const first = value[0]?.productId?.name || 'Product';
+        return value.length === 1 ? first : `${first} +${value.length - 1} more`;
+      },
+    },
+    {
+      key: 'amount',
+      title: 'Amount',
+      render: (value: number) => (value != null ? `Rs. ${value.toFixed(2)}` : '-'),
     },
     {
       key: 'returnReason',
@@ -90,7 +131,9 @@ const ReturnsPage: React.FC = () => {
       key: 'createdBy',
       title: 'Created By',
       render: (value: any) =>
-        value ? `${value.username ?? value.userID ?? '-'}${value.role ? ` (${value.role})` : ''}` : '-',
+        value
+          ? `${value.username ?? value.userID ?? '-'}${value.role ? ` (${value.role})` : ''}`
+          : '-',
     },
     {
       key: 'createdAt',
@@ -129,20 +172,20 @@ const ReturnsPage: React.FC = () => {
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Returns &amp; Claims</h1>
+          <h1>Returns &amp; Damages</h1>
           <button className={styles.addButton} onClick={() => router.push('/returns/create')}>
             + New Return
           </button>
         </div>
         <div className={styles.searchBar}>
           <select
-            value={dealerFilter}
-            onChange={(e) => setDealerFilter(e.target.value)}
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
             className={styles.searchInput}
             style={{ maxWidth: 220 }}
           >
-            <option value="">All Dealers</option>
-            {dealers.map((d) => (
+            <option value="">All Clients</option>
+            {clients.map((d) => (
               <option key={d._id} value={d._id}>
                 {d.name}
               </option>
@@ -156,7 +199,19 @@ const ReturnsPage: React.FC = () => {
           >
             <option value="">All Types</option>
             <option value="return">Return</option>
-            <option value="claim">Claim</option>
+            <option value="damage">Damage</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={styles.searchInput}
+            style={{ maxWidth: 160 }}
+          >
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="picked">Picked</option>
+            <option value="completed">Completed</option>
           </select>
         </div>
         <Table
