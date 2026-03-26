@@ -5,7 +5,7 @@ on:
     tags:
       - "deploy-backend-*"
       - "deploy-admin-*"
-      - "deploy-user-*"
+      # - "deploy-user-*"
       - "deploy-all-*"
 
 jobs:
@@ -73,31 +73,31 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # USER  (PM2 process: tracking.user)
-  # Trigger: deploy-user-* | deploy-all-*
+  # Disabled temporarily to avoid blocking deploy-all.
   # ─────────────────────────────────────────────────────────────────────────────
-  deploy-user:
-    name: Deploy User App
-    runs-on: ubuntu-latest
-    if: |
-      startsWith(github.ref_name, 'deploy-user') ||
-      startsWith(github.ref_name, 'deploy-all')
-    steps:
-      - name: SSH → pull → build → restart
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          script: |
-            set -e
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            nvm use 22
-            cd ${{ secrets.VPS_APP_PATH }}
-            git pull origin main
-            cd user
-            npm ci
-            npm run build
-            pm2 restart tracking.user
-            pm2 save
+  # deploy-user:
+  #   name: Deploy User App
+  #   runs-on: ubuntu-latest
+  #   if: |
+  #     startsWith(github.ref_name, 'deploy-user') ||
+  #     startsWith(github.ref_name, 'deploy-all')
+  #   steps:
+  #     - name: SSH → pull → build → restart
+  #       uses: appleboy/ssh-action@v1
+  #       with:
+  #         host: ${{ secrets.VPS_HOST }}
+  #         username: ${{ secrets.VPS_USER }}
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: ${{ secrets.VPS_PORT }}
+  #         script: |
+  #           set -e
+  #           export NVM_DIR="$HOME/.nvm"
+  #           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  #           nvm use 22
+  #           cd ${{ secrets.VPS_APP_PATH }}
+  #           git pull origin main
+  #           cd user
+  #           npm ci
+  #           npm run build
+  #           pm2 restart tracking.user
+  #           pm2 save
