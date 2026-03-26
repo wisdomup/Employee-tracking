@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import DataTable, { TableColumn } from 'react-data-table-component';
+import DataTable, { TableColumn, TableStyles } from 'react-data-table-component';
 import Loader from './Loader';
 
 interface GlobalDataTableProps<T> {
@@ -25,7 +25,7 @@ function GlobalDataTable<T>({
   fixedHeader = false,
   fixedHeaderHeight = '420px',
 }: GlobalDataTableProps<T>) {
-  const tableStyles = useMemo(
+  const tableStyles = useMemo<TableStyles>(
     () => ({
       table: {
         style: {

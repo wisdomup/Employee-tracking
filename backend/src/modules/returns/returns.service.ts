@@ -122,7 +122,7 @@ export async function updateReturn(id: string, data: Record<string, unknown>, ac
   Object.assign(returnDoc, data);
   await returnDoc.save();
 
-  const movedToCompleted = previousStatus !== 'completed' && returnDoc.status === 'completed';
+  const movedToCompleted = nextStatus === 'completed';
   if (movedToCompleted && returnDoc.returnType === 'return') {
     await applyReturnedStock(returnDoc.products as any);
   }

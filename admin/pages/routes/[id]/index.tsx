@@ -102,9 +102,9 @@ const RouteDetailPage: React.FC = () => {
       render: (value: Visit['employeeId']) => (value?.username ?? value?.userID ?? '-'),
     },
     {
-      key: 'clientId',
+      key: 'dealerId',
       title: 'Client',
-      render: (value: Visit['clientId']) => value?.name ?? '-',
+      render: (value: Visit['dealerId']) => value?.name ?? '-',
     },
     {
       key: 'visitDate',
