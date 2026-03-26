@@ -147,7 +147,12 @@ Use the Swagger UI at `http://localhost:3000/api/docs` to explore and test all A
 
 ## CI/CD — Deployment
 
-Deployments are triggered by pushing a **Git tag** to `main`. GitHub Actions SSHs into the VPS, pulls the latest code, rebuilds the service, and restarts the PM2 process.
+Deployments are triggered by pushing a **Git tag**. GitHub Actions SSHs into the VPS, runs `git pull origin main`, rebuilds the service, and restarts the PM2 process.
+
+Important:
+- The VPS always pulls from **`main`**.
+- Pushing only a tag does **not** push your new commits to `origin/main`.
+- Always push `main` first, then push the deploy tag.
 
 ### Tag Convention
 
@@ -155,24 +160,34 @@ Deployments are triggered by pushing a **Git tag** to `main`. GitHub Actions SSH
 |---|---|
 | `deploy-backend-*` | Backend only (`tracking.backend`) |
 | `deploy-admin-*` | Admin panel only (`tracking.admin`) |
-| `deploy-user-*` | User app only (`tracking.user`) |
+| `deploy-user-*` | User app only (`tracking.user`) *(temporarily disabled in workflow)* |
 | `deploy-all-*` | All three services |
 
 ### How to Deploy
 
 ```bash
-# Deploy only the backend
-git tag deploy-backend-v1.1
+# 1) Commit your code
+git add .
+git commit -m "your message"
+
+# 2) Push commits to main (MANDATORY)
+git push origin main
+
+# 3) Create deploy tag
+git tag deploy-backend-v1.1    # backend only
+# OR
+git tag deploy-admin-v1.1      # admin only
+# OR
+git tag deploy-all-v1.1        # backend + admin (+ user when re-enabled)
+
+# 4) Push the tag
 git push origin deploy-backend-v1.1
-
-# Deploy only the admin panel
-git tag deploy-admin-v1.1
-git push origin deploy-admin-v1.1
-
-# Deploy everything at once
-git tag deploy-all-v1.1
-git push origin deploy-all-v1.1
+# OR matching tag name:
+# git push origin deploy-admin-v1.1
+# git push origin deploy-all-v1.1
 ```
+
+If you skip step 2 and only run `git push origin <tag>`, GitHub Actions may run but VPS will still pull old code from `main`.
 
 Tags must be unique — increment the suffix on each deploy (e.g. `v1.1`, `v1.2`, or use a date like `20260317`).
 
