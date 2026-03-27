@@ -33,7 +33,9 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             nvm use 22
             cd ${{ secrets.VPS_APP_PATH }}
-            git pull origin main
+            git remote prune origin
+            git fetch origin main
+            git reset --hard origin/main
             cd backend
             npm ci
             npm run build
@@ -64,7 +66,9 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             nvm use 22
             cd ${{ secrets.VPS_APP_PATH }}
-            git pull origin main
+            git remote prune origin
+            git fetch origin main
+            git reset --hard origin/main
             cd admin
             npm ci
             npm run build
