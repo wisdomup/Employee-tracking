@@ -142,10 +142,6 @@ const EditClientPage: React.FC = () => {
       toast.error('Please upload a shop image');
       return;
     }
-    if (!formData.profilePicture) {
-      toast.error('Please upload a profile picture');
-      return;
-    }
     if (formData.latitude === 0 && formData.longitude === 0) {
       toast.error('Please pick a client location on the map');
       return;
@@ -388,7 +384,7 @@ const EditClientPage: React.FC = () => {
             value={formData.profilePicture}
             onChange={(url) => setFormData((prev) => ({ ...prev, profilePicture: url }))}
             category="profiles"
-            label="Profile picture *"
+            label="Profile picture"
           />
 
           <div className={styles.formGroup}>
