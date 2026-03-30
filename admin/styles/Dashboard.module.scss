@@ -16,9 +16,17 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: 1.5rem;
   margin-bottom: 2rem;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
   @media (max-width: 480px) {
     grid-template-columns: 1fr;
@@ -75,9 +83,17 @@
   margin-top: 0.25rem;
 }
 
+.statSub {
+  font-size: 0.75rem;
+  color: #ef4444;
+  margin-top: 0.2rem;
+  font-weight: 500;
+}
+
 .contentGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  margin-top: 20px;
   gap: 2rem;
 
   @media (max-width: 1024px) {
@@ -215,4 +231,10 @@
   color: #6b7280;
   background: #f9fafb;
   border-radius: 0.5rem;
+}
+
+
+.recentActivitySection{
+  max-height: 500px;
+  overflow-y: auto;
 }

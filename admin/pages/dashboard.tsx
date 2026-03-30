@@ -135,8 +135,11 @@ const Dashboard: React.FC = () => {
           <Link href="/employees" className={styles.statCard}>
             <div className={styles.statIcon}>👥</div>
             <div className={styles.statContent}>
-              <div className={styles.statValue}>{stats.stats.totalEmployees}</div>
-              <div className={styles.statLabel}>Total Employees</div>
+              <div className={styles.statValue}>{stats.stats.activeEmployees}</div>
+              <div className={styles.statLabel}>Active Employees</div>
+              {stats.stats.inactiveEmployees > 0 && (
+                <div className={styles.statSub}>{stats.stats.inactiveEmployees} inactive</div>
+              )}
             </div>
           </Link>
 
@@ -145,6 +148,46 @@ const Dashboard: React.FC = () => {
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalClients}</div>
               <div className={styles.statLabel}>Total Clients</div>
+            </div>
+          </Link>
+
+          <Link href="/products" className={styles.statCard}>
+            <div className={styles.statIcon}>📦</div>
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.totalProducts}</div>
+              <div className={styles.statLabel}>Total Products</div>
+            </div>
+          </Link>
+
+          <Link href="/categories" className={styles.statCard}>
+            <div className={styles.statIcon}>🗂️</div>
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.totalCategories}</div>
+              <div className={styles.statLabel}>Total Categories</div>
+            </div>
+          </Link>
+
+          <Link href="/orders" className={styles.statCard}>
+            <div className={styles.statIcon}>🛒</div>
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.totalOrders}</div>
+              <div className={styles.statLabel}>Total Orders</div>
+            </div>
+          </Link>
+
+          <Link href="/orders" className={styles.statCard}>
+            <div className={styles.statIcon}>⏳</div>
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.totalPendingOrders}</div>
+              <div className={styles.statLabel}>Pending Orders</div>
+            </div>
+          </Link>
+
+          <Link href="/routes" className={styles.statCard}>
+            <div className={styles.statIcon}>🗺️</div>
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.totalRoutes}</div>
+              <div className={styles.statLabel}>Total Routes</div>
             </div>
           </Link>
 
@@ -167,10 +210,10 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/tasks" className={styles.statCard}>
-            <div className={styles.statIcon}>⏳</div>
+            <div className={styles.statIcon}>🔄</div>
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.tasksInProgress}</div>
-              <div className={styles.statLabel}>In Progress</div>
+              <div className={styles.statLabel}>Tasks In Progress</div>
             </div>
           </Link>
         </div>
@@ -242,7 +285,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className={styles.contentGrid}>
-          <div className={styles.section}>
+          <div className={`${styles.section} ${styles.recentActivitySection}`}>
             <h2 className={styles.sectionTitle}>Recent Activity</h2>
             <div className={styles.activityList}>
               {stats.recentActivity.length === 0 ? (

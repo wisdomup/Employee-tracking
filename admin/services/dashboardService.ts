@@ -12,11 +12,17 @@ export interface RecentActivityEntry {
 
 export interface DashboardStats {
   stats: {
-    totalEmployees: number;
+    activeEmployees: number;
+    inactiveEmployees: number;
     totalClients: number;
     totalTasks: number;
     tasksCompletedToday: number;
     tasksInProgress: number;
+    totalProducts: number;
+    totalCategories: number;
+    totalOrders: number;
+    totalPendingOrders: number;
+    totalRoutes: number;
   };
   recentActivity: RecentActivityEntry[];
   completedTasksForMap: any[];

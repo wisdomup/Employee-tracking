@@ -1,12 +1,11 @@
 import { Types } from 'mongoose';
-import { MAX_DEALERS_PER_ROUTE } from '../../constants/global';
 import { DealerModel } from '../../models/dealer.model';
 import { calculateDistance } from '../../services/distance.service';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 
-const ROUTE_DEALER_LIMIT_MESSAGE =
-  `This route already has the maximum of ${MAX_DEALERS_PER_ROUTE} dealers. You cannot add this dealer or any more dealers to this route — max limit reached. Create another route to add dealers.`;
+// const ROUTE_DEALER_LIMIT_MESSAGE =
+//   `This route already has the maximum of ${MAX_DEALERS_PER_ROUTE} dealers. You cannot add this dealer or any more dealers to this route — max limit reached. Create another route to add dealers.`;
 
 const DEALER_PHONE_EXISTS_MESSAGE =
   'This phone number already exists. Another dealer is already registered with this phone number — please enter a different phone number.';
@@ -38,15 +37,16 @@ function isPhoneDuplicateKey(err: unknown): boolean {
   return false;
 }
 
-async function assertCanAssignDealerToRoute(routeId: string, excludeDealerId?: string) {
-  const filter: Record<string, unknown> = { route: new Types.ObjectId(routeId) };
-  if (excludeDealerId) {
-    filter._id = { $ne: new Types.ObjectId(excludeDealerId) };
-  }
-  const count = await DealerModel.countDocuments(filter).exec();
-  if (count >= MAX_DEALERS_PER_ROUTE) {
-    throw badRequest(ROUTE_DEALER_LIMIT_MESSAGE);
-  }
+async function assertCanAssignDealerToRoute(_routeId: string, _excludeDealerId?: string) {
+  // Per-route dealer cap disabled — was enforced via MAX_DEALERS_PER_ROUTE in global.ts.
+  // const filter: Record<string, unknown> = { route: new Types.ObjectId(routeId) };
+  // if (excludeDealerId) {
+  //   filter._id = { $ne: new Types.ObjectId(excludeDealerId) };
+  // }
+  // const count = await DealerModel.countDocuments(filter).exec();
+  // if (count >= MAX_DEALERS_PER_ROUTE) {
+  //   throw badRequest(ROUTE_DEALER_LIMIT_MESSAGE);
+  // }
 }
 
 export async function createDealer(

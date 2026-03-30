@@ -26,11 +26,17 @@ router.use(authMiddleware);
  *                 stats:
  *                   type: object
  *                   properties:
- *                     totalEmployees: { type: number, example: 12 }
- *                     totalDealers: { type: number, example: 40 }
+ *                     activeEmployees: { type: number, example: 12 }
+ *                     inactiveEmployees: { type: number, example: 3 }
+ *                     totalClients: { type: number, example: 40 }
  *                     totalTasks: { type: number, example: 120 }
  *                     tasksCompletedToday: { type: number, example: 8 }
  *                     tasksInProgress: { type: number, example: 5 }
+ *                     totalProducts: { type: number, example: 80 }
+ *                     totalCategories: { type: number, example: 10 }
+ *                     totalOrders: { type: number, example: 200 }
+ *                     totalPendingOrders: { type: number, example: 15 }
+ *                     totalRoutes: { type: number, example: 8 }
  *                 recentActivity:
  *                   type: array
  *                   items:

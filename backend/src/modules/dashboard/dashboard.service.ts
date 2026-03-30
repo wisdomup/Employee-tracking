@@ -5,26 +5,42 @@ import { OrderModel } from '../../models/order.model';
 import { CategoryModel } from '../../models/category.model';
 import { ProductModel } from '../../models/product.model';
 import { ReturnModel } from '../../models/return.model';
+import { RouteModel } from '../../models/route.model';
 import { getRecentActivity } from '../activity-logs/activity-logs.service';
 
 export async function getDashboardStats() {
-  const totalEmployees = await UserModel.countDocuments({ role: 'employee', isActive: true, isTrashed: { $ne: true } });
-  const totalDealers = await DealerModel.countDocuments({ status: 'active', isTrashed: { $ne: true } });
-  const totalTasks = await TaskModel.countDocuments();
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const tasksCompletedToday = await TaskModel.countDocuments({
-    status: 'completed',
-    completedAt: { $gte: today, $lt: tomorrow },
-  });
-
-  const tasksInProgress = await TaskModel.countDocuments({ status: 'in_progress' });
-
-  const recentActivity = await getRecentActivity(10);
+  const [
+    activeEmployees,
+    inactiveEmployees,
+    totalClients,
+    totalTasks,
+    tasksCompletedToday,
+    tasksInProgress,
+    totalProducts,
+    totalCategories,
+    totalOrders,
+    totalPendingOrders,
+    totalRoutes,
+    recentActivity,
+  ] = await Promise.all([
+    UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: true, isTrashed: { $ne: true } }),
+    UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: false, isTrashed: { $ne: true } }),
+    DealerModel.countDocuments({ status: 'active', isTrashed: { $ne: true } }),
+    TaskModel.countDocuments({ isTrashed: { $ne: true } }),
+    TaskModel.countDocuments({ status: 'completed', completedAt: { $gte: today, $lt: tomorrow } }),
+    TaskModel.countDocuments({ status: 'in_progress' }),
+    ProductModel.countDocuments({ isTrashed: { $ne: true } }),
+    CategoryModel.countDocuments({ isTrashed: { $ne: true } }),
+    OrderModel.countDocuments({ isTrashed: { $ne: true } }),
+    OrderModel.countDocuments({ status: 'pending', isTrashed: { $ne: true } }),
+    RouteModel.countDocuments({ isTrashed: { $ne: true } }),
+    getRecentActivity(10),
+  ]);
 
   const completedTasksForMap = await TaskModel.find({
     status: 'completed',
@@ -38,11 +54,17 @@ export async function getDashboardStats() {
 
   return {
     stats: {
-      totalEmployees,
-      totalDealers,
+      activeEmployees,
+      inactiveEmployees,
+      totalClients,
       totalTasks,
       tasksCompletedToday,
       tasksInProgress,
+      totalProducts,
+      totalCategories,
+      totalOrders,
+      totalPendingOrders,
+      totalRoutes,
     },
     recentActivity,
     completedTasksForMap: completedTasksForMap.map((task) => {
