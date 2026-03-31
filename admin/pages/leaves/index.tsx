@@ -5,6 +5,7 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { leaveService, Leave } from '../../services/leaveService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -14,15 +15,26 @@ const LeavesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
 
   useEffect(() => {
+    if (!user) return;
+    if (isOrderTaker && !user.id) return;
     fetchLeaves();
-  }, [statusFilter]);
+  }, [statusFilter, user?.id, user?.role]);
 
   const fetchLeaves = async () => {
     setLoading(true);
     try {
-      const data = await leaveService.getLeaves({ status: statusFilter || undefined });
+      const params: Parameters<typeof leaveService.getLeaves>[0] = {
+        status: statusFilter || undefined,
+      };
+      if (user?.role === 'order_taker' && user?.id) {
+        params.employeeId = user.id;
+      }
+      const data = await leaveService.getLeaves(params);
       setLeaves(data);
     } catch (error) {
       toast.error('Failed to fetch leaves');
@@ -93,18 +105,20 @@ const LeavesPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            type="button"
-            className={styles.editButton}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              router.push(`/leaves/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
-          {row.status === 'pending' && (
+          {(isAdmin || (isOrderTaker && row.status === 'pending')) && (
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                router.push(`/leaves/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {isAdmin && row.status === 'pending' && (
             <>
               <button
                 style={{
@@ -144,17 +158,25 @@ const LeavesPage: React.FC = () => {
               </button>
             </>
           )}
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (row.status !== 'approved') handleDelete(row._id);
-            }}
-            disabled={row.status === 'approved'}
-            title={row.status === 'approved' ? 'Approved leaves cannot be deleted' : undefined}
-          >
-            Delete
-          </button>
+          {(isAdmin || (isOrderTaker && row.status === 'pending')) && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (row.status !== 'approved') handleDelete(row._id);
+              }}
+              disabled={row.status === 'approved' || (isOrderTaker && row.status !== 'pending')}
+              title={
+                row.status === 'approved'
+                  ? 'Approved leaves cannot be deleted'
+                  : isOrderTaker && row.status !== 'pending'
+                    ? 'Only pending leaves can be deleted'
+                    : undefined
+              }
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -195,7 +217,7 @@ const LeavesPage: React.FC = () => {
 
 export default function LeavesPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <LeavesPage />
     </ProtectedRoute>
   );

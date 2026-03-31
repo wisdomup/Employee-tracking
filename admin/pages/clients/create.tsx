@@ -433,7 +433,7 @@ const CreateClientPage: React.FC = () => {
 
 export default function CreateClientPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CreateClientPage />
     </ProtectedRoute>
   );

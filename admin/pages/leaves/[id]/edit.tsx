@@ -14,6 +14,7 @@ const EditLeavePage: React.FC = () => {
   const { id } = router.query;
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
   const [leave, setLeave] = useState<Leave | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -25,12 +26,24 @@ const EditLeavePage: React.FC = () => {
   });
 
   useEffect(() => {
-    if (id) fetchLeave();
-  }, [id]);
+    if (!id) return;
+    fetchLeave();
+  }, [id, user?.id, isOrderTaker]);
 
   const fetchLeave = async () => {
     try {
       const data = await leaveService.getLeave(id as string);
+      if (isOrderTaker && user?.id) {
+        const ownerId =
+          typeof data.employeeId === 'string'
+            ? data.employeeId
+            : (data.employeeId as { _id?: string })?._id ?? '';
+        if (ownerId !== user.id || data.status !== 'pending') {
+          toast.error('You can only edit your own pending leave requests');
+          router.push('/leaves');
+          return;
+        }
+      }
       setLeave(data);
       setFormData({
         leaveType: data.leaveType,
@@ -189,7 +202,7 @@ const EditLeavePage: React.FC = () => {
 
 export default function EditLeavePageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <EditLeavePage />
     </ProtectedRoute>
   );

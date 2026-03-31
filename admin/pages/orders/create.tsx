@@ -440,7 +440,7 @@ const CreateOrderPage: React.FC = () => {
 
 export default function CreateOrderPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CreateOrderPage />
     </ProtectedRoute>
   );

@@ -54,7 +54,7 @@ router.post('/', validate(createLeaveSchema), controller.create);
  *       200: { description: List of leave requests }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin'), controller.findAll);
+router.get('/', requireRoles('admin', 'order_taker'), controller.findAll);
 
 /**
  * @openapi
@@ -151,6 +151,6 @@ router.patch('/:id/status', requireRoles('admin'), validate(updateLeaveStatusSch
  *       400: { description: Cannot delete approved leave }
  *       404: { description: Leave not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
+router.delete('/:id', requireRoles('admin', 'order_taker'), controller.remove);
 
 export default router;

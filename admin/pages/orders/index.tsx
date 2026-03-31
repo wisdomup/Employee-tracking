@@ -8,6 +8,8 @@ import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import { orderService, Order } from '../../services/orderService';
 import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
+import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -23,6 +25,10 @@ const OrdersPage: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const canEditOrder = (order: Order) =>
+    isAdmin || (user?.role === 'order_taker' && order.status === 'pending');
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
@@ -126,7 +132,7 @@ const OrdersPage: React.FC = () => {
       title: 'Actions',
       render: (_: any, row: Order) => (
         <div className={styles.actions}>
-          {row.status === 'pending' && (
+          {isAdmin && row.status === 'pending' && (
             <button
               className={styles.approveButton}
               onClick={(e) => {
@@ -146,24 +152,28 @@ const OrdersPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/orders/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {canEditOrder(row) && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/orders/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -245,7 +255,7 @@ const OrdersPage: React.FC = () => {
 
 export default function OrdersPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <OrdersPage />
     </ProtectedRoute>
   );

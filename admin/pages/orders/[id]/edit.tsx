@@ -6,6 +6,7 @@ import { orderService, Order } from '../../../services/orderService';
 import { clientService, Client } from '../../../services/clientService';
 import { routeService, Route } from '../../../services/routeService';
 import { productService, Product } from '../../../services/productService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
@@ -22,6 +23,8 @@ const EditOrderPage: React.FC = () => {
   const { id } = router.query;
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -66,6 +69,12 @@ const EditOrderPage: React.FC = () => {
             price: typeof p.price === 'number' ? p.price : 0,
           }))
         : [{ productId: '', quantity: 1, price: 0 }];
+      if (user?.role === 'order_taker' && data.status !== 'pending') {
+        toast.error('You can only edit pending orders');
+        router.push(`/orders/${id}`);
+        return;
+      }
+
       setFormData({
         clientId,
         routeId,
@@ -378,24 +387,26 @@ const EditOrderPage: React.FC = () => {
             </div>
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="status">Status *</label>
-            <select
-              id="status"
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              required
-              className={styles.select}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="packed">Packed (ready for delivery)</option>
-              <option value="dispatched">Dispatched (out for delivery)</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
+          {isAdmin && (
+            <div className={styles.formGroup}>
+              <label htmlFor="status">Status *</label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                required
+                className={styles.select}
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="packed">Packed (ready for delivery)</option>
+                <option value="dispatched">Dispatched (out for delivery)</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="paymentType">Payment Type</label>
@@ -490,7 +501,7 @@ const EditOrderPage: React.FC = () => {
 
 export default function EditOrderPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <EditOrderPage />
     </ProtectedRoute>
   );

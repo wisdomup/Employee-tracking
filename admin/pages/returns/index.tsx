@@ -6,6 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { returnService, Return } from '../../services/returnService';
 import { clientService, Client } from '../../services/clientService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -25,14 +26,30 @@ const ReturnsPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const returnCreatorId = (ret: Return): string => {
+    const c = ret.createdBy;
+    if (c == null) return '';
+    if (typeof c === 'object' && '_id' in c) return String((c as { _id: string })._id);
+    return String(c);
+  };
+  const canDeleteReturn = (ret: Return) => {
+    if (user?.role === 'admin') return true;
+    if (user?.role === 'order_taker' && ret.status === 'pending') {
+      return !!user.id && returnCreatorId(ret) === user.id;
+    }
+    return false;
+  };
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+    if (user.role === 'order_taker' && !user.id) return;
     fetchReturns();
-  }, [clientFilter, typeFilter, statusFilter]);
+  }, [clientFilter, typeFilter, statusFilter, user?.id, user?.role]);
 
   const fetchReturns = async () => {
     setLoading(true);
@@ -41,6 +58,7 @@ const ReturnsPage: React.FC = () => {
         clientId: clientFilter || undefined,
         returnType: typeFilter || undefined,
         status: statusFilter || undefined,
+        createdBy: user?.role === 'order_taker' && user.id ? user.id : undefined,
       });
       setReturns(data);
     } catch (error) {
@@ -154,15 +172,17 @@ const ReturnsPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {canDeleteReturn(row) && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -227,7 +247,7 @@ const ReturnsPage: React.FC = () => {
 
 export default function ReturnsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ReturnsPage />
     </ProtectedRoute>
   );

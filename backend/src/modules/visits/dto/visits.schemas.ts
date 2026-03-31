@@ -28,12 +28,13 @@ export const completeVisitSchema = Joi.object({
     .required(),
 });
 
+/** Partial update: admin may send dealer/employee/date/route/status; order_taker sends status only. */
 export const updateVisitSchema = Joi.object({
-  dealerId: Joi.string().required(),
-  employeeId: Joi.string().required(),
+  dealerId: Joi.string().optional(),
+  employeeId: Joi.string().optional(),
   routeId: Joi.string().optional().allow(null, ''),
   visitDate: Joi.date().optional(),
   status: Joi.string()
     .valid('todo', 'in_progress', 'completed', 'incomplete', 'cancelled')
     .optional(),
-});
+}).or('dealerId', 'employeeId', 'routeId', 'visitDate', 'status');

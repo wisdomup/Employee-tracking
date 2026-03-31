@@ -6,6 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { taskService, Task } from '../../services/taskService';
 import { employeeService, Employee } from '../../services/employeeService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 import modalStyles from '../../styles/Modal.module.scss';
@@ -21,20 +22,26 @@ const TasksPage: React.FC = () => {
   const [assigning, setAssigning] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
 
   useEffect(() => {
     fetchTasks();
-  }, [statusFilter]);
+  }, [statusFilter, user?.id]);
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (!isOrderTaker) {
+      fetchEmployees();
+    }
+  }, [isOrderTaker]);
 
   const fetchTasks = async () => {
     setLoading(true);
     try {
       const data = await taskService.getTasks({
         status: statusFilter || undefined,
+        assignedTo: isOrderTaker && user?.id ? user.id : undefined,
       });
       setTasks(data);
     } catch (error) {
@@ -144,7 +151,7 @@ const TasksPage: React.FC = () => {
           >
             View
           </button>
-          {row.status !== 'in_progress' && (
+          {!isOrderTaker && row.status !== 'in_progress' && (
             <button
               type="button"
               className={styles.editButton}
@@ -156,16 +163,18 @@ const TasksPage: React.FC = () => {
               Assign
             </button>
           )}
-          <button
-            type="button"
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -176,9 +185,11 @@ const TasksPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Tasks</h1>
-          <button className={styles.addButton} onClick={() => router.push('/tasks/create')}>
-            + Add Task
-          </button>
+          {!isOrderTaker && (
+            <button className={styles.addButton} onClick={() => router.push('/tasks/create')}>
+              + Add Task
+            </button>
+          )}
         </div>
 
         <div className={styles.searchBar}>
@@ -259,7 +270,7 @@ const TasksPage: React.FC = () => {
 
 export default function TasksPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <TasksPage />
     </ProtectedRoute>
   );

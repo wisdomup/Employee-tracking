@@ -5,6 +5,7 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Loader from '../../../components/UI/Loader';
 import { leaveService, Leave } from '../../../services/leaveService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -15,6 +16,9 @@ const LeaveDetailPage: React.FC = () => {
   const [leave, setLeave] = useState<Leave | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
 
   useEffect(() => {
     if (id) {
@@ -57,29 +61,47 @@ const LeaveDetailPage: React.FC = () => {
   if (loading) return <Layout><Loader /></Layout>;
   if (!leave) return <Layout><div>Leave request not found</div></Layout>;
 
+  const leaveOwnerId =
+    typeof leave.employeeId === 'string'
+      ? leave.employeeId
+      : (leave.employeeId as { _id?: string })?._id ?? '';
+
+  const canOrderTakerMutate =
+    isOrderTaker && user?.id && leaveOwnerId === user.id && leave.status === 'pending';
+
   return (
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Leave Request Details</h1>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className={styles.backButton}
-              style={{ background: '#dbeafe', color: '#1e40af' }}
-              onClick={() => router.push(`/leaves/${id}/edit`)}
-            >
-              Edit
-            </button>
-            <button
-              className={styles.backButton}
-              style={leave.status !== 'pending' ? undefined : { background: '#fee2e2', color: '#991b1b' }}
-              onClick={handleDelete}
-              disabled={updating || leave.status === 'approved'}
-              title={leave.status === 'approved' ? 'Approved leaves cannot be deleted' : undefined}
-            >
-              Delete
-            </button>
+            {(isAdmin || canOrderTakerMutate) && (
+              <button
+                type="button"
+                className={styles.backButton}
+                style={{ background: '#dbeafe', color: '#1e40af' }}
+                onClick={() => router.push(`/leaves/${id}/edit`)}
+              >
+                Edit
+              </button>
+            )}
+            {(isAdmin || canOrderTakerMutate) && (
+              <button
+                className={styles.backButton}
+                style={leave.status !== 'pending' ? undefined : { background: '#fee2e2', color: '#991b1b' }}
+                onClick={handleDelete}
+                disabled={updating || leave.status === 'approved' || (isOrderTaker && leave.status !== 'pending')}
+                title={
+                  leave.status === 'approved'
+                    ? 'Approved leaves cannot be deleted'
+                    : isOrderTaker && leave.status !== 'pending'
+                      ? 'Only pending leaves can be deleted'
+                      : undefined
+                }
+              >
+                Delete
+              </button>
+            )}
             <button className={styles.backButton} onClick={() => router.push('/leaves')}>
               ← Back
             </button>
@@ -90,7 +112,7 @@ const LeaveDetailPage: React.FC = () => {
           <div className={styles.section}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <h2 style={{ margin: 0 }}>Leave Information</h2>
-              {leave.status === 'pending' && (
+              {isAdmin && leave.status === 'pending' && (
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button
                     disabled={updating}
@@ -189,7 +211,7 @@ const LeaveDetailPage: React.FC = () => {
 
 export default function LeaveDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <LeaveDetailPage />
     </ProtectedRoute>
   );

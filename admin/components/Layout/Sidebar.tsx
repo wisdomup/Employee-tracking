@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import styles from './Sidebar.module.scss';
 
 interface SidebarProps {
@@ -9,27 +11,46 @@ interface SidebarProps {
   isCollapsedView: boolean;
 }
 
+interface MenuItem {
+  path: string;
+  label: string;
+  icon: string;
+  /** Permission key checked via can(). If undefined the item is always visible. */
+  permission?: string;
+  /** If true, only admin sees this item regardless of permissions. */
+  adminOnly?: boolean;
+}
+
+const ALL_MENU_ITEMS: MenuItem[] = [
+  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { path: '/employees', label: 'Employees', icon: '👥', adminOnly: true },
+  { path: '/clients', label: 'Clients', icon: '🏪', permission: 'dealers:view' },
+  { path: '/routes', label: 'Routes', icon: '🛣️', adminOnly: true },
+  { path: '/tasks', label: 'Tasks', icon: '📋', permission: 'tasks:view' },
+  { path: '/activity-logs', label: 'Activity Logs', icon: '📈', permission: 'activity-logs:view' },
+  { path: '/categories', label: 'Categories', icon: '🏷️', adminOnly: true },
+  { path: '/catalogs', label: 'Catalogs', icon: '📄', permission: 'catalogs:view' },
+  { path: '/products', label: 'Products', icon: '📦', permission: 'products:view' },
+  { path: '/orders', label: 'Orders', icon: '🛒', permission: 'orders:view' },
+  { path: '/leaves', label: 'Approvals', icon: '🗓️', permission: 'leaves:view' },
+  { path: '/visits', label: 'Visits', icon: '📍', permission: 'visits:view' },
+  { path: '/returns', label: 'Returns', icon: '↩️', permission: 'returns:view' },
+  { path: '/reports', label: 'Reports', icon: '📉', adminOnly: true },
+  { path: '/trash', label: 'Trash', icon: '🗑️', adminOnly: true },
+  { path: '/broadcast-notifications', label: 'Notifications', icon: '🔔', adminOnly: true },
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) => {
   const router = useRouter();
+  const { user } = useAuth();
+  const role = user?.role;
 
-  const menuItems = [
-    { path: '/dashboard', label: 'workspace', icon: '📊' },
-    { path: '/employees', label: 'Employees', icon: '👥' },
-    { path: '/clients', label: 'Clients', icon: '🏪' },
-    { path: '/routes', label: 'Routes', icon: '🛣️' },
-    { path: '/tasks', label: 'Tasks', icon: '📋' },
-    { path: '/activity-logs', label: 'Activity Logs', icon: '📈' },
-    { path: '/categories', label: 'Categories', icon: '🏷️' },
-    { path: '/catalogs', label: 'Catalogs', icon: '📄' },
-    { path: '/products', label: 'Products', icon: '📦' },
-    { path: '/orders', label: 'Orders', icon: '🛒' },
-    { path: '/leaves', label: 'Approvals', icon: '🗓️' },
-    { path: '/visits', label: 'Visits', icon: '📍' },
-    { path: '/returns', label: 'Returns', icon: '↩️' },
-    { path: '/reports', label: 'Reports', icon: '📉' },
-    { path: '/trash', label: 'Trash', icon: '🗑️' },
-    { path: '/broadcast-notifications', label: 'Notifications', icon: '🔔' },
-  ];
+  const menuItems = ALL_MENU_ITEMS.filter((item) => {
+    if (role === 'admin') return true;
+    if (item.adminOnly) return false;
+    if (item.permission) return can(role, item.permission);
+    return true;
+  });
 
   const isActive = (path: string) => router.pathname.startsWith(path);
 

@@ -23,6 +23,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, showMenuButton }) => {
     router.push('/change-password');
   };
 
+  const title = user?.role === 'admin' ? 'Admin Panel' : 'Order Taker Panel';
+
   return (
     <header className={styles.header}>
       <div className={styles.content}>
@@ -40,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, showMenuButton }) => {
             </svg>
           </button>
         )}
-        <h1 className={styles.title}>Admin Panel</h1>
+        <h1 className={styles.title}>{title}</h1>
 
         <div className={styles.userSection}>
           <button

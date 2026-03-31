@@ -31,7 +31,7 @@ const Login: React.FC = () => {
     <div className={styles.container}>
       <div className={styles.loginBox}>
         <h1 className={styles.title}>GPS Task Tracker</h1>
-        <h2 className={styles.subtitle}>Admin Login</h2>
+        <h2 className={styles.subtitle}>Login</h2>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           {error && <div className={styles.error}>{error}</div>}

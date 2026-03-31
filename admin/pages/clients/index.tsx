@@ -5,6 +5,7 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { clientService, Client } from '../../services/clientService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 
@@ -13,6 +14,8 @@ const ClientsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchClients();
@@ -112,15 +115,17 @@ const ClientsPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {isAdmin && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -162,7 +167,7 @@ const ClientsPage: React.FC = () => {
 
 export default function ClientsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ClientsPage />
     </ProtectedRoute>
   );

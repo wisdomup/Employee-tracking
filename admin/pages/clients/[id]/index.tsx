@@ -8,6 +8,7 @@ import MapView from '../../../components/Map/MapView';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import { clientService, Client } from '../../../services/clientService';
 import { visitService, Visit } from '../../../services/visitService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import Loader from '../../../components/UI/Loader';
@@ -16,6 +17,8 @@ import styles from '../../../styles/DetailPage.module.scss';
 const ClientDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [client, setClient] = useState<Client | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [visitFilterDate, setVisitFilterDate] = useState<string>(() => {
@@ -136,9 +139,11 @@ const ClientDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Client Details</h1>
           <div className={styles.headerActions}>
-            <button className={styles.editButton} onClick={handleEdit}>
-              Edit
-            </button>
+            {isAdmin && (
+              <button className={styles.editButton} onClick={handleEdit}>
+                Edit
+              </button>
+            )}
             <button
               className={styles.backButton}
               onClick={() => router.push('/clients')}
@@ -306,7 +311,7 @@ const ClientDetailPage: React.FC = () => {
 
 export default function ClientDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ClientDetailPage />
     </ProtectedRoute>
   );

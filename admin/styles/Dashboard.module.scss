@@ -142,6 +142,8 @@
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   min-width: 140px;
+  background-color: white;
+  color: #1f2937;
 }
 
 .reportGrid {
@@ -237,4 +239,43 @@
 .recentActivitySection{
   max-height: 500px;
   overflow-y: auto;
+}
+
+.mapFullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.75);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.mapFullscreenContent {
+  width: 100vw;
+  height: 100vh;
+  background: #fff;
+  border-radius: 0;
+  border: none;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.mapFullscreenHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.mapFullscreenClose {
+  border: none;
+  background: #111827;
+  color: #fff;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
 }

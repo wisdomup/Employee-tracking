@@ -1,6 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import * as returnsService from './returns.service';
 import { saveFile } from '../../services/file-upload.service';
+import { forbidden } from '../../utils/app-error';
+
+function returnCreatedById(doc: { createdBy?: unknown }): string {
+  const c = doc.createdBy;
+  if (c == null) return '';
+  if (typeof c === 'object' && c !== null && '_id' in c) {
+    return String((c as { _id: unknown })._id);
+  }
+  return String(c);
+}
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -39,7 +49,16 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
     const { dealerId, returnType, status, createdBy } = req.query as Record<string, string>;
-    const returns = await returnsService.findAll({ dealerId, returnType, status, createdBy });
+    let effectiveCreatedBy = createdBy;
+    if (req.user?.role === 'order_taker') {
+      effectiveCreatedBy = req.user.userId;
+    }
+    const returns = await returnsService.findAll({
+      dealerId,
+      returnType,
+      status,
+      createdBy: effectiveCreatedBy,
+    });
     res.json(returns);
   } catch (err) {
     next(err);
@@ -49,6 +68,11 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
 export async function findOne(req: Request, res: Response, next: NextFunction) {
   try {
     const returnDoc = await returnsService.findById(req.params.id);
+    if (req.user?.role === 'order_taker' && req.user.userId) {
+      if (returnCreatedById(returnDoc as { createdBy?: unknown }) !== req.user.userId) {
+        return next(forbidden('You can only view returns you created'));
+      }
+    }
     res.json(returnDoc);
   } catch (err) {
     next(err);
@@ -57,6 +81,16 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role === 'order_taker') {
+      const existing = await returnsService.findById(req.params.id);
+      if (returnCreatedById(existing as { createdBy?: unknown }) !== req.user!.userId) {
+        return next(forbidden('You can only edit returns you created'));
+      }
+      if (existing.status !== 'pending') {
+        return next(forbidden('Order takers can only edit returns that are still pending'));
+      }
+    }
+
     const updateData: Record<string, unknown> = { ...req.body };
 
     if (typeof updateData.products === 'string') {
@@ -85,6 +119,15 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role === 'order_taker') {
+      const existing = await returnsService.findById(req.params.id);
+      if (returnCreatedById(existing as { createdBy?: unknown }) !== req.user!.userId) {
+        return next(forbidden('You can only delete returns you created'));
+      }
+      if (existing.status !== 'pending') {
+        return next(forbidden('Order takers can only delete returns that are still pending'));
+      }
+    }
     const result = await returnsService.deleteReturn(req.params.id, req.user?.userId);
     res.json(result);
   } catch (err) {

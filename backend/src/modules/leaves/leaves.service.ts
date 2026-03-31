@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import { LeaveModel } from '../../models/leave.model';
-import { notFound, badRequest } from '../../utils/app-error';
+import { notFound, badRequest, forbidden } from '../../utils/app-error';
 
 export async function createLeave(
   data: {
@@ -67,6 +67,13 @@ export async function updateLeave(
     throw badRequest('Only pending leave requests can be edited');
   }
 
+  if (!isAdmin && options?.userId) {
+    const ownerId = leave.employeeId?.toString();
+    if (ownerId !== options.userId) {
+      throw forbidden('You can only edit your own leave requests');
+    }
+  }
+
   if (data.leaveType != null) leave.leaveType = data.leaveType;
   if (data.leaveReason !== undefined) leave.leaveReason = data.leaveReason;
   if (data.leaveDate != null) leave.leaveDate = data.leaveDate;
@@ -111,11 +118,25 @@ export async function updateLeaveStatus(
   return leave;
 }
 
-export async function deleteLeave(id: string) {
+export async function deleteLeave(
+  id: string,
+  options?: { isAdmin?: boolean; userId?: string },
+) {
   const leave = await LeaveModel.findById(id);
+  const isAdmin = options?.isAdmin ?? false;
 
   if (!leave) {
     throw notFound('Leave not found');
+  }
+
+  if (!isAdmin && options?.userId) {
+    const ownerId = leave.employeeId?.toString();
+    if (ownerId !== options.userId) {
+      throw forbidden('You can only delete your own leave requests');
+    }
+    if (leave.status !== 'pending') {
+      throw badRequest('You can only delete leave requests that are still pending');
+    }
   }
 
   if (leave.status === 'approved') {

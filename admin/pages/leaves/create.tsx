@@ -120,7 +120,7 @@ const CreateLeavePage: React.FC = () => {
 
 export default function CreateLeavePageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CreateLeavePage />
     </ProtectedRoute>
   );

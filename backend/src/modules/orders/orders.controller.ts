@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as ordersService from './orders.service';
+import { forbidden } from '../../utils/app-error';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -31,6 +32,13 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role === 'order_taker') {
+      const existing = await ordersService.findById(req.params.id);
+      if (existing.status !== 'pending') {
+        return next(forbidden('Order takers can only edit orders that are still pending'));
+      }
+      delete req.body.status;
+    }
     const order = await ordersService.updateOrder(req.params.id, req.body, req.user?.userId);
     res.json(order);
   } catch (err) {

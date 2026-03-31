@@ -5,6 +5,8 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import { productService, Product } from '../../services/productService';
 import { categoryService, Category } from '../../services/categoryService';
+import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 
@@ -15,6 +17,8 @@ const ProductsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const canManage = can(user?.role, 'products:view') && user?.role === 'admin';
 
   useEffect(() => {
     fetchCategories();
@@ -135,24 +139,28 @@ const ProductsPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/products/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {canManage && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/products/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {canManage && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -163,9 +171,11 @@ const ProductsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Products</h1>
-          <button className={styles.addButton} onClick={() => router.push('/products/create')}>
-            + Add Product
-          </button>
+          {canManage && (
+            <button className={styles.addButton} onClick={() => router.push('/products/create')}>
+              + Add Product
+            </button>
+          )}
         </div>
         <div className={styles.searchBar}>
           <input
@@ -202,7 +212,7 @@ const ProductsPage: React.FC = () => {
 
 export default function ProductsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ProductsPage />
     </ProtectedRoute>
   );

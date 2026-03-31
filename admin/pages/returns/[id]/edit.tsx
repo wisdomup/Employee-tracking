@@ -6,6 +6,7 @@ import Loader from '../../../components/UI/Loader';
 import { returnService, getReturnImageUrl } from '../../../services/returnService';
 import { clientService, Client } from '../../../services/clientService';
 import { productService, Product } from '../../../services/productService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import styles from '../../../styles/FormPage.module.scss';
 
@@ -20,6 +21,8 @@ const EditReturnPage: React.FC = () => {
   const { id } = router.query;
   const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -48,6 +51,24 @@ const EditReturnPage: React.FC = () => {
     returnService
       .getReturn(id as string)
       .then((data) => {
+        if (user?.role === 'order_taker' && user?.id) {
+          const creatorId =
+            data.createdBy == null
+              ? ''
+              : typeof data.createdBy === 'object' && data.createdBy !== null && '_id' in data.createdBy
+                ? String((data.createdBy as { _id: string })._id)
+                : String(data.createdBy);
+          if (creatorId !== user.id) {
+            toast.error('You can only edit returns you created');
+            router.push('/returns');
+            return;
+          }
+        }
+        if (user?.role === 'order_taker' && data.status !== 'pending') {
+          toast.error('You can only edit pending returns');
+          router.push(`/returns/${id}`);
+          return;
+        }
         if (data.status === 'completed') {
           setIsLocked(true);
           toast.info('Completed returns are locked and cannot be edited');
@@ -82,7 +103,7 @@ const EditReturnPage: React.FC = () => {
       })
       .catch(() => toast.error('Failed to load return'))
       .finally(() => setPageLoading(false));
-  }, [id]);
+  }, [id, user?.id, user?.role]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -179,23 +200,24 @@ const EditReturnPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          {/* Status — placed at top for admin convenience */}
-          <div className={styles.formGroup}>
-            <label htmlFor="status">Status *</label>
-            <select
-              id="status"
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              required
-              className={styles.select}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="picked">Picked</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
+          {isAdmin && (
+            <div className={styles.formGroup}>
+              <label htmlFor="status">Status *</label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                required
+                className={styles.select}
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="picked">Picked</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          )}
 
           {/* Client */}
           <div className={styles.formGroup}>
@@ -463,7 +485,7 @@ const EditReturnPage: React.FC = () => {
 
 export default function EditReturnPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <EditReturnPage />
     </ProtectedRoute>
   );
