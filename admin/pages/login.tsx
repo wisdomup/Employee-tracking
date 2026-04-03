@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { ArrowRight } from '@phosphor-icons/react';
-import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 import { PasswordInput } from '../components/UI/PasswordInput';
 import { AuthSplitLayout, AUTH_MARKETING } from '../components/Auth/AuthSplitLayout';
 import styles from '../styles/AuthSplit.module.scss';
+
+const CONTACT_ADMIN_WHATSAPP_URL = 'https://wa.me/923279800153';
 
 const Login: React.FC = () => {
   const router = useRouter();
@@ -40,15 +41,14 @@ const Login: React.FC = () => {
       topRight={
         <span>
           Need an account?{' '}
-          <button
-            type="button"
+          <a
+            href={CONTACT_ADMIN_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className={styles.linkBold}
-            onClick={() =>
-              toast.info('Accounts are created by your administrator. Ask them to invite or register you.')
-            }
           >
             Contact admin
-          </button>
+          </a>
         </span>
       }
     >

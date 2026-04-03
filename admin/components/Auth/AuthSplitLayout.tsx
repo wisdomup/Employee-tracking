@@ -92,7 +92,7 @@ export function AuthSplitLayout({
       <div className={styles.card}>
         <aside className={styles.marketing} aria-label="Product overview">
           <div className={styles.marketingLogoWrap}>
-            <LogoMark size="large" />
+          <img src="/logo.jpeg" alt="GPS Task Tracker" className={styles.logoImage} />
           </div>
           <h1 className={styles.marketingTitle}>{marketingTitle}</h1>
           <p className={styles.marketingSub}>{marketingSubtitle}</p>

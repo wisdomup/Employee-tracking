@@ -65,6 +65,21 @@ $auth-border: #e5e7eb;
 
 .marketingLogoWrap {
   margin-bottom: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+
+  /* JPEG is white-on-black; screen lets black fall through to the panel gradient */
+  .logoImage {
+    height: 50px;
+    // width: 100%;
+    // max-width: min(100%, 300px);
+    // max-width: 500px;
+    object-fit: contain;
+    display: block;
+    mix-blend-mode: screen;
+  }
 }
 
 .marketingTitle {
@@ -83,6 +98,10 @@ $auth-border: #e5e7eb;
   color: rgb(255 255 255 / 0.72);
   max-width: 21rem;
   margin: 0 auto;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
 }
 
 .carouselDots {
@@ -94,7 +113,7 @@ $auth-border: #e5e7eb;
   list-style: none;
 
   @media (max-width: 900px) {
-    margin-top: 1.25rem;
+    display: none;
   }
 }
 
@@ -141,7 +160,9 @@ $auth-border: #e5e7eb;
   color: $auth-muted;
   text-align: right;
   line-height: 1.45;
-  max-width: 11rem;
+  max-width: min(100%, 20rem);
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .linkBold {
@@ -154,6 +175,7 @@ $auth-border: #e5e7eb;
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
+  white-space: nowrap;
 
   &:hover {
     color: #000;

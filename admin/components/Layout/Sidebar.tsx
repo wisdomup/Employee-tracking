@@ -100,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) =
         className={`${styles.sidebar} ${isCollapsedView ? styles.sidebarCollapsed : ''} ${isCollapsedView && isOpen ? styles.sidebarOpen : ''}`}
       >
         <div className={styles.logo}>
-          <h2>GPS Task Tracker</h2>
+          <img src="/logo.jpeg" alt="GPS Task Tracker" className={styles.logoImage} />
         </div>
 
         <nav className={styles.nav}>

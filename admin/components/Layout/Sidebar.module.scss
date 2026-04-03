@@ -42,8 +42,15 @@ $layoutTopStripHeight: 4.5rem;
   padding: 0 1.25rem;
   border-bottom: 1px solid #e5e7eb;
   background: #ffffff;
+  justify-content: center;
   /* Border sits inside height so divider aligns with Header .content */
   box-sizing: border-box;
+  .logoImage {
+    height: 40px;
+    width: 150px;
+    /* Asset is white-on-black; invert for light sidebar */
+    filter: invert(1);
+  }
 
   h2 {
     font-size: 1.0625rem;
