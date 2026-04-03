@@ -43,6 +43,24 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function getMe(req: Request, res: Response, next: NextFunction) {
+  try {
+    const user = await usersService.findById(req.user!.userId);
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateMe(req: Request, res: Response, next: NextFunction) {
+  try {
+    const user = await usersService.updateProfile(req.user!.userId, req.body, req.user?.userId);
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const user = await usersService.updateUser(req.params.id, req.body, req.user?.userId);

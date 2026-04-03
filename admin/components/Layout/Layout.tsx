@@ -1,6 +1,9 @@
 import React, { ReactNode, useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import OrderTakerBottomNav from './OrderTakerBottomNav';
+import { useAuth } from '../../contexts/AuthContext';
+import { BroadcastInboxProvider } from '../../contexts/BroadcastInboxContext';
 import styles from './Layout.module.scss';
 
 // Sidebar is collapsed (hamburger menu) at 900px and below (tablet + mobile)
@@ -11,6 +14,8 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { user } = useAuth();
+  const showOrderTakerBottomNav = user?.role === 'order_taker';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsedView, setIsCollapsedView] = useState(false);
 
@@ -35,10 +40,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         onClose={closeSidebar}
         isCollapsedView={isCollapsedView}
       />
-      <div className={styles.mainContent}>
-        <Header onMenuClick={toggleSidebar} showMenuButton={isCollapsedView} />
-        <main className={styles.content}>{children}</main>
-      </div>
+      <BroadcastInboxProvider>
+        <div className={styles.mainContent}>
+          <Header onMenuClick={toggleSidebar} showMenuButton={isCollapsedView} />
+          <main
+            className={`${styles.content} ${showOrderTakerBottomNav ? styles.contentWithBottomNav : ''}`}
+          >
+            {children}
+          </main>
+          <OrderTakerBottomNav />
+        </div>
+      </BroadcastInboxProvider>
     </div>
   );
 };

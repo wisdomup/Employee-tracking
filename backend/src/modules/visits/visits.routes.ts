@@ -69,7 +69,7 @@ router.post(
  *       200: { description: List of visits }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee'), controller.findAll);
+router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
 
 router.patch(
   '/:id/complete',
@@ -95,7 +95,7 @@ router.patch(
  *       200: { description: Visit found }
  *       404: { description: Visit not found }
  */
-router.get('/:id', requireRoles('admin', 'employee'), controller.findOne);
+router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
 
 /**
  * @openapi
@@ -123,7 +123,7 @@ router.get('/:id', requireRoles('admin', 'employee'), controller.findOne);
  *       200: { description: Visit updated }
  *       404: { description: Visit not found }
  */
-router.put('/:id', requireRoles('admin', 'employee'), validate(updateVisitSchema), controller.update);
+router.put('/:id', requireRoles('admin', 'employee', 'order_taker'), validate(updateVisitSchema), controller.update);
 
 /**
  * @openapi

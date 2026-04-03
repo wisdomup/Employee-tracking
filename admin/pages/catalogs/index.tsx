@@ -4,6 +4,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import { catalogService, Catalog, getCatalogDownloadUrl } from '../../services/catalogService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -13,6 +14,8 @@ const CatalogsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchCatalogs();
@@ -67,8 +70,8 @@ const CatalogsPage: React.FC = () => {
         <div className={styles.actions}>
           <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); router.push('/catalogs/' + row._id); }}>View</button>
           <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); window.open(getCatalogDownloadUrl(row.fileUrl), '_blank', 'noopener'); }}>Download</button>
-          <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); router.push('/catalogs/' + row._id + '/edit'); }}>Edit</button>
-          <button type="button" className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete(row._id); }}>Delete</button>
+          {isAdmin && <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); router.push('/catalogs/' + row._id + '/edit'); }}>Edit</button>}
+          {isAdmin && <button type="button" className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete(row._id); }}>Delete</button>}
         </div>
       ),
     },
@@ -79,25 +82,32 @@ const CatalogsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Catalogs</h1>
-          <button className={styles.addButton} onClick={() => router.push('/catalogs/create')}>
-            + Add Catalog
-          </button>
+          {isAdmin && (
+            <button className={styles.addButton} onClick={() => router.push('/catalogs/create')}>
+              + Add Catalog
+            </button>
+          )}
         </div>
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            placeholder="Search catalogs..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                placeholder="Search catalogs..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
+            <Table
+              columns={columns}
+              data={filtered}
+              loading={loading}
+              onRowClick={(row) => router.push('/catalogs/' + row._id)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={filtered}
-          loading={loading}
-          onRowClick={(row) => router.push('/catalogs/' + row._id)}
-        />
       </div>
     </Layout>
   );
@@ -105,7 +115,7 @@ const CatalogsPage: React.FC = () => {
 
 export default function CatalogsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CatalogsPage />
     </ProtectedRoute>
   );

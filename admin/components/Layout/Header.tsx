@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { authService } from '../../services/authService';
+import BroadcastInboxBell from './BroadcastInboxBell';
 import styles from './Header.module.scss';
 
 interface HeaderProps {
@@ -18,10 +19,17 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, showMenuButton }) => {
     router.push('/login');
   };
 
+  const handleProfile = () => {
+    setShowDropdown(false);
+    router.push('/profile');
+  };
+
   const handleChangePassword = () => {
     setShowDropdown(false);
     router.push('/change-password');
   };
+
+  const title = user?.role === 'admin' ? 'Admin Panel' : 'Order Taker Panel';
 
   return (
     <header className={styles.header}>
@@ -40,7 +48,11 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, showMenuButton }) => {
             </svg>
           </button>
         )}
-        <h1 className={styles.title}>Admin Panel</h1>
+        <h1 className={styles.title}></h1>
+
+        <div className={styles.headerActions}>
+          <BroadcastInboxBell />
+        </div>
 
         <div className={styles.userSection}>
           <button
@@ -60,7 +72,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, showMenuButton }) => {
               <button className={styles.changePasswordButton} onClick={handleChangePassword}>
                 🔑 Change Password
               </button>
-              <button className={styles.logoutButton} onClick={handleLogout}>
+              <button type="button" className={styles.logoutButton} onClick={handleLogout}>
                 🚪 Logout
               </button>
             </div>

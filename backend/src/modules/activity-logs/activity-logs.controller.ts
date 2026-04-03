@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as activityLogsService from './activity-logs.service';
+import { forbidden } from '../../utils/app-error';
 
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
@@ -32,6 +33,9 @@ export async function getRecent(req: Request, res: Response, next: NextFunction)
 
 export async function findByEmployee(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role === 'order_taker' && req.user?.userId !== req.params.id) {
+      return next(forbidden('Order takers can only view their own activity logs'));
+    }
     const { startDate, endDate } = req.query as Record<string, string>;
     const logs = await activityLogsService.findByEmployee(req.params.id, { startDate, endDate });
     res.json(logs);

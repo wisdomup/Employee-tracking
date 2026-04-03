@@ -64,7 +64,15 @@
 }
 
 .statIcon {
-  font-size: 2.5rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-primary);
+
+  svg {
+    flex-shrink: 0;
+  }
 }
 
 .statContent {
@@ -125,9 +133,14 @@
 
 .reportsLink {
   font-size: 0.875rem;
-  color: #2563eb;
+  color: var(--admin-primary);
   text-decoration: none;
   font-weight: 600;
+
+  &:hover {
+    color: var(--admin-primary-hover);
+    text-decoration: underline;
+  }
 }
 
 .reportFilters {
@@ -142,41 +155,66 @@
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   min-width: 140px;
+  background-color: white;
+  color: #1f2937;
 }
 
-.reportGrid {
+/* Matches `Reports.module.scss` — Sales & Stock Highlights KPI strip */
+.kpiGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.75rem;
   margin-bottom: 1rem;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 }
 
-.reportCard {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+.kpiCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
-  padding: 0.75rem;
+  padding: 0.9rem;
 
   span {
     display: block;
-    font-size: 0.8rem;
-    color: #64748b;
+    color: #6b7280;
+    font-size: 0.85rem;
     margin-bottom: 0.2rem;
   }
 
   strong {
-    color: #0f172a;
-    font-size: 1.2rem;
-    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--admin-primary);
   }
 }
 
-.sparkline {
+.trendChartBlock {
+  margin-bottom: 1.25rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.trendChartTitle {
+  margin: 0 0 0.65rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.trendChartWrap {
   width: 100%;
-  min-height: 220px;
-  border: 1px solid #dbeafe;
+  min-height: 260px;
+  background: linear-gradient(180deg, #e7efff 0%, #ffffff 100%);
   border-radius: 0.5rem;
-  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  border: 1px solid #bfdbfe;
   padding: 0.5rem;
 }
 
@@ -203,7 +241,17 @@
 }
 
 .activityIcon {
-  font-size: 1.5rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--admin-primary);
+
+  svg {
+    flex-shrink: 0;
+  }
 }
 
 .activityContent {
@@ -237,4 +285,136 @@
 .recentActivitySection{
   max-height: 500px;
   overflow-y: auto;
+}
+
+.mapFullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.75);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.mapFullscreenContent {
+  width: 100vw;
+  height: 100vh;
+  background: #fff;
+  border-radius: 0;
+  border: none;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.mapFullscreenHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.mapFullscreenClose {
+  border: none;
+  background: var(--admin-primary);
+  color: #fff;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: var(--admin-primary-hover);
+  }
+}
+
+/* Broadcast message modal (used by `BroadcastMessageModal.tsx`) */
+.inboxModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.inboxModal {
+  background: #fff;
+  border-radius: 0.75rem;
+  max-width: 520px;
+  width: 100%;
+  padding: 1.5rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+}
+
+.inboxModalTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--admin-primary);
+}
+
+.inboxModalMeta {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.inboxModalBody {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #374151;
+  white-space: pre-wrap;
+  margin-bottom: 1.25rem;
+}
+
+.inboxModalBodyMuted {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #9ca3af;
+  white-space: pre-wrap;
+  margin-bottom: 1.25rem;
+}
+
+.inboxModalActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.inboxPrimaryBtn {
+  border: none;
+  background: var(--admin-primary);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--admin-primary-hover);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.inboxSecondaryBtn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
 }

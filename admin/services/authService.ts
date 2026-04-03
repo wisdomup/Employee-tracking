@@ -12,6 +12,39 @@ export interface User {
   role: string;
   phone: string;
   email?: string;
+  userID?: string;
+  profileImage?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  };
+}
+
+/** Map GET/PATCH /users/me response into the shape stored in localStorage + AuthContext. */
+export function mapApiUserToAuthUser(data: {
+  _id?: string;
+  id?: string;
+  username: string;
+  role: string;
+  phone: string;
+  email?: string;
+  userID?: string;
+  profileImage?: string;
+  address?: User['address'];
+}): User {
+  const id = data._id != null ? String(data._id) : String(data.id ?? '');
+  return {
+    id,
+    username: data.username,
+    role: data.role,
+    phone: data.phone,
+    email: data.email,
+    userID: data.userID,
+    profileImage: data.profileImage,
+    address: data.address,
+  };
 }
 
 export const authService = {
@@ -55,5 +88,9 @@ export const authService = {
   isAdmin(): boolean {
     const user = this.getUser();
     return user?.role === 'admin';
+  },
+
+  setStoredUser(user: User) {
+    localStorage.setItem('user', JSON.stringify(user));
   },
 };

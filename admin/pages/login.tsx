@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
+import { ArrowRight } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { PasswordInput } from '../components/UI/PasswordInput';
-import styles from '../styles/Login.module.scss';
+import { AuthSplitLayout, AUTH_MARKETING } from '../components/Auth/AuthSplitLayout';
+import styles from '../styles/AuthSplit.module.scss';
+
+const CONTACT_ADMIN_WHATSAPP_URL = 'https://wa.me/923279800153';
 
 const Login: React.FC = () => {
   const router = useRouter();
@@ -19,69 +23,81 @@ const Login: React.FC = () => {
 
     try {
       await login({ username, password });
-      // Success - will redirect via AuthContext
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Invalid credentials. Please check your username and password.';
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string } } };
+      const errorMessage =
+        ax.response?.data?.message || 'Invalid credentials. Please check your username and password.';
       setError(errorMessage);
       setLoading(false);
     }
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.loginBox}>
-        <h1 className={styles.title}>GPS Task Tracker</h1>
-        <h2 className={styles.subtitle}>Admin Login</h2>
-
-        <form onSubmit={handleSubmit} className={styles.form}>
-          {error && <div className={styles.error}>{error}</div>}
-
-          <div className={styles.formGroup}>
-            <label htmlFor="username">Username or Phone</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className={styles.input}
-              placeholder="Enter username or phone"
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="password">Password</label>
-            <PasswordInput
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className={styles.input}
-              placeholder="Enter password"
-              autoComplete="current-password"
-            />
-          </div>
-
-          <div className={styles.forgotPassword}>
-            <button
-              type="button"
-              onClick={() => router.push('/forgot-password')}
-              className={styles.forgotLink}
-            >
-              Forgot Password?
-            </button>
-          </div>
-
-          <button
-            type="submit"
-            className={styles.submitButton}
-            disabled={loading}
+    <AuthSplitLayout
+      marketingTitle={AUTH_MARKETING.title}
+      marketingSubtitle={AUTH_MARKETING.subtitle}
+      formTitle="Welcome back!"
+      formSubtitle="Enter your company credentials to open your dashboard."
+      topRight={
+        <span>
+          Need an account?{' '}
+          <a
+            href={CONTACT_ADMIN_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.linkBold}
           >
-            {loading ? 'Logging in...' : 'Login'}
+            Contact admin
+          </a>
+        </span>
+      }
+    >
+      <form onSubmit={handleSubmit} className={styles.form}>
+        {error ? <div className={styles.error}>{error}</div> : null}
+
+        <div className={styles.formGroup}>
+          <label htmlFor="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            className={styles.input}
+            placeholder="your.username"
+            autoComplete="username"
+          />
+        </div>
+
+        <div className={styles.formGroup}>
+          <label htmlFor="password">Password</label>
+          <PasswordInput
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className={styles.input}
+            placeholder="Minimum 8 characters recommended"
+            autoComplete="current-password"
+          />
+        </div>
+
+        <div className={styles.forgotRow}>
+          <button
+            type="button"
+            onClick={() => router.push('/forgot-password')}
+            className={styles.forgotLink}
+          >
+            Forgot password?
           </button>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <button type="submit" className={styles.primaryBtn} disabled={loading}>
+          {loading ? 'Signing in…' : 'Sign in'}
+          {!loading ? <ArrowRight size={20} weight="bold" aria-hidden /> : null}
+        </button>
+      </form>
+    </AuthSplitLayout>
   );
 };
 

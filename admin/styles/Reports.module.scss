@@ -1,6 +1,6 @@
 .page {
   max-width: 1400px;
-  color: #111827;
+  color: var(--admin-primary);
 }
 
 .header {
@@ -9,7 +9,7 @@
   h1 {
     margin: 0;
     font-size: 2rem;
-    color: #111827;
+    color: var(--admin-primary);
   }
 }
 
@@ -24,7 +24,7 @@
     border-radius: 0.5rem;
     padding: 0.6rem 0.75rem;
     background: #fff;
-    color: #111827;
+    color: var(--admin-primary);
     font-weight: 500;
     min-width: 170px;
   }
@@ -60,7 +60,7 @@
 
   strong {
     font-size: 1.4rem;
-    color: #111827;
+    color: var(--admin-primary);
   }
 }
 
@@ -107,7 +107,7 @@
   }
 
   th {
-    color: #111827;
+    color: var(--admin-primary);
     font-weight: 600;
     background: #f3f4f6;
     position: sticky;

@@ -386,7 +386,7 @@ const CreateReturnPage: React.FC = () => {
 
 export default function CreateReturnPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CreateReturnPage />
     </ProtectedRoute>
   );

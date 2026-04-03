@@ -6,10 +6,27 @@ import Table from '../../components/UI/Table';
 import {
   broadcastNotificationService,
   BroadcastNotification,
+  BroadcastAudienceType,
+  BROADCAST_AUDIENCE_LABELS,
+  audienceTypeFromApi,
 } from '../../services/broadcastNotificationService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
+
+const AUDIENCE_FILTER_KEYS: { value: string; label: string }[] = [
+  { value: '', label: 'All audiences' },
+  ...(
+    [
+      'all',
+      'all_employees',
+      'role_order_taker',
+      'role_delivery_man',
+      'role_warehouse_manager',
+      'specific_users',
+    ] as BroadcastAudienceType[]
+  ).map((k) => ({ value: k, label: BROADCAST_AUDIENCE_LABELS[k] })),
+];
 
 const BroadcastNotificationsPage: React.FC = () => {
   const [notifications, setNotifications] = useState<BroadcastNotification[]>([]);
@@ -25,10 +42,10 @@ const BroadcastNotificationsPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await broadcastNotificationService.getNotifications({
-        broadcastTo: targetFilter || undefined,
+        audienceType: targetFilter || undefined,
       });
       setNotifications(data);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch notifications');
     } finally {
       setLoading(false);
@@ -41,9 +58,19 @@ const BroadcastNotificationsPage: React.FC = () => {
       await broadcastNotificationService.deleteNotification(id);
       toast.success('Notification deleted');
       fetchNotifications();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete notification');
+    } catch (error: unknown) {
+      const msg =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error(msg || 'Failed to delete notification');
     }
+  };
+
+  const audienceLabel = (row: BroadcastNotification) => {
+    const at = audienceTypeFromApi(row);
+    return BROADCAST_AUDIENCE_LABELS[at] ?? at;
   };
 
   const columns = [
@@ -55,9 +82,9 @@ const BroadcastNotificationsPage: React.FC = () => {
         value ? (value.length > 60 ? value.slice(0, 60) + '...' : value) : '-',
     },
     {
-      key: 'broadcastTo',
-      title: 'Target',
-      render: (value: string) => (
+      key: 'audienceType',
+      title: 'Audience',
+      render: (_: unknown, row: BroadcastNotification) => (
         <span
           style={{
             display: 'inline-block',
@@ -69,7 +96,7 @@ const BroadcastNotificationsPage: React.FC = () => {
             color: '#3730a3',
           }}
         >
-          {value.charAt(0).toUpperCase() + value.slice(1)}
+          {audienceLabel(row)}
         </span>
       ),
     },
@@ -89,6 +116,7 @@ const BroadcastNotificationsPage: React.FC = () => {
       render: (_: string, row: BroadcastNotification) => (
         <div className={styles.actions}>
           <button
+            type="button"
             className={styles.editButton}
             onClick={(e) => {
               e.stopPropagation();
@@ -98,6 +126,7 @@ const BroadcastNotificationsPage: React.FC = () => {
             Edit
           </button>
           <button
+            type="button"
             className={styles.deleteButton}
             onClick={(e) => {
               e.stopPropagation();
@@ -117,27 +146,33 @@ const BroadcastNotificationsPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Broadcast Notifications</h1>
           <button
+            type="button"
             className={styles.addButton}
             onClick={() => router.push('/broadcast-notifications/create')}
           >
             + New Notification
           </button>
         </div>
-        <div className={styles.searchBar}>
-          <select
-            value={targetFilter}
-            onChange={(e) => setTargetFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 200 }}
-          >
-            <option value="">All Targets</option>
-            <option value="all">All</option>
-            <option value="employees">Employees</option>
-            <option value="clients">Clients</option>
-            <option value="customers">Customers</option>
-          </select>
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <select
+                value={targetFilter}
+                onChange={(e) => setTargetFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 320 }}
+              >
+                {AUDIENCE_FILTER_KEYS.map((o) => (
+                  <option key={o.value || 'all-aud'} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Table columns={columns} data={notifications} loading={loading} />
+          </div>
         </div>
-        <Table columns={columns} data={notifications} loading={loading} />
       </div>
     </Layout>
   );

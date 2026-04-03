@@ -4,13 +4,15 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { visitService, Visit, VisitCompletionImage } from '../../../services/visitService';
 import { ImageUpload } from '../../../components/UI/ImageUpload';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
+import StatusBadge from '../../../components/UI/StatusBadge';
 import styles from '../../../styles/FormPage.module.scss';
 
 const EditVisitPage: React.FC = () => {
   const router = useRouter();
-  const { id } = router.query;
+  const { id, nextStatus } = router.query;
   const [visit, setVisit] = useState<Visit | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -18,6 +20,8 @@ const EditVisitPage: React.FC = () => {
     visitDate: '',
     status: 'todo',
   });
+  const { user } = useAuth();
+  const isOrderTaker = user?.role === 'order_taker';
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -26,16 +30,29 @@ const EditVisitPage: React.FC = () => {
   const [selfieImageUrl, setSelfieImageUrl] = useState('');
 
   useEffect(() => {
-    if (id) fetchVisit();
-  }, [id]);
+    if (!id || !user) return;
+    fetchVisit();
+  }, [id, user?.role]);
+
+  useEffect(() => {
+    if (!isOrderTaker) return;
+    if (!nextStatus || typeof nextStatus !== 'string') return;
+    if (nextStatus !== 'in_progress' && nextStatus !== 'completed') return;
+    setFormData((prev) => ({ ...prev, status: nextStatus as Visit['status'] }));
+  }, [nextStatus, isOrderTaker]);
 
   const fetchVisit = async () => {
     try {
       const data: Visit = await visitService.getVisit(id as string);
       setVisit(data);
+      const role = user?.role;
+      const nextStatus =
+        role === 'order_taker' && data.status === 'todo'
+          ? 'in_progress'
+          : data.status;
       setFormData({
         visitDate: data.visitDate ? data.visitDate.slice(0, 10) : '',
-        status: data.status,
+        status: nextStatus,
       });
     } catch (error) {
       toast.error('Failed to fetch visit');
@@ -74,6 +91,9 @@ const EditVisitPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isOrderTaker && visit?.completedAt) {
+      return;
+    }
     const isCompleting = formData.status === 'completed' && !visit?.completedAt;
     if (isCompleting) {
       if (latitude == null || longitude == null || !shopImageUrl || !selfieImageUrl) {
@@ -96,25 +116,31 @@ const EditVisitPage: React.FC = () => {
         toast.success('Visit marked as completed');
         router.push(`/visits/${id}`);
       } else {
-        const clientId =
-          typeof visit?.dealerId === 'string'
-            ? visit.dealerId
-            : (visit?.dealerId as { _id?: string })?._id ?? visit?.dealerId;
-        const employeeId =
-          typeof visit?.employeeId === 'string'
-            ? visit.employeeId
-            : (visit?.employeeId as { _id?: string })?._id ?? visit?.employeeId;
-        if (!clientId || !employeeId) {
-          toast.error('Visit data is missing client or employee. Cannot update.');
-          setLoading(false);
-          return;
+        if (isOrderTaker) {
+          await visitService.updateVisit(id as string, {
+            status: formData.status as Visit['status'],
+          });
+        } else {
+          const clientId =
+            typeof visit?.dealerId === 'string'
+              ? visit.dealerId
+              : (visit?.dealerId as { _id?: string })?._id ?? visit?.dealerId;
+          const employeeId =
+            typeof visit?.employeeId === 'string'
+              ? visit.employeeId
+              : (visit?.employeeId as { _id?: string })?._id ?? visit?.employeeId;
+          if (!clientId || !employeeId) {
+            toast.error('Visit data is missing client or employee. Cannot update.');
+            setLoading(false);
+            return;
+          }
+          await visitService.updateVisit(id as string, {
+            dealerId: clientId,
+            employeeId,
+            visitDate: formData.visitDate || undefined,
+            status: formData.status as Visit['status'],
+          });
         }
-        await visitService.updateVisit(id as string, {
-          dealerId: clientId,
-          employeeId,
-          visitDate: formData.visitDate || undefined,
-          status: formData.status as Visit['status'],
-        });
         toast.success('Visit updated successfully');
         router.push('/visits');
       }
@@ -131,6 +157,17 @@ const EditVisitPage: React.FC = () => {
 
   if (fetchLoading) return <Layout><Loader /></Layout>;
 
+  const clientName = visit?.dealerId?.name ?? '-';
+  const routeName = visit?.routeId?.name ?? '-';
+  const employeeName =
+    visit?.employeeId?.username ?? visit?.employeeId?.userID ?? '-';
+  const statusLocked = isOrderTaker && !!visit?.completedAt;
+  const readOnlyFieldStyle: React.CSSProperties = {
+    background: '#f9fafb',
+    color: '#374151',
+    cursor: 'not-allowed',
+  };
+
   return (
     <Layout>
       <div className={styles.container}>
@@ -141,6 +178,30 @@ const EditVisitPage: React.FC = () => {
           </button>
         </div>
         <form onSubmit={handleSubmit} className={styles.form}>
+          {isOrderTaker && visit && (
+            <div className={styles.formGroup}>
+              <label>Visit details (read only)</label>
+              <div
+                style={{
+                  display: 'grid',
+                  gap: '0.5rem',
+                  fontSize: '0.875rem',
+                  color: '#374151',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                <div>
+                  <strong>Client:</strong> {clientName}
+                </div>
+                <div>
+                  <strong>Route:</strong> {routeName}
+                </div>
+                <div>
+                  <strong>Employee:</strong> {employeeName}
+                </div>
+              </div>
+            </div>
+          )}
           <div className={styles.formGroup}>
             <label htmlFor="visitDate">Visit Date</label>
             <input
@@ -150,24 +211,42 @@ const EditVisitPage: React.FC = () => {
               value={formData.visitDate}
               onChange={handleChange}
               className={styles.input}
+              readOnly={isOrderTaker}
+              disabled={isOrderTaker}
+              style={isOrderTaker ? readOnlyFieldStyle : undefined}
             />
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="status">Status *</label>
-            <select
-              id="status"
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              required
-              className={styles.select}
-            >
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="incomplete">Incomplete</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            {statusLocked ? (
+              <div style={{ marginTop: '0.25rem' }}>
+                <StatusBadge status={formData.status as Visit['status']} />
+              </div>
+            ) : (
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                required
+                className={styles.select}
+              >
+                {isOrderTaker ? (
+                  <>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="todo">To Do</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="incomplete">Incomplete</option>
+                    <option value="cancelled">Cancelled</option>
+                  </>
+                )}
+              </select>
+            )}
           </div>
 
           {formData.status === 'completed' && !visit?.completedAt && (
@@ -239,7 +318,9 @@ const EditVisitPage: React.FC = () => {
 
           {formData.status === 'completed' && visit?.completedAt && (
             <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-              This visit is already completed. You can change the visit date above and save.
+              {isOrderTaker
+                ? 'This visit is already completed.'
+                : 'This visit is already completed. You can change the visit date above and save.'}
             </p>
           )}
 
@@ -247,9 +328,11 @@ const EditVisitPage: React.FC = () => {
             <button type="button" className={styles.cancelButton} onClick={() => router.push('/visits')}>
               Cancel
             </button>
-            <button type="submit" className={styles.submitButton} disabled={loading}>
-              {loading ? 'Updating...' : 'Update Visit'}
-            </button>
+            {!statusLocked && (
+              <button type="submit" className={styles.submitButton} disabled={loading}>
+                {loading ? 'Updating...' : 'Update Visit'}
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -259,7 +342,7 @@ const EditVisitPage: React.FC = () => {
 
 export default function EditVisitPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <EditVisitPage />
     </ProtectedRoute>
   );

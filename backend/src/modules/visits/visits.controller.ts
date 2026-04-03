@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as visitsService from './visits.service';
+import { badRequest } from '../../utils/app-error';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -55,6 +56,17 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role === 'order_taker') {
+      const allowedStatuses = ['in_progress', 'completed'];
+      const { status, ...rest } = req.body;
+      if (Object.keys(rest).length > 0) {
+        return next(badRequest('Order takers can only update the visit status'));
+      }
+      if (!status || !allowedStatuses.includes(status)) {
+        return next(badRequest(`Order takers can only set status to: ${allowedStatuses.join(', ')}`));
+      }
+      req.body = { status };
+    }
     const visit = await visitsService.updateVisit(req.params.id, req.body, req.user?.userId);
     res.json(visit);
   } catch (err) {

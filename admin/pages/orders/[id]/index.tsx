@@ -5,6 +5,7 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Loader from '../../../components/UI/Loader';
 import { orderService, Order } from '../../../services/orderService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -14,6 +15,9 @@ const OrderDetailPage: React.FC = () => {
   const { id } = router.query;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
 
   useEffect(() => {
     if (id) {
@@ -49,14 +53,16 @@ const OrderDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Order Details</h1>
           <div className={styles.headerActions}>
-            {order.status === 'pending' && (
+            {isAdmin && order.status === 'pending' && (
               <button className={styles.approveButton} onClick={handleApprove}>
                 Approve
               </button>
             )}
-            <button className={styles.editButton} onClick={() => router.push(`/orders/${id}/edit`)}>
-              Edit
-            </button>
+            {(isAdmin || (isOrderTaker && order.status === 'pending')) && (
+              <button className={styles.editButton} onClick={() => router.push(`/orders/${id}/edit`)}>
+                Edit
+              </button>
+            )}
             <button className={styles.backButton} onClick={() => router.push('/orders')}>
               ← Back
             </button>
@@ -214,7 +220,7 @@ const OrderDetailPage: React.FC = () => {
 
 export default function OrderDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <OrderDetailPage />
     </ProtectedRoute>
   );

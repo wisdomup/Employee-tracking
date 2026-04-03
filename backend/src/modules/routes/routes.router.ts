@@ -64,7 +64,7 @@ router.post('/', requireRoles('admin', 'employee'), validate(createRouteSchema),
  *                 $ref: '#/components/schemas/Route'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee'), controller.findAll);
+router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
 
 /**
  * @openapi
@@ -90,7 +90,7 @@ router.get('/', requireRoles('admin', 'employee'), controller.findAll);
  *       401: { description: Unauthorized }
  *       404: { description: Route not found }
  */
-router.get('/:id', requireRoles('admin', 'employee'), controller.findOne);
+router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
 
 /**
  * @openapi

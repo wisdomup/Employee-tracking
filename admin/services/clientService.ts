@@ -33,6 +33,13 @@ export interface Client {
   updatedAt: string;
 }
 
+/** Route assigned to the dealer on the dealer record (`/dealers` populates `route`). */
+export function getClientAssignedRouteId(client: Client | undefined | null): string {
+  if (!client?.route) return '';
+  if (typeof client.route === 'string') return client.route;
+  return client.route._id ?? '';
+}
+
 export const clientService = {
   async getClients(filters?: { status?: string; search?: string; routeId?: string }) {
     const params = new URLSearchParams();

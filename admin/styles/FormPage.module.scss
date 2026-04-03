@@ -78,8 +78,8 @@
 
   &:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
   }
 }
 
@@ -160,11 +160,11 @@
 }
 
 .submitButton {
-  background-color: #3b82f6;
+  background-color: var(--admin-primary);
   color: white;
 
   &:hover:not(:disabled) {
-    background-color: #2563eb;
+    background-color: var(--admin-primary-hover);
   }
 
   &:disabled {

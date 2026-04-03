@@ -8,6 +8,7 @@ import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import { visitService, Visit } from '../../services/visitService';
 import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -23,23 +24,30 @@ const VisitsPage: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
-    employeeService.getEmployees().then(setEmployees).catch(() => {});
-  }, []);
+    if (isAdmin) {
+      employeeService.getEmployees().then(setEmployees).catch(() => {});
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
+    if (!user) return;
     fetchVisits();
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, user?.id, isOrderTaker]);
 
   const fetchVisits = async () => {
     setLoading(true);
     try {
+      const effectiveEmployeeId = isOrderTaker && user?.id ? user.id : (employeeFilter || undefined);
       const data = await visitService.getVisits({
         clientId: clientFilter || undefined,
         status: statusFilter || undefined,
-        employeeId: employeeFilter || undefined,
+        employeeId: effectiveEmployeeId,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       });
@@ -117,15 +125,17 @@ const VisitsPage: React.FC = () => {
           >
             Edit
           </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {isAdmin && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -136,69 +146,78 @@ const VisitsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Visits</h1>
-          <button className={styles.addButton} onClick={() => router.push('/visits/create')}>
-            + Schedule Visit
-          </button>
+          {isAdmin && (
+            <button className={styles.addButton} onClick={() => router.push('/visits/create')}>
+              + Schedule Visit
+            </button>
+          )}
         </div>
-        <div className={styles.searchBar}>
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 220 }}
-          >
-            <option value="">All Clients</option>
-            {clients.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 220 }}
-          >
-            <option value="">All Employees</option>
-            {employees.map((e) => (
-              <option key={e._id} value={e._id}>
-                {e.username}
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 180 }}
-          >
-            <option value="">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="incomplete">Incomplete</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <DatePickerFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start date"
-            title="Start date"
-          />
-          <DatePickerFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End date"
-            title="End date"
-          />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 220 }}
+              >
+                <option value="">All Clients</option>
+                {clients.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              {!isOrderTaker && (
+                <select
+                  value={employeeFilter}
+                  onChange={(e) => setEmployeeFilter(e.target.value)}
+                  className={styles.searchInput}
+                  style={{ maxWidth: 220 }}
+                >
+                  <option value="">All Employees</option>
+                  {employees.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.username}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 180 }}
+              >
+                <option value="">All Statuses</option>
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="incomplete">Incomplete</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <DatePickerFilter
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start date"
+                title="Start date"
+              />
+              <DatePickerFilter
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End date"
+                title="End date"
+              />
+            </div>
+            <Table
+              columns={columns}
+              data={visits}
+              loading={loading}
+              onRowClick={(row) => router.push(`/visits/${row._id}`)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={visits}
-          loading={loading}
-          onRowClick={(row) => router.push(`/visits/${row._id}`)}
-        />
       </div>
     </Layout>
   );
@@ -206,7 +225,7 @@ const VisitsPage: React.FC = () => {
 
 export default function VisitsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <VisitsPage />
     </ProtectedRoute>
   );

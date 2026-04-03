@@ -7,12 +7,9 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is authenticated
-    if (authService.isAuthenticated() && authService.isAdmin()) {
-      // Redirect to dashboard if authenticated
+    if (authService.isAuthenticated()) {
       router.replace('/dashboard');
     } else {
-      // Redirect to login if not authenticated
       router.replace('/login');
     }
   }, [router]);

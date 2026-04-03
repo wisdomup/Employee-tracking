@@ -11,6 +11,8 @@ interface PasswordInputProps {
   minLength?: number;
   className?: string;
   autoComplete?: string;
+  /** Amber focus ring to match auth split layout. */
+  variant?: 'default' | 'auth';
 }
 
 export const PasswordInput: React.FC<PasswordInputProps> = ({
@@ -23,6 +25,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
   minLength,
   className = '',
   autoComplete,
+  variant = 'default',
 }) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -41,7 +44,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         placeholder={placeholder}
         required={required}
         minLength={minLength}
-        className={`${styles.passwordInput} ${className}`}
+        className={`${styles.passwordInput} ${variant === 'auth' ? styles.passwordInputAuth : ''} ${className}`}
         autoComplete={autoComplete}
       />
       <button

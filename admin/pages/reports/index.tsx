@@ -12,6 +12,7 @@ import {
   DashboardSalesRow,
 } from '../../services/dashboardService';
 import styles from '../../styles/Reports.module.scss';
+import { buildTrendDataFromReports } from '../../utils/dashboardReportsTrend';
 
 const LineTrendChart = dynamic(() => import('../../components/UI/LineTrendChart'), {
   ssr: false,
@@ -38,44 +39,7 @@ const ReportsPage: React.FC = () => {
     run();
   }, [startDate, endDate, groupBy, viewBy]);
 
-  const trendData = useMemo(() => {
-    if (!reports) {
-      return {
-        labels: [] as string[],
-        qtySeries: { sold: [] as number[], returned: [] as number[], damaged: [] as number[] },
-        amountSeries: { earned: [] as number[], paidBack: [] as number[], booked: [] as number[], net: [] as number[] },
-      };
-    }
-
-    const allPeriods = new Set<string>();
-    reports.salesTrend.forEach((r) => allPeriods.add(r.period));
-    reports.returnTrend.forEach((r) => allPeriods.add(r.period));
-    reports.soldQtyTrend.forEach((r) => allPeriods.add(r.period));
-    reports.bookedSalesTrend.forEach((r) => allPeriods.add(r.period));
-    reports.returnPayoutTrend.forEach((r) => allPeriods.add(r.period));
-
-    const labels = Array.from(allPeriods).sort();
-    const soldMap = new Map(reports.soldQtyTrend.map((r) => [r.period, r.soldQty]));
-    const returnedMap = new Map(reports.returnTrend.map((r) => [r.period, r.returnedQty]));
-    const damagedMap = new Map(reports.returnTrend.map((r) => [r.period, r.damagedQty]));
-    const earnedMap = new Map(reports.salesTrend.map((r) => [r.period, r.totalSales]));
-    const paidBackMap = new Map(reports.returnPayoutTrend.map((r) => [r.period, r.paidBack]));
-    const bookedMap = new Map(reports.bookedSalesTrend.map((r) => [r.period, r.bookedSales]));
-
-    const sold = labels.map((p) => soldMap.get(p) ?? 0);
-    const returned = labels.map((p) => returnedMap.get(p) ?? 0);
-    const damaged = labels.map((p) => damagedMap.get(p) ?? 0);
-    const earned = labels.map((p) => earnedMap.get(p) ?? 0);
-    const paidBack = labels.map((p) => paidBackMap.get(p) ?? 0);
-    const booked = labels.map((p) => bookedMap.get(p) ?? 0);
-    const net = labels.map((p, idx) => Number((earned[idx] - paidBack[idx]).toFixed(2)));
-
-    return {
-      labels,
-      qtySeries: { sold, returned, damaged },
-      amountSeries: { earned, paidBack, booked, net },
-    };
-  }, [reports]);
+  const trendData = useMemo(() => buildTrendDataFromReports(reports), [reports]);
 
   const stockColumns = useMemo(
     () => [
@@ -167,7 +131,7 @@ const ReportsPage: React.FC = () => {
             <LineTrendChart
               labels={trendData.labels}
               datasets={[
-                { label: 'Sold Qty', values: trendData.qtySeries.sold, borderColor: '#1d4ed8' },
+                { label: 'Sold Qty', values: trendData.qtySeries.sold },
                 { label: 'Returned Qty', values: trendData.qtySeries.returned, borderColor: '#16a34a' },
                 { label: 'Damaged Qty', values: trendData.qtySeries.damaged, borderColor: '#dc2626' },
               ]}
@@ -183,7 +147,7 @@ const ReportsPage: React.FC = () => {
             <LineTrendChart
               labels={trendData.labels}
               datasets={[
-                { label: 'Earned', values: trendData.amountSeries.earned, borderColor: '#1d4ed8' },
+                { label: 'Earned', values: trendData.amountSeries.earned },
                 { label: 'Paid Back', values: trendData.amountSeries.paidBack, borderColor: '#dc2626' },
                 { label: 'Booked', values: trendData.amountSeries.booked, borderColor: '#7c3aed' },
                 { label: 'Net', values: trendData.amountSeries.net, borderColor: '#16a34a' },

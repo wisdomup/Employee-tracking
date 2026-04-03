@@ -1,0 +1,523 @@
+// Split-screen auth (login, forgot/reset password) — matches modern marketing + form card pattern.
+
+$auth-page-bg: #e8e6e1;
+$auth-charcoal: #111827;
+$auth-muted: #6b7280;
+$auth-border: #e5e7eb;
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: $auth-page-bg;
+  /* Avoid system dark mode turning native inputs grey inside this page */
+  color-scheme: light;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+}
+
+.card {
+  display: flex;
+  width: 100%;
+  max-width: 56rem;
+  min-height: 32rem;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  background: #fff;
+  box-shadow:
+    0 25px 50px -12px rgb(0 0 0 / 0.12),
+    0 0 0 1px rgb(0 0 0 / 0.04);
+
+  @media (max-width: 900px) {
+    flex-direction: column;
+    max-width: 26rem;
+    min-height: unset;
+  }
+}
+
+.marketing {
+  flex: 1;
+  min-width: 0;
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  background:
+    radial-gradient(ellipse 100% 70% at 100% 0%, rgb(245 158 11 / 0.45) 0%, transparent 55%),
+    linear-gradient(165deg, #1e293b 0%, #0f1117 50%, #050608 100%);
+  color: #fff;
+
+  @media (max-width: 900px) {
+    padding: 2rem 1.5rem;
+    min-height: 14rem;
+  }
+}
+
+.marketingLogoWrap {
+  margin-bottom: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+
+  /* JPEG is white-on-black; screen lets black fall through to the panel gradient */
+  .logoImage {
+    height: 50px;
+    // width: 100%;
+    // max-width: min(100%, 300px);
+    // max-width: 500px;
+    object-fit: contain;
+    display: block;
+    mix-blend-mode: screen;
+  }
+}
+
+.marketingTitle {
+  font-size: clamp(1.35rem, 2.8vw, 1.65rem);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  max-width: 22rem;
+  margin: 0 auto 1rem;
+  color: #fff;
+}
+
+.marketingSub {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: rgb(255 255 255 / 0.72);
+  max-width: 21rem;
+  margin: 0 auto;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+.carouselDots {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 2rem;
+  padding: 0;
+  list-style: none;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+.dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.25);
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+.dotActive {
+  background: #fff;
+  width: 1.35rem;
+  border-radius: 999px;
+}
+
+.formPanel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem 2.25rem 1.5rem;
+  background: #fff;
+  color-scheme: light;
+
+  @media (max-width: 900px) {
+    padding: 1.5rem 1.5rem 1.25rem;
+  }
+}
+
+.formPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.topRight {
+  font-size: 0.8125rem;
+  color: $auth-muted;
+  text-align: right;
+  line-height: 1.45;
+  max-width: min(100%, 20rem);
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.linkBold {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: $auth-charcoal;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    color: #000;
+  }
+}
+
+a.plainLink {
+  font-weight: 700;
+  color: $auth-charcoal;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: inherit;
+
+  &:hover {
+    color: #000;
+  }
+}
+
+.formBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 22rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.formTitle {
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5rem;
+  line-height: 1.2;
+}
+
+.formSubtitle {
+  font-size: 0.875rem;
+  color: $auth-muted;
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+
+/* Social login (Google / Apple) — uncomment in AuthSplitLayout when OAuth is wired
+.socialStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.socialBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $auth-charcoal;
+  background: #fff;
+  border: 1px solid $auth-border;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+  }
+}
+
+.socialIcon {
+  flex-shrink: 0;
+}
+*/
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0 1.25rem;
+  font-size: 0.75rem;
+  color: $auth-muted;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: $auth-border;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+
+  label {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #000;
+  }
+}
+
+.input {
+  width: 100%;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid $auth-border;
+  border-radius: 0.625rem;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  color: $auth-charcoal;
+  background-color: #ffffff;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+    background-color: #ffffff;
+  }
+
+  /* Chrome autofill yellow/grey override */
+  &:-webkit-autofill,
+  &:-webkit-autofill:hover,
+  &:-webkit-autofill:focus,
+  &:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+    box-shadow: 0 0 0 1000px #ffffff inset;
+    -webkit-text-fill-color: $auth-charcoal;
+    caret-color: $auth-charcoal;
+    transition: background-color 99999s ease-out 0s;
+  }
+}
+
+.error {
+  padding: 0.65rem 0.85rem;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  text-align: center;
+  border: 1px solid #fecaca;
+}
+
+.hint {
+  font-size: 0.8125rem;
+  color: $auth-muted;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.forgotRow {
+  text-align: center;
+  margin-top: -0.35rem;
+}
+
+.forgotLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #000;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:hover {
+    color: #374151;
+  }
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.85rem 1.25rem;
+  margin-top: 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  border: none;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  background: var(--admin-primary);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--admin-primary-hover);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.99);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.btnRow {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+
+  .primaryBtn,
+  .secondaryBtn {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    margin-top: 0;
+  }
+}
+
+.secondaryBtn {
+  flex: 1;
+  padding: 0.85rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: $auth-charcoal;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: #e5e7eb;
+  }
+}
+
+.formFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: auto;
+  padding-top: 1.75rem;
+  font-size: 0.75rem;
+  color: $auth-muted;
+}
+
+.footerLinks {
+  display: flex;
+  gap: 1rem;
+}
+
+.footerLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+
+  &:hover {
+    color: $auth-charcoal;
+    text-decoration: underline;
+  }
+}
+
+// Logo mark (shared)
+.logoMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.logoMarkSmall {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  box-shadow: none;
+  border: 1px solid #e5e7eb;
+}
+
+.logoSvg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.logoSvgSmall {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.successCard {
+  padding: 1.25rem;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 0.75rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.warnCard {
+  padding: 1.25rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.centerMuted {
+  text-align: center;
+  color: $auth-muted;
+  font-size: 0.875rem;
+}

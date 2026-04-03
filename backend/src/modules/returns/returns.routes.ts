@@ -132,7 +132,7 @@ router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.
  */
 router.put(
   '/:id',
-  requireRoles('admin'),
+  requireRoles('admin', 'order_taker'),
   (req, res, next) => {
     uploadReturnInvoiceSingle(req, res, (err: unknown) => {
       if (err) {
@@ -163,7 +163,7 @@ router.put(
  *       200: { description: Return deleted }
  *       404: { description: Return not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
+router.delete('/:id', requireRoles('admin', 'order_taker'), controller.remove);
 router.patch('/:id/restore', requireRoles('admin'), controller.restore);
 router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
 

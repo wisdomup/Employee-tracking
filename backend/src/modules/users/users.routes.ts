@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { requireRoles } from '../../middleware/roles.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createUserSchema, updateUserSchema } from './dto/users.schemas';
+import { createUserSchema, updateUserSchema, updateProfileSchema } from './dto/users.schemas';
 import * as controller from './users.controller';
 
 const router = Router();
@@ -106,6 +106,57 @@ router.get('/', requireRoles('admin', 'employee'), controller.findAll);
  *       401: { description: Unauthorized }
  */
 router.get('/role/:role', requireRoles('admin', 'employee'), controller.findByRole);
+
+/**
+ * @openapi
+ * /api/users/me:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get the authenticated user (no password)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       401: { description: Unauthorized }
+ *       404: { description: User not found }
+ */
+router.get('/me', controller.getMe);
+
+/**
+ * @openapi
+ * /api/users/me:
+ *   patch:
+ *     tags: [Users]
+ *     summary: Update own profile (username, phone, email, address, profileImage only)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             minProperties: 1
+ *             properties:
+ *               username: { type: string }
+ *               phone: { type: string }
+ *               email: { type: string }
+ *               address: { $ref: '#/components/schemas/Address' }
+ *               profileImage: { type: string }
+ *     responses:
+ *       200:
+ *         description: Updated user
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       404: { description: User not found }
+ *       409: { description: Username or phone conflict }
+ */
+router.patch('/me', validate(updateProfileSchema), controller.updateMe);
 
 /**
  * @openapi

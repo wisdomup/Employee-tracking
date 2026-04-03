@@ -20,7 +20,7 @@ export const createOrderSchema = Joi.object({
   orderDate: Joi.date().optional(),
   deliveryDate: Joi.date().optional(),
   dealerId: Joi.string().required(),
-  routeId: Joi.string().optional(),
+  routeId: Joi.string().optional().allow(null, ''),
 });
 
 export const updateOrderSchema = Joi.object({

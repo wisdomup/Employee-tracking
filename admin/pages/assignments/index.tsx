@@ -143,16 +143,20 @@ const AssignmentsPage: React.FC = () => {
           </button>
         </div>
 
-        <p style={{ color: '#6b7280', marginBottom: 16, fontSize: '0.875rem' }}>
-          Routes can only be assigned to users with the <strong>Order Taker</strong> role. Tasks are assigned
-          individually to any employee from the task detail page.
-        </p>
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <p style={{ color: '#6b7280', marginBottom: 16, fontSize: '0.875rem', marginTop: 0 }}>
+              Routes can only be assigned to users with the <strong>Order Taker</strong> role. Tasks are assigned
+              individually to any employee from the task detail page.
+            </p>
 
-        <Table
-          columns={routeAssignmentColumns}
-          data={routeAssignments}
-          loading={loading}
-        />
+            <Table
+              columns={routeAssignmentColumns}
+              data={routeAssignments}
+              loading={loading}
+            />
+          </div>
+        </div>
 
         {showModal && (
           <div className={modalStyles.modalOverlay} onClick={closeModal}>

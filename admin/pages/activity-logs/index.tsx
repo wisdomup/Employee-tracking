@@ -4,6 +4,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import { activityLogService, ActivityLog } from '../../services/activityLogService';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -11,14 +12,28 @@ import styles from '../../styles/ListPage.module.scss';
 const ActivityLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
+    if (!user) return;
     fetchLogs();
-  }, []);
+  }, [user?.id, user?.role]);
+
+  const actorId = (employeeId: unknown): string => {
+    if (employeeId == null) return '';
+    if (typeof employeeId === 'string') return employeeId;
+    const o = employeeId as { _id?: string };
+    return o._id ?? '';
+  };
 
   const fetchLogs = async () => {
     try {
-      const data = await activityLogService.getActivityLogs();
+      let data: ActivityLog[];
+      if (user?.role === 'order_taker' && user?.id) {
+        data = await activityLogService.getEmployeeActivityLogs(user.id);
+      } else {
+        data = await activityLogService.getActivityLogs();
+      }
       setLogs(data);
     } catch (error) {
       toast.error('Failed to fetch activity logs');
@@ -31,7 +46,19 @@ const ActivityLogsPage: React.FC = () => {
     {
       key: 'employeeId',
       title: 'Actor',
-      render: (value: any) => value?.username || '-',
+      render: (value: any) => {
+        const name = value?.username || '-';
+        const id = actorId(value);
+        if (user?.id && id && id === user.id) {
+          return (
+            <>
+              {name}
+              <span style={{ color: '#6b7280', fontWeight: 500, marginLeft: '0.5rem' }}>(You)</span>
+            </>
+          );
+        }
+        return name;
+      },
     },
     {
       key: 'module',
@@ -102,7 +129,7 @@ const ActivityLogsPage: React.FC = () => {
           <Link
             href={href}
             onClick={(e) => e.stopPropagation()}
-            style={{ color: '#2563eb', textDecoration: 'underline' }}
+            style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
           >
             {label}
           </Link>
@@ -113,7 +140,9 @@ const ActivityLogsPage: React.FC = () => {
       key: 'action',
       title: 'Action',
       render: (value: string) => (
-        <span style={{ textTransform: 'capitalize' }}>{value.replace(/_/g, ' ')}</span>
+        <span style={{ textTransform: 'capitalize' }}>
+          {value ? value.replace(/_/g, ' ') : '-'}
+        </span>
       ),
     },
     {
@@ -130,7 +159,12 @@ const ActivityLogsPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Activity Logs</h1>
         </div>
-        <Table columns={columns} data={logs} loading={loading} />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <Table columns={columns} data={logs} loading={loading} />
+          </div>
+        </div>
       </div>
     </Layout>
   );
@@ -138,7 +172,7 @@ const ActivityLogsPage: React.FC = () => {
 
 export default function ActivityLogsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ActivityLogsPage />
     </ProtectedRoute>
   );

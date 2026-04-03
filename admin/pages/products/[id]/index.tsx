@@ -4,6 +4,8 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
 import { productService, Product } from '../../../services/productService';
+import { useAuth } from '../../../contexts/AuthContext';
+import { can } from '../../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -11,6 +13,8 @@ import styles from '../../../styles/DetailPage.module.scss';
 const ProductDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
+  const canEditProduct = can(user?.role, 'products:edit');
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,9 +37,11 @@ const ProductDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Product Details</h1>
           <div className={styles.headerActions}>
-            <button className={styles.editButton} onClick={() => router.push(`/products/${id}/edit`)}>
-              Edit
-            </button>
+            {canEditProduct && (
+              <button className={styles.editButton} onClick={() => router.push(`/products/${id}/edit`)}>
+                Edit
+              </button>
+            )}
             <button className={styles.backButton} onClick={() => router.push('/products')}>
               ← Back
             </button>
@@ -131,7 +137,7 @@ const ProductDetailPage: React.FC = () => {
 
 export default function ProductDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ProductDetailPage />
     </ProtectedRoute>
   );

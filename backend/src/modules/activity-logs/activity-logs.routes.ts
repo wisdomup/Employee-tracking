@@ -39,7 +39,7 @@ router.use(authMiddleware);
  *                 $ref: '#/components/schemas/ActivityLog'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee'), controller.findAll);
+router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
 
 /**
  * @openapi
@@ -65,7 +65,7 @@ router.get('/', requireRoles('admin', 'employee'), controller.findAll);
  *                 $ref: '#/components/schemas/ActivityLog'
  *       401: { description: Unauthorized }
  */
-router.get('/recent', requireRoles('admin', 'employee'), controller.getRecent);
+router.get('/recent', requireRoles('admin', 'employee', 'order_taker'), controller.getRecent);
 
 /**
  * @openapi
@@ -99,6 +99,6 @@ router.get('/recent', requireRoles('admin', 'employee'), controller.getRecent);
  *       401: { description: Unauthorized }
  *       404: { description: Employee not found }
  */
-router.get('/employee/:id', requireRoles('admin', 'employee'), controller.findByEmployee);
+router.get('/employee/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findByEmployee);
 
 export default router;

@@ -8,6 +8,7 @@ import ImageModal from '../../../components/UI/ImageModal';
 import Loader from '../../../components/UI/Loader';
 import { taskService, Task, getTaskDocumentUrl, getTaskCompletionImageUrl } from '../../../services/taskService';
 import { employeeService, Employee } from '../../../services/employeeService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -23,11 +24,17 @@ const TaskDetailPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const { user } = useAuth();
+  const isOrderTaker = user?.role === 'order_taker';
+  const isAdmin = user?.role === 'admin';
+  const assignedToId = typeof task?.assignedTo === 'object' ? task?.assignedTo?._id : task?.assignedTo;
+  const isAssignedToMe = assignedToId === user?.id;
 
   useEffect(() => {
     if (id) {
       fetchTask();
-      fetchEmployees();
+      if (!isOrderTaker) fetchEmployees();
     }
   }, [id]);
 
@@ -49,6 +56,63 @@ const TaskDetailPage: React.FC = () => {
     } catch (error) {
       // non-critical
     }
+  };
+
+  const handleStartTask = async () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+    setActionLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await taskService.startTask(id as string, {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+          toast.success('Task started successfully');
+          fetchTask();
+        } catch (error: any) {
+          toast.error(error.response?.data?.message || 'Failed to start task');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+      () => {
+        toast.error('Could not get your location. Please enable location access.');
+        setActionLoading(false);
+      },
+    );
+  };
+
+  const handleCompleteTask = async () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+    setActionLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await taskService.completeTask(id as string, {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            completionImages: [],
+          });
+          toast.success('Task completed successfully');
+          fetchTask();
+        } catch (error: any) {
+          toast.error(error.response?.data?.message || 'Failed to complete task');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+      () => {
+        toast.error('Could not get your location. Please enable location access.');
+        setActionLoading(false);
+      },
+    );
   };
 
   const handleAssign = async (e: React.FormEvent) => {
@@ -113,12 +177,33 @@ const TaskDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Task Details</h1>
           <div className={styles.headerActions}>
-            <button
-              className={styles.editButton}
-              onClick={() => router.push(`/tasks/${id}/edit`)}
-            >
-              Edit
-            </button>
+            {isOrderTaker && isAssignedToMe && task?.status === 'pending' && (
+              <button
+                className={styles.editButton}
+                onClick={handleStartTask}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Starting...' : 'Start Task'}
+              </button>
+            )}
+            {isOrderTaker && isAssignedToMe && task?.status === 'in_progress' && (
+              <button
+                className={styles.editButton}
+                onClick={handleCompleteTask}
+                disabled={actionLoading}
+                style={{ backgroundColor: '#16a34a', color: '#fff' }}
+              >
+                {actionLoading ? 'Completing...' : 'Complete Task'}
+              </button>
+            )}
+            {!isOrderTaker && (
+              <button
+                className={styles.editButton}
+                onClick={() => router.push(`/tasks/${id}/edit`)}
+              >
+                Edit
+              </button>
+            )}
             <button className={styles.backButton} onClick={() => router.push('/tasks')}>
               ← Back
             </button>
@@ -237,7 +322,7 @@ const TaskDetailPage: React.FC = () => {
           <div className={styles.section}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h2 style={{ margin: 0 }}>Assignment Details</h2>
-              {task.status !== 'in_progress' && (
+              {!isOrderTaker && task.status !== 'in_progress' && (
                 <button
                   className={styles.editButton}
                   onClick={() => setShowAssignModal(true)}
@@ -429,7 +514,7 @@ const TaskDetailPage: React.FC = () => {
 
 export default function TaskDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <TaskDetailPage />
     </ProtectedRoute>
   );

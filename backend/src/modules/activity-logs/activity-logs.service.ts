@@ -93,6 +93,7 @@ export async function findByEmployee(
   }
 
   return ActivityLogModel.find(query)
+    .populate('employeeId', '-password')
     .populate({ path: 'taskId', populate: { path: 'dealerId' } })
     .sort({ timestamp: -1 })
     .exec();

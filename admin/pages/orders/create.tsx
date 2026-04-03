@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { orderService } from '../../services/orderService';
-import { clientService, Client } from '../../services/clientService';
+import { clientService, Client, getClientAssignedRouteId } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { productService, Product } from '../../services/productService';
 import { toast } from 'react-toastify';
@@ -46,6 +46,16 @@ const CreateOrderPage: React.FC = () => {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const clientId = e.target.value;
+    const client = clients.find((c) => c._id === clientId);
+    setFormData((prev) => ({
+      ...prev,
+      clientId,
+      routeId: getClientAssignedRouteId(client),
+    }));
   };
 
   const handleLineItemChange = (
@@ -137,7 +147,7 @@ const CreateOrderPage: React.FC = () => {
     try {
       await orderService.createOrder({
         dealerId: formData.clientId,
-        routeId: formData.routeId || undefined,
+        routeId: formData.routeId,
         paymentType: formData.paymentType || undefined,
         products: validItems.map((item) => ({
           productId: item.productId,
@@ -174,7 +184,7 @@ const CreateOrderPage: React.FC = () => {
               id="clientId"
               name="clientId"
               value={formData.clientId}
-              onChange={handleChange}
+              onChange={handleClientChange}
               required
               className={styles.select}
             >
@@ -188,7 +198,10 @@ const CreateOrderPage: React.FC = () => {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="routeId">Route (optional)</label>
+            <label htmlFor="routeId">Route</label>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+              Filled automatically from the client&apos;s assigned route; you can change it or clear it.
+            </p>
             <select
               id="routeId"
               name="routeId"
@@ -440,7 +453,7 @@ const CreateOrderPage: React.FC = () => {
 
 export default function CreateOrderPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CreateOrderPage />
     </ProtectedRoute>
   );

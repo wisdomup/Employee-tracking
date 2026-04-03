@@ -1,12 +1,21 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-export type BroadcastTarget = 'all' | 'employees' | 'dealers' | 'customers';
+export type BroadcastAudienceType =
+  | 'all'
+  | 'all_employees'
+  | 'role_order_taker'
+  | 'role_delivery_man'
+  | 'role_warehouse_manager'
+  | 'specific_users';
 
 export interface IBroadcastNotification extends Document {
   _id: Types.ObjectId;
   title: string;
   description?: string;
-  broadcastTo: BroadcastTarget;
+  audienceType: BroadcastAudienceType;
+  targetUserIds: Types.ObjectId[];
+  /** @deprecated migrated to audienceType; may exist on old documents until migration runs */
+  broadcastTo?: string;
   startAt?: Date;
   endAt?: Date;
   createdBy: Types.ObjectId;
@@ -18,11 +27,20 @@ const broadcastNotificationSchema = new Schema<IBroadcastNotification>(
   {
     title: { type: String, required: true },
     description: { type: String },
-    broadcastTo: {
+    audienceType: {
       type: String,
-      enum: ['all', 'employees', 'dealers', 'customers'],
+      enum: [
+        'all',
+        'all_employees',
+        'role_order_taker',
+        'role_delivery_man',
+        'role_warehouse_manager',
+        'specific_users',
+      ],
       required: true,
     },
+    targetUserIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    broadcastTo: { type: String },
     startAt: { type: Date },
     endAt: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -30,7 +48,8 @@ const broadcastNotificationSchema = new Schema<IBroadcastNotification>(
   { timestamps: true },
 );
 
-broadcastNotificationSchema.index({ broadcastTo: 1 });
+broadcastNotificationSchema.index({ audienceType: 1 });
+broadcastNotificationSchema.index({ targetUserIds: 1 });
 broadcastNotificationSchema.index({ createdBy: 1 });
 
 export const BroadcastNotificationModel = model<IBroadcastNotification>(

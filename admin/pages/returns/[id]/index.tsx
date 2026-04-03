@@ -4,6 +4,7 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
 import { returnService, Return, getReturnImageUrl } from '../../../services/returnService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -21,6 +22,9 @@ const ReturnDetailPage: React.FC = () => {
   const [returnItem, setReturnItem] = useState<Return | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageOpen, setImageOpen] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
 
   useEffect(() => {
     if (id) {
@@ -37,6 +41,15 @@ const ReturnDetailPage: React.FC = () => {
 
   const statusColors = STATUS_COLORS[returnItem.status] || { bg: '#f3f4f6', color: '#374151' };
   const invoiceUrl = returnItem.invoiceImage ? getReturnImageUrl(returnItem.invoiceImage) : '';
+  const returnCreatorId =
+    returnItem.createdBy == null
+      ? ''
+      : typeof returnItem.createdBy === 'object' && '_id' in returnItem.createdBy
+        ? String((returnItem.createdBy as { _id: string })._id)
+        : String(returnItem.createdBy);
+  const isOwnReturn = !!user?.id && returnCreatorId === user.id;
+  const showEdit =
+    isAdmin || (isOrderTaker && returnItem.status === 'pending' && isOwnReturn);
 
   return (
     <Layout>
@@ -44,13 +57,15 @@ const ReturnDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Return / Damage Details</h1>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              className={styles.backButton}
-              onClick={() => router.push(`/returns/${id}/edit`)}
-              style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
-            >
-              Edit
-            </button>
+            {showEdit && (
+              <button
+                className={styles.backButton}
+                onClick={() => router.push(`/returns/${id}/edit`)}
+                style={{ background: 'var(--admin-primary)', color: '#fff', borderColor: 'var(--admin-primary)' }}
+              >
+                Edit
+              </button>
+            )}
             <button className={styles.backButton} onClick={() => router.push('/returns')}>
               ← Back
             </button>
@@ -278,7 +293,7 @@ const ReturnDetailPage: React.FC = () => {
 
 export default function ReturnDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <ReturnDetailPage />
     </ProtectedRoute>
   );

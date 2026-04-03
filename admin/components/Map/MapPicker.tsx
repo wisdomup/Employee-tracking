@@ -62,7 +62,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
 
     const clientIcon = L.divIcon({
       className: 'custom-marker client-marker',
-      html: '<div style="background-color: #3b82f6; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
+      html: '<div style="background-color: var(--admin-primary); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
       iconSize: [30, 30],
     });
 
@@ -111,7 +111,7 @@ const MapPicker: React.FC<MapPickerProps> = ({
     if (isValidLocation(latitude, longitude)) {
       const clientIcon = L.divIcon({
         className: 'custom-marker client-marker',
-        html: '<div style="background-color: #3b82f6; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
+        html: '<div style="background-color: var(--admin-primary); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">D</div>',
         iconSize: [30, 30],
       });
       const marker = L.marker([latitude!, longitude!], { icon: clientIcon }).addTo(map);

@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
+import BroadcastAudienceFields from '../../../components/Broadcast/BroadcastAudienceFields';
 import {
   broadcastNotificationService,
   BroadcastNotification,
-  BroadcastTarget,
+  BroadcastAudienceType,
+  audienceTypeFromApi,
 } from '../../../services/broadcastNotificationService';
+import { employeeService, Employee } from '../../../services/employeeService';
 import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
@@ -17,13 +20,28 @@ const EditBroadcastNotificationPage: React.FC = () => {
   const { id } = router.query;
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  const [employeeOptions, setEmployeeOptions] = useState<{ _id: string; username: string }[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    broadcastTo: 'all' as BroadcastTarget,
+    audienceType: 'all' as BroadcastAudienceType,
+    targetUserIds: [] as string[],
     startAt: '',
     endAt: '',
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const list: Employee[] = await employeeService.getEmployees({ isActive: true });
+        setEmployeeOptions(
+          list.filter((u) => u.role !== 'admin').map((u) => ({ _id: u._id, username: u.username })),
+        );
+      } catch {
+        toast.error('Could not load employees for audience picker');
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (id) fetchNotification();
@@ -34,14 +52,17 @@ const EditBroadcastNotificationPage: React.FC = () => {
       const data: BroadcastNotification = await broadcastNotificationService.getNotification(
         id as string,
       );
+      const at = audienceTypeFromApi(data);
+      const targets = (data.targetUserIds || []).map(String);
       setFormData({
         title: data.title,
         description: data.description || '',
-        broadcastTo: data.broadcastTo,
+        audienceType: at,
+        targetUserIds: at === 'specific_users' ? targets : [],
         startAt: data.startAt ? data.startAt.slice(0, 10) : '',
         endAt: data.endAt ? data.endAt.slice(0, 10) : '',
       });
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch notification');
     } finally {
       setFetchLoading(false);
@@ -61,8 +82,8 @@ const EditBroadcastNotificationPage: React.FC = () => {
       toast.error('Please enter Title');
       return;
     }
-    if (!formData.broadcastTo) {
-      toast.error('Please select Broadcast To');
+    if (formData.audienceType === 'specific_users' && formData.targetUserIds.length === 0) {
+      toast.error('Select at least one employee');
       return;
     }
     setLoading(true);
@@ -70,20 +91,33 @@ const EditBroadcastNotificationPage: React.FC = () => {
       await broadcastNotificationService.updateNotification(id as string, {
         title: formData.title,
         description: formData.description || undefined,
-        broadcastTo: formData.broadcastTo,
+        audienceType: formData.audienceType,
+        targetUserIds:
+          formData.audienceType === 'specific_users' ? formData.targetUserIds : undefined,
         startAt: formData.startAt || undefined,
         endAt: formData.endAt || undefined,
       });
       toast.success('Notification updated successfully');
       router.push('/broadcast-notifications');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to update notification');
+    } catch (error: unknown) {
+      const msg =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error(msg || 'Failed to update notification');
     } finally {
       setLoading(false);
     }
   };
 
-  if (fetchLoading) return <Layout><Loader /></Layout>;
+  if (fetchLoading) {
+    return (
+      <Layout>
+        <Loader />
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -91,6 +125,7 @@ const EditBroadcastNotificationPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Edit Notification</h1>
           <button
+            type="button"
             className={styles.backButton}
             onClick={() => router.push('/broadcast-notifications')}
           >
@@ -110,22 +145,15 @@ const EditBroadcastNotificationPage: React.FC = () => {
               className={styles.input}
             />
           </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="broadcastTo">Broadcast To *</label>
-            <select
-              id="broadcastTo"
-              name="broadcastTo"
-              value={formData.broadcastTo}
-              onChange={handleChange}
-              required
-              className={styles.select}
-            >
-              <option value="all">All</option>
-              <option value="employees">Employees</option>
-              <option value="clients">Clients</option>
-              <option value="customers">Customers</option>
-            </select>
-          </div>
+          <BroadcastAudienceFields
+            audienceType={formData.audienceType}
+            targetUserIds={formData.targetUserIds}
+            onAudienceTypeChange={(audienceType) =>
+              setFormData((prev) => ({ ...prev, audienceType }))
+            }
+            onTargetUserIdsChange={(targetUserIds) => setFormData((prev) => ({ ...prev, targetUserIds }))}
+            employeeOptions={employeeOptions}
+          />
           <div className={styles.formGroup}>
             <label htmlFor="description">Description</label>
             <textarea

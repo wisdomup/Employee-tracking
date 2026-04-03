@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import DataTable, { TableColumn, TableStyles } from 'react-data-table-component';
+import DataTable, { Alignment, TableColumn, TableStyles } from 'react-data-table-component';
 import Loader from './Loader';
 
 interface GlobalDataTableProps<T> {
@@ -12,6 +12,8 @@ interface GlobalDataTableProps<T> {
   noDataText?: string;
   fixedHeader?: boolean;
   fixedHeaderHeight?: string;
+  /** Renders above the table via react-data-table-component `subHeader` / `subHeaderComponent` */
+  subHeaderComponent?: React.ReactNode;
 }
 
 function GlobalDataTable<T>({
@@ -24,9 +26,16 @@ function GlobalDataTable<T>({
   noDataText = 'No data available',
   fixedHeader = false,
   fixedHeaderHeight = '420px',
+  subHeaderComponent,
 }: GlobalDataTableProps<T>) {
   const tableStyles = useMemo<TableStyles>(
     () => ({
+      subHeader: {
+        style: {
+          padding: '0 0 12px 0',
+          backgroundColor: 'transparent',
+        },
+      },
       table: {
         style: {
           border: '1px solid #d1d5db',
@@ -53,7 +62,7 @@ function GlobalDataTable<T>({
       },
       headCells: {
         style: {
-          color: '#111827',
+          color: 'var(--admin-primary)',
           fontSize: '14px',
           fontWeight: 700,
           paddingTop: '12px',
@@ -100,7 +109,8 @@ function GlobalDataTable<T>({
           color: '#374151',
           fontSize: '13px',
           minHeight: '52px',
-          backgroundColor: '#f9fafb',
+          marginTop: '12px',
+          backgroundColor: 'transparent',
           borderTopStyle: 'none',
           borderTopWidth: '0',
           borderTopColor: 'transparent',
@@ -118,6 +128,8 @@ function GlobalDataTable<T>({
     [onRowClick],
   );
 
+  const showSubHeader = Boolean(subHeaderComponent);
+
   return (
     <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <DataTable
@@ -125,6 +137,9 @@ function GlobalDataTable<T>({
         data={data}
         progressPending={loading}
         progressComponent={<Loader />}
+        subHeader={showSubHeader}
+        subHeaderComponent={subHeaderComponent}
+        subHeaderAlign={Alignment.RIGHT}
         pagination={paginate}
         paginationPerPage={pageSize}
         paginationRowsPerPageOptions={[10, 25, 50]}

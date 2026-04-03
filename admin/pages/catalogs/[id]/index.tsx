@@ -4,6 +4,8 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
 import { catalogService, Catalog, getCatalogDownloadUrl } from '../../../services/catalogService';
+import { useAuth } from '../../../contexts/AuthContext';
+import { can } from '../../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -11,6 +13,8 @@ import styles from '../../../styles/DetailPage.module.scss';
 const CatalogDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
+  const canEditCatalog = can(user?.role, 'catalogs:edit');
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -44,9 +48,11 @@ const CatalogDetailPage: React.FC = () => {
             >
               Download PDF
             </a>
-            <button className={styles.editButton} onClick={() => router.push(`/catalogs/${id}/edit`)}>
-              Edit
-            </button>
+            {canEditCatalog && (
+              <button className={styles.editButton} onClick={() => router.push(`/catalogs/${id}/edit`)}>
+                Edit
+              </button>
+            )}
             <button className={styles.backButton} onClick={() => router.push('/catalogs')}>
               Back
             </button>
@@ -100,7 +106,7 @@ const CatalogDetailPage: React.FC = () => {
 
 export default function CatalogDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
       <CatalogDetailPage />
     </ProtectedRoute>
   );
