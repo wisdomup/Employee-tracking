@@ -53,3 +53,21 @@ export const updateUserSchema = Joi.object({
   extraNotes: Joi.string().optional(),
   lastExperience: Joi.string().optional(),
 });
+
+const profileAddressSchema = Joi.object({
+  street: Joi.string().allow('', null).optional(),
+  city: Joi.string().allow('', null).optional(),
+  state: Joi.string().allow('', null).optional(),
+  country: Joi.string().allow('', null).optional(),
+}).optional();
+
+/** Self-service profile PATCH: whitelisted fields only; at least one required. */
+export const updateProfileSchema = Joi.object({
+  username: Joi.string().trim().min(1).optional(),
+  phone: Joi.string().trim().min(1).optional(),
+  email: Joi.alternatives().try(Joi.string().trim().email(), Joi.string().valid('')).optional(),
+  address: profileAddressSchema,
+  profileImage: Joi.string().allow('', null).optional(),
+})
+  .min(1)
+  .messages({ 'object.min': 'At least one field is required' });

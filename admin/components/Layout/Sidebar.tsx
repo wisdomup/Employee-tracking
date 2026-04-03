@@ -1,6 +1,25 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import {
+  ArrowUUpLeft,
+  Bell,
+  BookOpen,
+  CalendarCheck,
+  ClipboardText,
+  MapPin,
+  Package,
+  PresentationChart,
+  ShoppingCart,
+  Signpost,
+  SquaresFour,
+  Storefront,
+  Tag,
+  Trash,
+  TrendUp,
+  UserCircle,
+  Users,
+} from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { can } from '../../utils/permissions';
 import styles from './Sidebar.module.scss';
@@ -11,10 +30,17 @@ interface SidebarProps {
   isCollapsedView: boolean;
 }
 
+type MenuIcon = React.ComponentType<{
+  className?: string;
+  size?: number;
+  weight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone';
+  'aria-hidden'?: boolean;
+}>;
+
 interface MenuItem {
   path: string;
   label: string;
-  icon: string;
+  Icon: MenuIcon;
   /** Permission key checked via can(). If undefined the item is always visible. */
   permission?: string;
   /** If true, only admin sees this item regardless of permissions. */
@@ -22,22 +48,23 @@ interface MenuItem {
 }
 
 const ALL_MENU_ITEMS: MenuItem[] = [
-  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { path: '/employees', label: 'Employees', icon: '👥', adminOnly: true },
-  { path: '/clients', label: 'Clients', icon: '🏪', permission: 'dealers:view' },
-  { path: '/routes', label: 'Routes', icon: '🛣️', adminOnly: true },
-  { path: '/tasks', label: 'Tasks', icon: '📋', permission: 'tasks:view' },
-  { path: '/activity-logs', label: 'Activity Logs', icon: '📈', permission: 'activity-logs:view' },
-  { path: '/categories', label: 'Categories', icon: '🏷️', adminOnly: true },
-  { path: '/catalogs', label: 'Catalogs', icon: '📄', permission: 'catalogs:view' },
-  { path: '/products', label: 'Products', icon: '📦', permission: 'products:view' },
-  { path: '/orders', label: 'Orders', icon: '🛒', permission: 'orders:view' },
-  { path: '/leaves', label: 'Approvals', icon: '🗓️', permission: 'leaves:view' },
-  { path: '/visits', label: 'Visits', icon: '📍', permission: 'visits:view' },
-  { path: '/returns', label: 'Returns', icon: '↩️', permission: 'returns:view' },
-  { path: '/reports', label: 'Reports', icon: '📉', adminOnly: true },
-  { path: '/trash', label: 'Trash', icon: '🗑️', adminOnly: true },
-  { path: '/broadcast-notifications', label: 'Notifications', icon: '🔔', adminOnly: true },
+  { path: '/dashboard', label: 'Dashboard', Icon: SquaresFour },
+  { path: '/profile', label: 'Profile', Icon: UserCircle },
+  { path: '/employees', label: 'Employees', Icon: Users, adminOnly: true },
+  { path: '/clients', label: 'Clients', Icon: Storefront, permission: 'dealers:view' },
+  { path: '/routes', label: 'Routes', Icon: Signpost, adminOnly: true },
+  { path: '/tasks', label: 'Tasks', Icon: ClipboardText, permission: 'tasks:view' },
+  { path: '/activity-logs', label: 'Activity Logs', Icon: TrendUp, permission: 'activity-logs:view' },
+  { path: '/categories', label: 'Categories', Icon: Tag, adminOnly: true },
+  { path: '/catalogs', label: 'Catalogs', Icon: BookOpen, permission: 'catalogs:view' },
+  { path: '/products', label: 'Products', Icon: Package, permission: 'products:view' },
+  { path: '/orders', label: 'Orders', Icon: ShoppingCart, permission: 'orders:view' },
+  { path: '/approvals', label: 'Approvals', Icon: CalendarCheck, permission: 'approvals:view' },
+  { path: '/visits', label: 'Visits', Icon: MapPin, permission: 'visits:view' },
+  { path: '/returns', label: 'Returns', Icon: ArrowUUpLeft, permission: 'returns:view' },
+  { path: '/reports', label: 'Reports', Icon: PresentationChart, adminOnly: true },
+  { path: '/trash', label: 'Trash', Icon: Trash, adminOnly: true },
+  { path: '/broadcast-notifications', label: 'Notifications', Icon: Bell, adminOnly: true },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) => {
@@ -77,17 +104,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) =
         </div>
 
         <nav className={styles.nav}>
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={`${styles.navItem} ${isActive(item.path) ? styles.active : ''}`}
-              onClick={handleNavClick}
-            >
-              <span className={styles.icon}>{item.icon}</span>
-              <span className={styles.label}>{item.label}</span>
-            </Link>
-          ))}
+          {menuItems.map((item) => {
+            const active = isActive(item.path);
+            const { Icon } = item;
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                className={`${styles.navItem} ${active ? styles.active : ''}`}
+                onClick={handleNavClick}
+              >
+                <Icon
+                  className={styles.icon}
+                  size={22}
+                  weight={active ? 'fill' : 'regular'}
+                  aria-hidden
+                />
+                <span className={styles.label}>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
     </>

@@ -27,17 +27,22 @@ const OrdersPage: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
   const canEditOrder = (order: Order) =>
     isAdmin || (user?.role === 'order_taker' && order.status === 'pending');
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
-    employeeService.getEmployees().then(setEmployees).catch(() => {});
-  }, []);
+    if (!isOrderTaker) {
+      employeeService.getEmployees().then(setEmployees).catch(() => {});
+    }
+  }, [isOrderTaker]);
 
   useEffect(() => {
+    if (!user) return;
+    if (user.role === 'order_taker' && !user.id) return;
     fetchOrders();
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, user?.id, user?.role]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -45,7 +50,10 @@ const OrdersPage: React.FC = () => {
       const data = await orderService.getOrders({
         clientId: clientFilter || undefined,
         status: statusFilter || undefined,
-        createdBy: employeeFilter || undefined,
+        createdBy:
+          user?.role === 'order_taker' && user.id
+            ? user.id
+            : employeeFilter || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       });
@@ -188,66 +196,73 @@ const OrdersPage: React.FC = () => {
             + Create Order
           </button>
         </div>
-        <div className={styles.searchBar}>
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 220 }}
-          >
-            <option value="">All Clients</option>
-            {clients.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 180 }}
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="packed">Packed</option>
-            <option value="dispatched">Dispatched</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 200 }}
-          >
-            <option value="">All Employees</option>
-            {employees.map((e) => (
-              <option key={e._id} value={e._id}>
-                {e.username}
-              </option>
-            ))}
-          </select>
-          <DatePickerFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start date"
-            title="Order date from"
-          />
-          <DatePickerFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End date"
-            title="Order date to"
-          />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 220 }}
+              >
+                <option value="">All Clients</option>
+                {clients.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 180 }}
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="packed">Packed</option>
+                <option value="dispatched">Dispatched</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              {!isOrderTaker && (
+                <select
+                  value={employeeFilter}
+                  onChange={(e) => setEmployeeFilter(e.target.value)}
+                  className={styles.searchInput}
+                  style={{ maxWidth: 200 }}
+                >
+                  <option value="">All Employees</option>
+                  {employees.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.username}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <DatePickerFilter
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start date"
+                title="Order date from"
+              />
+              <DatePickerFilter
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End date"
+                title="Order date to"
+              />
+            </div>
+            <Table
+              columns={columns}
+              data={orders}
+              loading={loading}
+              onRowClick={(row) => router.push(`/orders/${row._id}`)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={orders}
-          loading={loading}
-          onRowClick={(row) => router.push(`/orders/${row._id}`)}
-        />
       </div>
     </Layout>
   );

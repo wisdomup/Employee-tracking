@@ -61,7 +61,7 @@ const ReturnDetailPage: React.FC = () => {
               <button
                 className={styles.backButton}
                 onClick={() => router.push(`/returns/${id}/edit`)}
-                style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+                style={{ background: 'var(--admin-primary)', color: '#fff', borderColor: 'var(--admin-primary)' }}
               >
                 Edit
               </button>

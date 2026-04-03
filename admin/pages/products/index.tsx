@@ -177,34 +177,39 @@ const ProductsPage: React.FC = () => {
             </button>
           )}
         </div>
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            placeholder="Search by name or barcode..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 200 }}
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                placeholder="Search by name or barcode..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={styles.searchInput}
+              />
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 200 }}
+              >
+                <option value="">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Table
+              columns={columns}
+              data={filtered}
+              loading={loading}
+              onRowClick={(row) => router.push(`/products/${row._id}`)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={filtered}
-          loading={loading}
-          onRowClick={(row) => router.push(`/products/${row._id}`)}
-        />
       </div>
     </Layout>
   );

@@ -4,16 +4,22 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Loader from '../../../components/UI/Loader';
-import { leaveService, Leave } from '../../../services/leaveService';
+import {
+  approvalService,
+  Approval,
+  APPROVAL_TYPE_LABELS,
+  ApprovalType,
+} from '../../../services/approvalService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
 
-const LeaveDetailPage: React.FC = () => {
+const ApprovalDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const [leave, setLeave] = useState<Leave | null>(null);
+  const [row, setRow] = useState<Approval | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const { user } = useAuth();
@@ -22,10 +28,10 @@ const LeaveDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      leaveService
-        .getLeave(id as string)
-        .then(setLeave)
-        .catch(() => toast.error('Failed to fetch leave'))
+      approvalService
+        .getApproval(id as string)
+        .then(setRow)
+        .catch((err) => toast.error(getApiErrorMessage(err, 'Failed to fetch approval')))
         .finally(() => setLoading(false));
     }
   }, [id]);
@@ -33,54 +39,60 @@ const LeaveDetailPage: React.FC = () => {
   const handleStatusChange = async (status: 'approved' | 'rejected') => {
     setUpdating(true);
     try {
-      await leaveService.updateLeaveStatus(id as string, status);
-      toast.success(`Leave ${status} successfully`);
-      const updated = await leaveService.getLeave(id as string);
-      setLeave(updated);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || `Failed to ${status} leave`);
+      await approvalService.updateApprovalStatus(id as string, status);
+      toast.success(`Approval ${status} successfully`);
+      const updated = await approvalService.getApproval(id as string);
+      setRow(updated);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, `Failed to ${status} approval`));
     } finally {
       setUpdating(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this leave request?')) return;
+    if (!window.confirm('Are you sure you want to delete this approval?')) return;
     setUpdating(true);
     try {
-      await leaveService.deleteLeave(id as string);
-      toast.success('Leave request deleted');
-      router.push('/leaves');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete leave');
+      await approvalService.deleteApproval(id as string);
+      toast.success('Approval deleted');
+      router.push('/approvals');
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete approval'));
     } finally {
       setUpdating(false);
     }
   };
 
   if (loading) return <Layout><Loader /></Layout>;
-  if (!leave) return <Layout><div>Leave request not found</div></Layout>;
+  if (!row) return <Layout><div>Approval not found</div></Layout>;
 
-  const leaveOwnerId =
-    typeof leave.employeeId === 'string'
-      ? leave.employeeId
-      : (leave.employeeId as { _id?: string })?._id ?? '';
+  const ownerId =
+    typeof row.employeeId === 'string'
+      ? row.employeeId
+      : (row.employeeId as { _id?: string })?._id ?? '';
 
   const canOrderTakerMutate =
-    isOrderTaker && user?.id && leaveOwnerId === user.id && leave.status === 'pending';
+    isOrderTaker && user?.id && ownerId === user.id && row.status === 'pending';
+
+  const approvalType: ApprovalType = row.approvalType ?? 'leave';
+  const durationLabel =
+    approvalType === 'leave' && row.leaveType
+      ? row.leaveType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      : '—';
 
   return (
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Leave Request Details</h1>
+          <h1>Approval details</h1>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             {(isAdmin || canOrderTakerMutate) && (
               <button
                 type="button"
                 className={styles.backButton}
                 style={{ background: '#dbeafe', color: '#1e40af' }}
-                onClick={() => router.push(`/leaves/${id}/edit`)}
+                onClick={() => router.push(`/approvals/${id}/edit`)}
               >
                 Edit
               </button>
@@ -88,21 +100,21 @@ const LeaveDetailPage: React.FC = () => {
             {(isAdmin || canOrderTakerMutate) && (
               <button
                 className={styles.backButton}
-                style={leave.status !== 'pending' ? undefined : { background: '#fee2e2', color: '#991b1b' }}
+                style={row.status !== 'pending' ? undefined : { background: '#fee2e2', color: '#991b1b' }}
                 onClick={handleDelete}
-                disabled={updating || leave.status === 'approved' || (isOrderTaker && leave.status !== 'pending')}
+                disabled={updating || row.status === 'approved' || (isOrderTaker && row.status !== 'pending')}
                 title={
-                  leave.status === 'approved'
-                    ? 'Approved leaves cannot be deleted'
-                    : isOrderTaker && leave.status !== 'pending'
-                      ? 'Only pending leaves can be deleted'
+                  row.status === 'approved'
+                    ? 'Approved requests cannot be deleted'
+                    : isOrderTaker && row.status !== 'pending'
+                      ? 'Only pending approvals can be deleted'
                       : undefined
                 }
               >
                 Delete
               </button>
             )}
-            <button className={styles.backButton} onClick={() => router.push('/leaves')}>
+            <button className={styles.backButton} onClick={() => router.push('/approvals')}>
               ← Back
             </button>
           </div>
@@ -111,8 +123,8 @@ const LeaveDetailPage: React.FC = () => {
         <div className={styles.content}>
           <div className={styles.section}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0 }}>Leave Information</h2>
-              {isAdmin && leave.status === 'pending' && (
+              <h2 style={{ margin: 0 }}>Information</h2>
+              {isAdmin && row.status === 'pending' && (
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button
                     disabled={updating}
@@ -155,50 +167,52 @@ const LeaveDetailPage: React.FC = () => {
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Employee:</span>
-                <span className={styles.value}>{leave.employeeId?.username || '-'}</span>
+                <span className={styles.value}>{row.employeeId?.username || '-'}</span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Employee Phone:</span>
-                <span className={styles.value}>{leave.employeeId?.phone || '-'}</span>
+                <span className={styles.label}>Employee phone:</span>
+                <span className={styles.value}>{row.employeeId?.phone || '-'}</span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Leave Type:</span>
+                <span className={styles.label}>Approval type:</span>
+                <span className={styles.value}>{APPROVAL_TYPE_LABELS[approvalType]}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Duration:</span>
+                <span className={styles.value}>{durationLabel}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Date:</span>
                 <span className={styles.value}>
-                  {leave.leaveType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  {format(new Date(row.leaveDate), 'MMM dd, yyyy')}
                 </span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Leave Date:</span>
-                <span className={styles.value}>
-                  {format(new Date(leave.leaveDate), 'MMM dd, yyyy')}
-                </span>
-              </div>
-              <div className={styles.infoItem}>
-                <span className={styles.label}>Reason:</span>
-                <span className={styles.value}>{leave.leaveReason || '-'}</span>
+                <span className={styles.label}>{approvalType === 'leave' ? 'Reason:' : 'Details:'}</span>
+                <span className={styles.value}>{row.leaveReason || '-'}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Status:</span>
-                <span className={styles.value}><StatusBadge status={leave.status} /></span>
+                <span className={styles.value}><StatusBadge status={row.status} /></span>
               </div>
-              {leave.approvedBy && (
+              {row.approvedBy && (
                 <div className={styles.infoItem}>
-                  <span className={styles.label}>Reviewed By:</span>
-                  <span className={styles.value}>{leave.approvedBy?.username || '-'}</span>
+                  <span className={styles.label}>Reviewed by:</span>
+                  <span className={styles.value}>{row.approvedBy?.username || '-'}</span>
                 </div>
               )}
-              {leave.approvedAt && (
+              {row.approvedAt && (
                 <div className={styles.infoItem}>
-                  <span className={styles.label}>Reviewed At:</span>
+                  <span className={styles.label}>Reviewed at:</span>
                   <span className={styles.value}>
-                    {format(new Date(leave.approvedAt), 'MMM dd, yyyy hh:mm a')}
+                    {format(new Date(row.approvedAt), 'MMM dd, yyyy hh:mm a')}
                   </span>
                 </div>
               )}
               <div className={styles.infoItem}>
                 <span className={styles.label}>Submitted:</span>
                 <span className={styles.value}>
-                  {format(new Date(leave.createdAt), 'MMM dd, yyyy hh:mm a')}
+                  {format(new Date(row.createdAt), 'MMM dd, yyyy hh:mm a')}
                 </span>
               </div>
             </div>
@@ -209,10 +223,10 @@ const LeaveDetailPage: React.FC = () => {
   );
 };
 
-export default function LeaveDetailPageWrapper() {
+export default function ApprovalDetailPageWrapper() {
   return (
     <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
-      <LeaveDetailPage />
+      <ApprovalDetailPage />
     </ProtectedRoute>
   );
 }

@@ -1,6 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import {
+  ArrowsClockwise,
+  CheckCircle,
+  ClipboardText,
+  Folders,
+  Hourglass,
+  MapTrifold,
+  Package,
+  PencilSimple,
+  Play,
+  Plus,
+  ShoppingCart,
+  Storefront,
+  Trash,
+  Users,
+} from '@phosphor-icons/react';
 import Layout from '../components/Layout/Layout';
 import ProtectedRoute from '../components/Auth/ProtectedRoute';
 import Loader from '../components/UI/Loader';
@@ -18,10 +34,29 @@ import { useAuth } from '../contexts/AuthContext';
 import { ALL_ROLES } from '../utils/permissions';
 import { format } from 'date-fns';
 import styles from '../styles/Dashboard.module.scss';
+import { buildTrendDataFromReports } from '../utils/dashboardReportsTrend';
 
 const LineTrendChart = dynamic(() => import('../components/UI/LineTrendChart'), {
   ssr: false,
 });
+
+const STAT_ICON_SIZE = 34;
+const ACTIVITY_ICON_SIZE = 22;
+
+type DashIcon = React.ComponentType<{
+  size?: number;
+  weight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone';
+  className?: string;
+  'aria-hidden'?: boolean;
+}>;
+
+function StatCardIcon({ Icon }: { Icon: DashIcon }) {
+  return (
+    <div className={styles.statIcon}>
+      <Icon size={STAT_ICON_SIZE} weight="duotone" aria-hidden />
+    </div>
+  );
+}
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -162,10 +197,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const salesValues = useMemo(
-    () => reports?.salesTrend.map((row) => row.totalSales) ?? [],
-    [reports],
-  );
+  const trendData = useMemo(() => buildTrendDataFromReports(reports), [reports]);
 
   const orderTakerVisitSummary = useMemo(() => {
     return {
@@ -203,20 +235,26 @@ const Dashboard: React.FC = () => {
           <div style="font-size:12px;color:#4b5563;margin-bottom:2px;">Status: ${status.replace('_', ' ')}</div>
           <div style="font-size:12px;color:#4b5563;margin-bottom:2px;">Visit Date: ${visitDate}</div>
           <div style="font-size:12px;color:#4b5563;margin-bottom:6px;">Route: ${routeName}</div>
-          <div style="font-size:12px;color:#111827;margin-bottom:4px;">Marker: ${markerType === 'client' ? 'Client location' : 'Completion location'}</div>
+          <div style="font-size:12px;color:var(--admin-primary);margin-bottom:4px;">Marker: ${markerType === 'client' ? 'Client location' : 'Completion location'}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
             ${visitId ? `<a href="/visits/${visitId}/edit?nextStatus=in_progress" style="display:inline-block;padding:6px 10px;background:#0ea5e9;color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">Set In Progress</a>` : ''}
             ${visitId ? `<a href="/visits/${visitId}/edit?nextStatus=completed" style="display:inline-block;padding:6px 10px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">Set Completed</a>` : ''}
           </div>
           ${status !== 'completed' ? '<div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Completion needs GPS location + shop image + selfie.</div>' : ''}
-          ${routeUrl ? `<a href="${routeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-bottom:8px;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">View Route</a>` : ''}
+          ${routeUrl ? `<a href="${routeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-bottom:8px;padding:6px 10px;background:var(--admin-primary);color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">View Route</a>` : ''}
           ${imagesHtml ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${imagesHtml}</div>` : '<div style="font-size:12px;color:#6b7280;">No completion images</div>'}
         </div>
       `;
     };
 
     const visitMarkers = orderTakerVisitsForDate.flatMap((visit) => {
-      const markers: { lat: number; lng: number; type: 'client' | 'completion' | 'current'; label: string }[] = [];
+      const markers: {
+        lat: number;
+        lng: number;
+        type: 'client' | 'completion' | 'current';
+        label: string;
+        pinLabel?: string;
+      }[] = [];
 
       if (visit.dealerId?.latitude && visit.dealerId?.longitude) {
         markers.push({
@@ -391,7 +429,7 @@ const Dashboard: React.FC = () => {
     return [
       {
         points: orderTakerRoutePath,
-        color: '#f59e0b',
+        color: '#111827',
         weight: 4,
         opacity: 0.9,
         label: 'Suggested driving path',
@@ -442,7 +480,7 @@ const Dashboard: React.FC = () => {
                   justifyContent: 'center',
                   padding: '0.5rem 0.85rem',
                   borderRadius: '8px',
-                  background: '#111827',
+                  background: 'var(--admin-primary)',
                   color: '#fff',
                   border: 'none',
                   cursor: 'pointer',
@@ -472,7 +510,7 @@ const Dashboard: React.FC = () => {
                   justifyContent: 'center',
                   padding: '0.5rem 0.85rem',
                   borderRadius: '8px',
-                  background: '#2563eb',
+                  background: 'var(--admin-primary)',
                   color: '#fff',
                   textDecoration: 'none',
                   fontSize: '0.875rem',
@@ -540,7 +578,7 @@ const Dashboard: React.FC = () => {
                       justifyContent: 'center',
                       padding: '0.5rem 0.85rem',
                       borderRadius: '8px',
-                      background: '#2563eb',
+                      background: 'var(--admin-primary)',
                       color: '#fff',
                       textDecoration: 'none',
                       fontSize: '0.875rem',
@@ -566,66 +604,31 @@ const Dashboard: React.FC = () => {
           <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>My Tasks</h2>
           <div className={styles.statsGrid} style={{ marginBottom: '2rem' }}>
             <Link href="/tasks" className={styles.statCard}>
-              <div className={styles.statIcon}>📋</div>
+              <StatCardIcon Icon={ClipboardText} />
               <div className={styles.statContent}>
                 {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.totalTasks}</div>}
                 <div className={styles.statLabel}>Total Tasks</div>
               </div>
             </Link>
             <Link href="/tasks" className={styles.statCard}>
-              <div className={styles.statIcon}>⏳</div>
+              <StatCardIcon Icon={Hourglass} />
               <div className={styles.statContent}>
                 {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.tasksPending}</div>}
                 <div className={styles.statLabel}>Pending</div>
               </div>
             </Link>
             <Link href="/tasks" className={styles.statCard}>
-              <div className={styles.statIcon}>🔄</div>
+              <StatCardIcon Icon={ArrowsClockwise} />
               <div className={styles.statContent}>
                 {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.tasksInProgress}</div>}
                 <div className={styles.statLabel}>In Progress</div>
               </div>
             </Link>
             <Link href="/tasks" className={styles.statCard}>
-              <div className={styles.statIcon}>✅</div>
+              <StatCardIcon Icon={CheckCircle} />
               <div className={styles.statContent}>
                 {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.tasksCompleted}</div>}
                 <div className={styles.statLabel}>Completed</div>
-              </div>
-            </Link>
-          </div>
-
-          {/* Quick links */}
-          <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Quick Access</h2>
-          <div className={styles.statsGrid}>
-            <Link href="/orders" className={styles.statCard}>
-              <div className={styles.statIcon}>🛒</div>
-              <div className={styles.statContent}>
-                <div className={styles.statLabel}>Orders</div>
-              </div>
-            </Link>
-            <Link href="/clients" className={styles.statCard}>
-              <div className={styles.statIcon}>🏪</div>
-              <div className={styles.statContent}>
-                <div className={styles.statLabel}>Clients</div>
-              </div>
-            </Link>
-            <Link href="/leaves" className={styles.statCard}>
-              <div className={styles.statIcon}>🗓️</div>
-              <div className={styles.statContent}>
-                <div className={styles.statLabel}>My Leaves</div>
-              </div>
-            </Link>
-            <Link href="/returns" className={styles.statCard}>
-              <div className={styles.statIcon}>↩️</div>
-              <div className={styles.statContent}>
-                <div className={styles.statLabel}>Returns</div>
-              </div>
-            </Link>
-            <Link href="/products" className={styles.statCard}>
-              <div className={styles.statIcon}>📦</div>
-              <div className={styles.statContent}>
-                <div className={styles.statLabel}>Products</div>
               </div>
             </Link>
           </div>
@@ -639,22 +642,9 @@ const Dashboard: React.FC = () => {
       <Layout>
         <div className={styles.dashboard}>
           <h1 className={styles.title}>Welcome, {user?.username}!</h1>
-          <div
-            style={{
-              marginTop: '3rem',
-              textAlign: 'center',
-              padding: '4rem 2rem',
-              background: 'var(--surface, #f8f9fa)',
-              borderRadius: '12px',
-              border: '1px solid var(--border, #e0e0e0)',
-            }}
-          >
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚀</div>
-            <h2 style={{ marginBottom: '0.5rem' }}>Coming Soon</h2>
-            <p style={{ color: 'var(--text-secondary, #666)' }}>
-              Your dashboard is being set up. Check back soon.
-            </p>
-          </div>
+          <p style={{ color: 'var(--text-secondary, #666)', marginTop: '1rem' }}>
+            More role-specific tools will appear here as they are added.
+          </p>
         </div>
       </Layout>
     );
@@ -690,12 +680,13 @@ const Dashboard: React.FC = () => {
   });
 
   const getActivityIcon = (activity: RecentActivityEntry) => {
-    if (activity.action === 'started_task') return '▶️';
-    if (activity.action === 'completed_task') return '✅';
-    if (activity.action === 'deleted') return '🗑️';
-    if (activity.action === 'status_changed') return '🔄';
-    if (activity.action === 'updated') return '✏️';
-    return '➕';
+    const p = { size: ACTIVITY_ICON_SIZE, weight: 'regular' as const, 'aria-hidden': true as const };
+    if (activity.action === 'started_task') return <Play {...p} />;
+    if (activity.action === 'completed_task') return <CheckCircle {...p} />;
+    if (activity.action === 'deleted') return <Trash {...p} />;
+    if (activity.action === 'status_changed') return <ArrowsClockwise {...p} />;
+    if (activity.action === 'updated') return <PencilSimple {...p} />;
+    return <Plus {...p} />;
   };
 
   const getActivityText = (activity: RecentActivityEntry) => {
@@ -717,7 +708,7 @@ const Dashboard: React.FC = () => {
 
         <div className={styles.statsGrid}>
           <Link href="/employees" className={styles.statCard}>
-            <div className={styles.statIcon}>👥</div>
+            <StatCardIcon Icon={Users} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.activeEmployees}</div>
               <div className={styles.statLabel}>Active Employees</div>
@@ -728,7 +719,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/clients" className={styles.statCard}>
-            <div className={styles.statIcon}>🏪</div>
+            <StatCardIcon Icon={Storefront} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalClients}</div>
               <div className={styles.statLabel}>Total Clients</div>
@@ -736,7 +727,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/products" className={styles.statCard}>
-            <div className={styles.statIcon}>📦</div>
+            <StatCardIcon Icon={Package} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalProducts}</div>
               <div className={styles.statLabel}>Total Products</div>
@@ -744,7 +735,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/categories" className={styles.statCard}>
-            <div className={styles.statIcon}>🗂️</div>
+            <StatCardIcon Icon={Folders} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalCategories}</div>
               <div className={styles.statLabel}>Total Categories</div>
@@ -752,7 +743,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/orders" className={styles.statCard}>
-            <div className={styles.statIcon}>🛒</div>
+            <StatCardIcon Icon={ShoppingCart} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalOrders}</div>
               <div className={styles.statLabel}>Total Orders</div>
@@ -760,7 +751,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/orders" className={styles.statCard}>
-            <div className={styles.statIcon}>⏳</div>
+            <StatCardIcon Icon={Hourglass} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalPendingOrders}</div>
               <div className={styles.statLabel}>Pending Orders</div>
@@ -768,7 +759,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/routes" className={styles.statCard}>
-            <div className={styles.statIcon}>🗺️</div>
+            <StatCardIcon Icon={MapTrifold} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalRoutes}</div>
               <div className={styles.statLabel}>Total Routes</div>
@@ -776,7 +767,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/tasks" className={styles.statCard}>
-            <div className={styles.statIcon}>📋</div>
+            <StatCardIcon Icon={ClipboardText} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalTasks}</div>
               <div className={styles.statLabel}>Total Tasks</div>
@@ -784,7 +775,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/tasks" className={styles.statCard}>
-            <div className={styles.statIcon}>✅</div>
+            <StatCardIcon Icon={CheckCircle} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>
                 {stats.stats.tasksCompletedToday}
@@ -794,7 +785,7 @@ const Dashboard: React.FC = () => {
           </Link>
 
           <Link href="/tasks" className={styles.statCard}>
-            <div className={styles.statIcon}>🔄</div>
+            <StatCardIcon Icon={ArrowsClockwise} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.tasksInProgress}</div>
               <div className={styles.statLabel}>Tasks In Progress</div>
@@ -825,44 +816,76 @@ const Dashboard: React.FC = () => {
             <Loader />
           ) : (
             <>
-              <div className={styles.reportGrid}>
-                <div className={styles.reportCard}>
-                  <span>Earned (Delivered Sales)</span>
-                  <strong>{reports.kpis.salesInRange.toFixed(2)}</strong>
-                </div>
-                <div className={styles.reportCard}>
-                  <span>Booked Sales (Open Orders)</span>
-                  <strong>{reports.kpis.bookedSalesInRange.toFixed(2)}</strong>
-                </div>
-                <div className={styles.reportCard}>
-                  <span>Paid Back (Returns)</span>
-                  <strong>{reports.kpis.totalReturnPayout.toFixed(2)}</strong>
-                </div>
-                <div className={styles.reportCard}>
-                  <span>Net After Returns</span>
-                  <strong>{reports.kpis.netAfterReturns.toFixed(2)}</strong>
-                </div>
-                <div className={styles.reportCard}>
+              <div className={styles.kpiGrid}>
+                <div className={styles.kpiCard}>
                   <span>Current Stock</span>
                   <strong>{reports.kpis.totalCurrentStock}</strong>
                 </div>
-                <div className={styles.reportCard}>
-                  <span>Damaged Stock</span>
-                  <strong>{reports.kpis.totalDamagedQty}</strong>
-                </div>
-                <div className={styles.reportCard}>
+                <div className={styles.kpiCard}>
                   <span>Stock Hold</span>
                   <strong>{reports.kpis.totalHoldStock}</strong>
                 </div>
+                <div className={styles.kpiCard}>
+                  <span>Returned Qty</span>
+                  <strong>{reports.kpis.totalReturnedQty}</strong>
+                </div>
+                <div className={styles.kpiCard}>
+                  <span>Damaged Qty</span>
+                  <strong>{reports.kpis.totalDamagedQty}</strong>
+                </div>
+                <div className={styles.kpiCard}>
+                  <span>Sold Qty</span>
+                  <strong>{reports.kpis.totalSoldQty}</strong>
+                </div>
+                <div className={styles.kpiCard}>
+                  <span>Earned (Delivered Sales)</span>
+                  <strong>{reports.kpis.salesInRange.toFixed(2)}</strong>
+                </div>
+                <div className={styles.kpiCard}>
+                  <span>Paid Back (Returns)</span>
+                  <strong>{reports.kpis.totalReturnPayout.toFixed(2)}</strong>
+                </div>
+                <div className={styles.kpiCard}>
+                  <span>Net After Returns</span>
+                  <strong>{reports.kpis.netAfterReturns.toFixed(2)}</strong>
+                </div>
+                <div className={styles.kpiCard}>
+                  <span>Booked Sales (Open Orders)</span>
+                  <strong>{reports.kpis.bookedSalesInRange.toFixed(2)}</strong>
+                </div>
               </div>
-              <div className={styles.sparkline}>
-                <LineTrendChart
-                  labels={reports.salesTrend.map((row) => row.period)}
-                  values={salesValues}
-                  height={200}
-                  compact
-                  emptyText="No sales data"
-                />
+
+              <div className={styles.trendChartBlock}>
+                <h3 className={styles.trendChartTitle}>Quantity Trend (Sold / Returned / Damaged)</h3>
+                <div className={styles.trendChartWrap}>
+                  <LineTrendChart
+                    labels={trendData.labels}
+                    datasets={[
+                      { label: 'Sold Qty', values: trendData.qtySeries.sold },
+                      { label: 'Returned Qty', values: trendData.qtySeries.returned, borderColor: '#16a34a' },
+                      { label: 'Damaged Qty', values: trendData.qtySeries.damaged, borderColor: '#dc2626' },
+                    ]}
+                    height={400}
+                    emptyText="No quantity trend data in selected range"
+                  />
+                </div>
+              </div>
+
+              <div className={styles.trendChartBlock}>
+                <h3 className={styles.trendChartTitle}>Amount Trend (Earned / Paid Back / Booked / Net)</h3>
+                <div className={styles.trendChartWrap}>
+                  <LineTrendChart
+                    labels={trendData.labels}
+                    datasets={[
+                      { label: 'Earned', values: trendData.amountSeries.earned },
+                      { label: 'Paid Back', values: trendData.amountSeries.paidBack, borderColor: '#dc2626' },
+                      { label: 'Booked', values: trendData.amountSeries.booked, borderColor: '#7c3aed' },
+                      { label: 'Net', values: trendData.amountSeries.net, borderColor: '#16a34a' },
+                    ]}
+                    height={400}
+                    emptyText="No amount trend data in selected range"
+                  />
+                </div>
               </div>
             </>
           )}

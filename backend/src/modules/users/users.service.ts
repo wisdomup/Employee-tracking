@@ -150,6 +150,80 @@ export async function updateUser(
   return userObject;
 }
 
+export type ProfileUpdatePayload = {
+  username?: string;
+  phone?: string;
+  email?: string;
+  address?: {
+    street?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+  };
+  profileImage?: string | null;
+};
+
+export async function updateProfile(userId: string, data: ProfileUpdatePayload, actorId?: string) {
+  const user = await UserModel.findById(userId);
+
+  if (!user || user.isTrashed) {
+    throw notFound('User not found');
+  }
+
+  const orConditions: Array<Record<string, unknown>> = [];
+  if (data.username != null) orConditions.push({ username: data.username });
+  if (data.phone != null) orConditions.push({ phone: data.phone });
+  if (orConditions.length > 0) {
+    const existing = await UserModel.findOne({
+      _id: { $ne: userId },
+      $or: orConditions,
+    });
+    if (existing) {
+      throw conflict('Username or phone already exists');
+    }
+  }
+
+  if (data.username !== undefined) user.username = data.username.trim();
+  if (data.phone !== undefined) user.phone = data.phone.trim();
+  if (data.email !== undefined) {
+    user.email = data.email === '' ? undefined : data.email.trim();
+  }
+  if (data.profileImage !== undefined) {
+    user.profileImage = data.profileImage === '' || data.profileImage == null ? undefined : data.profileImage;
+  }
+  if (data.address !== undefined) {
+    const a = data.address;
+    user.address = {
+      street: a.street?.trim() || undefined,
+      city: a.city?.trim() || undefined,
+      state: a.state?.trim() || undefined,
+      country: a.country?.trim() || undefined,
+    };
+  }
+
+  await user.save();
+
+  const userObject: any = user.toObject();
+  delete userObject.password;
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: 'updated',
+    meta: {
+      username: user.username,
+      phone: user.phone,
+      userID: user.userID,
+      role: user.role,
+      isActive: user.isActive,
+      selfProfile: true,
+    },
+  });
+
+  return userObject;
+}
+
 export async function deleteUser(id: string, actorId?: string) {
   const user = await UserModel.findOne({ _id: id, isTrashed: { $ne: true } });
 

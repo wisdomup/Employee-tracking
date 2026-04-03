@@ -144,22 +144,26 @@ const ClientsPage: React.FC = () => {
           </button>
         </div>
 
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            placeholder="Search by name, phone, or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
-        </div>
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                placeholder="Search by name, phone, or email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
 
-        <Table
-          columns={columns}
-          data={filteredClients}
-          loading={loading}
-          onRowClick={(row) => router.push(`/clients/${row._id}`)}
-        />
+            <Table
+              columns={columns}
+              data={filteredClients}
+              loading={loading}
+              onRowClick={(row) => router.push(`/clients/${row._id}`)}
+            />
+          </div>
+        </div>
       </div>
     </Layout>
   );

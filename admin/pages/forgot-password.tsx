@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import styles from '../styles/Login.module.scss';
+import { AuthSplitLayout, APP_NAME, AUTH_MARKETING } from '../components/Auth/AuthSplitLayout';
+import styles from '../styles/AuthSplit.module.scss';
 
 const ForgotPassword: React.FC = () => {
   const router = useRouter();
@@ -15,132 +17,106 @@ const ForgotPassword: React.FC = () => {
     setLoading(true);
 
     try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/forgot-password`,
-        { email }
-      );
-      
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/forgot-password`, { email });
+
       setEmailSent(true);
       toast.success('Password reset link has been sent to your email!');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to send reset email');
+    } catch (error: unknown) {
+      const ax = error as { response?: { data?: { message?: string } } };
+      toast.error(ax.response?.data?.message || 'Failed to send reset email');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.loginBox}>
-        <h1 className={styles.title}>GPS Task Tracker</h1>
-        <h2 className={styles.subtitle}>Forgot Password</h2>
+    <AuthSplitLayout
+      marketingTitle={AUTH_MARKETING.title}
+      marketingSubtitle={AUTH_MARKETING.subtitle}
+      formTitle="Reset your password"
+      formSubtitle={
+        emailSent
+          ? 'Check your inbox for the next step.'
+          : "We'll email you a secure link to choose a new password."
+      }
+      topRight={
+        <Link href="/login" className={styles.plainLink}>
+          Back to sign in
+        </Link>
+      }
+    >
+      {!emailSent ? (
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <p className={styles.hint}>
+            Use the email address associated with your {APP_NAME} account.
+          </p>
 
-        {!emailSent ? (
-          <form onSubmit={handleSubmit} className={styles.form}>
-            <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
-              Enter your email address and we'll send you a link to reset your password.
-            </p>
+          <div className={styles.formGroup}>
+            <label htmlFor="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className={styles.input}
+              placeholder="you@company.com"
+              autoComplete="email"
+            />
+          </div>
 
-            <div className={styles.formGroup}>
-              <label htmlFor="email">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className={styles.input}
-                placeholder="Enter your email address"
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => router.push('/login')}
-                className={styles.cancelButton}
-                style={{
-                  flex: 1,
-                  padding: '0.875rem',
-                  backgroundColor: '#e5e7eb',
-                  color: '#374151',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Back to Login
-              </button>
-              <button
-                type="submit"
-                className={styles.submitButton}
-                disabled={loading}
-                style={{ flex: 1 }}
-              >
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className={styles.form}>
-            <div
-              style={{
-                padding: '1.5rem',
-                backgroundColor: '#d1fae5',
-                borderRadius: '0.5rem',
-                marginBottom: '1.5rem',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✉️</div>
-              <h3 style={{ color: '#065f46', fontWeight: 600, marginBottom: '0.5rem' }}>
-                Check Your Email
-              </h3>
-              <p style={{ color: '#047857', fontSize: '0.875rem', marginBottom: '0' }}>
-                We've sent a password reset link to <strong>{email}</strong>
-              </p>
-            </div>
-
-            <div style={{ padding: '1rem', backgroundColor: '#fff3cd', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
-              <p style={{ color: '#856404', fontSize: '0.875rem', margin: 0 }}>
-                <strong>⚠️ Note:</strong> The link will expire in 1 hour. If you don't see the email, check your spam folder.
-              </p>
-            </div>
-
+          <div className={styles.btnRow}>
             <button
               type="button"
               onClick={() => router.push('/login')}
-              className={styles.submitButton}
-              style={{ width: '100%' }}
+              className={styles.secondaryBtn}
             >
-              Back to Login
+              Cancel
             </button>
-
-            <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-              Didn't receive the email?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setEmailSent(false);
-                  setEmail('');
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#3b82f6',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                }}
-              >
-                Try again
-              </button>
+            <button type="submit" className={styles.primaryBtn} disabled={loading}>
+              {loading ? 'Sending…' : 'Send link'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className={styles.form}>
+          <div className={styles.successCard}>
+            <h3 style={{ color: '#065f46', fontWeight: 700, marginBottom: '0.35rem', fontSize: '1rem' }}>
+              Check your email
+            </h3>
+            <p style={{ color: '#047857', fontSize: '0.875rem', margin: 0, lineHeight: 1.5 }}>
+              We sent a reset link to <strong>{email}</strong>
             </p>
           </div>
-        )}
-      </div>
-    </div>
+
+          <p className={styles.hint} style={{ marginBottom: '1rem' }}>
+            The link expires in about an hour. If you don&apos;t see the message, check spam or promotions.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => router.push('/login')}
+            className={styles.primaryBtn}
+          >
+            Back to sign in
+          </button>
+
+          <p className={styles.centerMuted} style={{ marginTop: '1rem' }}>
+            Didn&apos;t receive it?{' '}
+            <button
+              type="button"
+              className={styles.forgotLink}
+              onClick={() => {
+                setEmailSent(false);
+                setEmail('');
+              }}
+            >
+              Try again
+            </button>
+          </p>
+        </div>
+      )}
+    </AuthSplitLayout>
   );
 };
 

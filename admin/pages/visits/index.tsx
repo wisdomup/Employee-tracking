@@ -152,67 +152,72 @@ const VisitsPage: React.FC = () => {
             </button>
           )}
         </div>
-        <div className={styles.searchBar}>
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 220 }}
-          >
-            <option value="">All Clients</option>
-            {clients.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          {!isOrderTaker && (
-            <select
-              value={employeeFilter}
-              onChange={(e) => setEmployeeFilter(e.target.value)}
-              className={styles.searchInput}
-              style={{ maxWidth: 220 }}
-            >
-              <option value="">All Employees</option>
-              {employees.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.username}
-                </option>
-              ))}
-            </select>
-          )}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 180 }}
-          >
-            <option value="">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="incomplete">Incomplete</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <DatePickerFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start date"
-            title="Start date"
-          />
-          <DatePickerFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End date"
-            title="End date"
-          />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 220 }}
+              >
+                <option value="">All Clients</option>
+                {clients.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              {!isOrderTaker && (
+                <select
+                  value={employeeFilter}
+                  onChange={(e) => setEmployeeFilter(e.target.value)}
+                  className={styles.searchInput}
+                  style={{ maxWidth: 220 }}
+                >
+                  <option value="">All Employees</option>
+                  {employees.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.username}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 180 }}
+              >
+                <option value="">All Statuses</option>
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="incomplete">Incomplete</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <DatePickerFilter
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start date"
+                title="Start date"
+              />
+              <DatePickerFilter
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End date"
+                title="End date"
+              />
+            </div>
+            <Table
+              columns={columns}
+              data={visits}
+              loading={loading}
+              onRowClick={(row) => router.push(`/visits/${row._id}`)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={visits}
-          loading={loading}
-          onRowClick={(row) => router.push(`/visits/${row._id}`)}
-        />
       </div>
     </Layout>
   );

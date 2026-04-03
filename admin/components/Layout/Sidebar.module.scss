@@ -1,8 +1,11 @@
+/* Aligned with Header.module.scss — same strip height so bottom borders meet */
+$layoutTopStripHeight: 4.5rem;
+
 /* Above Leaflet map panes (map uses ~200-700) so sidebar/overlay stay on top */
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.4);
   z-index: 1100;
   border: none;
   cursor: pointer;
@@ -19,59 +22,105 @@
 .sidebar {
   width: 250px;
   height: 100vh;
-  background-color: #1f2937;
-  color: white;
+  background-color: #ffffff;
+  color: #334155;
   position: fixed;
   left: 0;
   top: 0;
   overflow-y: auto;
   z-index: 1200;
-  transition: transform 0.25s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  border-right: 1px solid #e5e7eb;
+  box-sizing: border-box;
 }
 
 .logo {
-  padding: 1.5rem;
-  border-bottom: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  height: $layoutTopStripHeight;
+  min-height: $layoutTopStripHeight;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  /* Border sits inside height so divider aligns with Header .content */
+  box-sizing: border-box;
 
   h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
+    font-size: 1.0625rem;
+    font-weight: 700;
     margin: 0;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
   }
 }
 
 .nav {
-  padding: 1rem 0;
+  padding: 0.75rem 0.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .navItem {
   display: flex;
   align-items: center;
-  padding: 0.875rem 1.5rem;
-  color: #d1d5db;
+  padding: 0.625rem 0.875rem;
+  margin: 0 0.25rem;
+  border-radius: 8px;
+  color: #475569;
   text-decoration: none;
-  transition: all 0.2s;
-  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 
   &:hover {
-    background-color: #374151;
-    color: white;
+    background-color: #f3f4f6;
+    color: #334155;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--admin-primary);
+    outline-offset: 2px;
   }
 
   &.active {
-    background-color: #3b82f6;
-    color: white;
+    background-color: var(--admin-primary);
+    color: #f9fafb;
+    box-shadow: none;
+    font-weight: 600;
+
+    &:hover {
+      background-color: var(--admin-primary-hover);
+      color: #f9fafb;
+    }
   }
 }
 
 .icon {
+  flex-shrink: 0;
   margin-right: 0.75rem;
-  font-size: 1.25rem;
+  color: #64748b;
+  transition: color 0.15s ease;
+}
+
+.navItem:hover:not(.active) .icon {
+  color: #475569;
+}
+
+.navItem.active .icon {
+  color: #f9fafb;
 }
 
 .label {
-  font-size: 0.938rem;
+  font-size: 0.875rem;
   font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.navItem.active .label {
+  font-weight: 600;
 }
 
 // Tablet & mobile (≤900px): sidebar is overlay, closed by default
@@ -79,10 +128,17 @@
   width: 260px;
   max-width: 85vw;
   transform: translateX(-100%);
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.08);
+  border-right: 1px solid #e5e7eb;
 
-  .logo h2 {
-    font-size: 1rem;
+  .logo {
+    padding: 0 1rem;
+    height: $layoutTopStripHeight;
+    min-height: $layoutTopStripHeight;
+
+    h2 {
+      font-size: 1rem;
+    }
   }
 }
 

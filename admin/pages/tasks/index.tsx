@@ -192,33 +192,37 @@ const TasksPage: React.FC = () => {
           )}
         </div>
 
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            placeholder="Search by task name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 180 }}
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                placeholder="Search by task name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={styles.searchInput}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 180 }}
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
 
-        <Table
-          columns={columns}
-          data={filteredTasks}
-          loading={loading}
-          onRowClick={(row) => router.push(`/tasks/${row._id}`)}
-        />
+            <Table
+              columns={columns}
+              data={filteredTasks}
+              loading={loading}
+              onRowClick={(row) => router.push(`/tasks/${row._id}`)}
+            />
+          </div>
+        </div>
 
         {showAssignModal && (
           <div className={modalStyles.modalOverlay} onClick={closeAssignModal}>

@@ -165,50 +165,54 @@ const TrashPage: React.FC = () => {
           </button>
         </div>
 
-        <div className={styles.searchBar}>
-          <select
-            className={styles.searchInput}
-            style={{ maxWidth: 220 }}
-            value={moduleFilter}
-            onChange={(e) => setModuleFilter(e.target.value as 'all' | TrashModule)}
-          >
-            <option value="all">All Modules</option>
-            <option value="employee">Employees</option>
-            <option value="client">Clients</option>
-            <option value="product">Products</option>
-            <option value="category">Categories</option>
-            <option value="route">Routes</option>
-            <option value="order">Orders</option>
-            <option value="return">Returns</option>
-            <option value="visit">Visits</option>
-          </select>
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <select
+                className={styles.searchInput}
+                style={{ maxWidth: 220 }}
+                value={moduleFilter}
+                onChange={(e) => setModuleFilter(e.target.value as 'all' | TrashModule)}
+              >
+                <option value="all">All Modules</option>
+                <option value="employee">Employees</option>
+                <option value="client">Clients</option>
+                <option value="product">Products</option>
+                <option value="category">Categories</option>
+                <option value="route">Routes</option>
+                <option value="order">Orders</option>
+                <option value="return">Returns</option>
+                <option value="visit">Visits</option>
+              </select>
 
-          <input
-            type="text"
-            className={styles.searchInput}
-            placeholder="Search by label..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+              <input
+                type="text"
+                className={styles.searchInput}
+                placeholder="Search by label..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
 
-          <DatePickerFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start date"
-            title="Start date"
-          />
-          <DatePickerFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End date"
-            title="End date"
-          />
-          <button className={styles.editButton} onClick={fetchTrash}>
-            Apply
-          </button>
+              <DatePickerFilter
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start date"
+                title="Start date"
+              />
+              <DatePickerFilter
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End date"
+                title="End date"
+              />
+              <button className={styles.editButton} onClick={fetchTrash}>
+                Apply
+              </button>
+            </div>
+
+            <Table columns={columns} data={filteredItems} loading={loading} />
+          </div>
         </div>
-
-        <Table columns={columns} data={filteredItems} loading={loading} />
       </div>
     </Layout>
   );

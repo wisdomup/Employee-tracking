@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { readAdminCssVar } from '../../utils/adminTheme';
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -44,50 +45,59 @@ const LineTrendChart: React.FC<LineTrendChartProps> = ({
   compact = false,
   emptyText = 'No chart data in selected range',
 }) => {
-  const normalizedDatasets =
-    datasets && datasets.length > 0
-      ? datasets.map((series, idx) => ({
-          label: series.label,
-          data: series.values,
-          borderColor:
-            series.borderColor ??
-            (idx % 4 === 0
-              ? '#1d4ed8'
-              : idx % 4 === 1
-                ? '#16a34a'
-                : idx % 4 === 2
-                  ? '#dc2626'
-                  : '#7c3aed'),
-          backgroundColor:
-            series.backgroundColor ??
-            (idx % 4 === 0
-              ? 'rgba(29, 78, 216, 0.12)'
-              : idx % 4 === 1
-                ? 'rgba(22, 163, 74, 0.12)'
-                : idx % 4 === 2
-                  ? 'rgba(220, 38, 38, 0.12)'
-                  : 'rgba(124, 58, 237, 0.12)'),
-          fill: series.fill ?? false,
-          borderWidth: 2.2,
-          tension: 0.35,
-          pointRadius: compact ? 0 : 3,
-          pointHoverRadius: compact ? 0 : 4,
-        }))
-      : [
-          {
-            label: 'Sales',
-            data: values,
-            borderColor: compact ? '#2563eb' : '#1d4ed8',
-            backgroundColor: compact
-              ? 'rgba(37, 99, 235, 0.14)'
-              : 'rgba(29, 78, 216, 0.12)',
-            fill: true,
-            borderWidth: 2.2,
-            tension: 0.35,
-            pointRadius: compact ? 0 : 3,
-            pointHoverRadius: compact ? 0 : 4,
-          },
-        ];
+  const adminChart = useMemo(
+    () => ({
+      primary: readAdminCssVar('--admin-primary', '#111827'),
+      muted: readAdminCssVar('--admin-primary-muted', 'rgba(17, 24, 39, 0.12)'),
+      mutedStrong: readAdminCssVar('--admin-primary-muted-strong', 'rgba(17, 24, 39, 0.14)'),
+    }),
+    [],
+  );
+
+  const normalizedDatasets = useMemo(() => {
+    if (datasets && datasets.length > 0) {
+      return datasets.map((series, idx) => ({
+        label: series.label,
+        data: series.values,
+        borderColor:
+          series.borderColor ??
+          (idx % 4 === 0
+            ? adminChart.primary
+            : idx % 4 === 1
+              ? '#16a34a'
+              : idx % 4 === 2
+                ? '#dc2626'
+                : '#7c3aed'),
+        backgroundColor:
+          series.backgroundColor ??
+          (idx % 4 === 0
+            ? adminChart.muted
+            : idx % 4 === 1
+              ? 'rgba(22, 163, 74, 0.12)'
+              : idx % 4 === 2
+                ? 'rgba(220, 38, 38, 0.12)'
+                : 'rgba(124, 58, 237, 0.12)'),
+        fill: series.fill ?? false,
+        borderWidth: 2.2,
+        tension: 0.35,
+        pointRadius: compact ? 0 : 3,
+        pointHoverRadius: compact ? 0 : 4,
+      }));
+    }
+    return [
+      {
+        label: 'Sales',
+        data: values,
+        borderColor: adminChart.primary,
+        backgroundColor: compact ? adminChart.mutedStrong : adminChart.muted,
+        fill: true,
+        borderWidth: 2.2,
+        tension: 0.35,
+        pointRadius: compact ? 0 : 3,
+        pointHoverRadius: compact ? 0 : 4,
+      },
+    ];
+  }, [adminChart, compact, datasets, values]);
 
   const hasData = normalizedDatasets.some((d) => d.data.some((v) => Number(v) !== 0));
 

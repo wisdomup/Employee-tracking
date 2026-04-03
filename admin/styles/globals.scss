@@ -4,6 +4,13 @@
   --background: #{$background-light};
   --foreground: #{$foreground-light};
 
+  /* Primary brand — use var(--admin-primary) in SCSS/inline styles; Chart code reads these at runtime */
+  --admin-primary: #{$admin-primary};
+  --admin-primary-hover: #{$admin-primary-hover};
+  --admin-primary-focus-ring: #{$admin-primary-focus-ring};
+  --admin-primary-muted: #{$admin-primary-muted};
+  --admin-primary-muted-strong: #{$admin-primary-muted-strong};
+
   @media (prefers-color-scheme: dark) {
     --background: #{$background-dark};
     --foreground: #{$foreground-dark};

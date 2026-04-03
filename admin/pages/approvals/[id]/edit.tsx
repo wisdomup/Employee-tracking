@@ -5,21 +5,29 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import Loader from '../../../components/UI/Loader';
 import { useAuth } from '../../../contexts/AuthContext';
-import { leaveService, Leave } from '../../../services/leaveService';
+import {
+  approvalService,
+  Approval,
+  ApprovalType,
+  APPROVAL_TYPE_LABELS,
+  LeaveDurationType,
+} from '../../../services/approvalService';
 import { toast } from 'react-toastify';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import styles from '../../../styles/FormPage.module.scss';
 
-const EditLeavePage: React.FC = () => {
+const EditApprovalPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
-  const [leave, setLeave] = useState<Leave | null>(null);
+  const [row, setRow] = useState<Approval | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [formData, setFormData] = useState({
-    leaveType: 'full_day' as 'full_day' | 'half_day' | 'short_leave',
+    approvalType: 'leave' as ApprovalType,
+    leaveType: 'full_day' as LeaveDurationType,
     leaveDate: '',
     leaveReason: '',
     status: 'pending' as 'pending' | 'approved' | 'rejected',
@@ -27,33 +35,35 @@ const EditLeavePage: React.FC = () => {
 
   useEffect(() => {
     if (!id) return;
-    fetchLeave();
+    fetchApproval();
   }, [id, user?.id, isOrderTaker]);
 
-  const fetchLeave = async () => {
+  const fetchApproval = async () => {
     try {
-      const data = await leaveService.getLeave(id as string);
+      const data = await approvalService.getApproval(id as string);
       if (isOrderTaker && user?.id) {
         const ownerId =
           typeof data.employeeId === 'string'
             ? data.employeeId
             : (data.employeeId as { _id?: string })?._id ?? '';
         if (ownerId !== user.id || data.status !== 'pending') {
-          toast.error('You can only edit your own pending leave requests');
-          router.push('/leaves');
+          toast.error('You can only edit your own pending approvals');
+          router.push('/approvals');
           return;
         }
       }
-      setLeave(data);
+      setRow(data);
+      const at = data.approvalType ?? 'leave';
       setFormData({
-        leaveType: data.leaveType,
+        approvalType: at,
+        leaveType: data.leaveType ?? 'full_day',
         leaveDate: data.leaveDate ? data.leaveDate.slice(0, 10) : '',
         leaveReason: data.leaveReason || '',
         status: data.status,
       });
-    } catch (error) {
-      toast.error('Failed to fetch leave request');
-      router.push('/leaves');
+    } catch {
+      toast.error('Failed to fetch approval');
+      router.push('/approvals');
     } finally {
       setFetchLoading(false);
     }
@@ -67,33 +77,41 @@ const EditLeavePage: React.FC = () => {
       ...prev,
       [name]:
         name === 'leaveType'
-          ? (value as 'full_day' | 'half_day' | 'short_leave')
+          ? (value as LeaveDurationType)
           : name === 'status'
             ? (value as 'pending' | 'approved' | 'rejected')
-            : value,
+            : name === 'approvalType'
+              ? (value as ApprovalType)
+              : value,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.leaveDate?.trim()) {
-      toast.error('Please select a leave date');
+      toast.error('Please select a date');
+      return;
+    }
+    if (formData.approvalType !== 'leave' && !formData.leaveReason?.trim()) {
+      toast.error('Please enter details for this approval type');
       return;
     }
     setLoading(true);
     try {
-      const payload: Parameters<typeof leaveService.updateLeave>[1] = {
-        leaveType: formData.leaveType,
+      const payload: Parameters<typeof approvalService.updateApproval>[1] = {
+        approvalType: formData.approvalType,
         leaveDate: formData.leaveDate,
         leaveReason: formData.leaveReason?.trim() || undefined,
       };
+      if (formData.approvalType === 'leave') {
+        payload.leaveType = formData.leaveType;
+      }
       if (isAdmin) payload.status = formData.status;
-      await leaveService.updateLeave(id as string, payload);
-      toast.success('Leave request updated successfully');
-      router.push(`/leaves/${id}`);
+      await approvalService.updateApproval(id as string, payload);
+      toast.success('Approval updated successfully');
+      router.push(`/approvals/${id}`);
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message || 'Failed to update leave request');
+      toast.error(getApiErrorMessage(error, 'Failed to update approval'));
     } finally {
       setLoading(false);
     }
@@ -107,7 +125,7 @@ const EditLeavePage: React.FC = () => {
     );
   }
 
-  if (!leave) {
+  if (!row) {
     return null;
   }
 
@@ -115,42 +133,63 @@ const EditLeavePage: React.FC = () => {
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Edit Leave</h1>
-          <button className={styles.backButton} onClick={() => router.push(`/leaves/${id}`)}>
+          <h1>Edit approval</h1>
+          <button className={styles.backButton} onClick={() => router.push(`/approvals/${id}`)}>
             ← Back
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="leaveType">Leave Type *</label>
+            <label htmlFor="approvalType">Approval type *</label>
             <select
-              id="leaveType"
-              name="leaveType"
-              value={formData.leaveType}
+              id="approvalType"
+              name="approvalType"
+              value={formData.approvalType}
               onChange={handleChange}
-              required
               className={styles.select}
             >
-              <option value="full_day">Full Day</option>
-              <option value="half_day">Half Day</option>
-              <option value="short_leave">Short Leave</option>
+              {(Object.keys(APPROVAL_TYPE_LABELS) as ApprovalType[]).map((t) => (
+                <option key={t} value={t}>
+                  {APPROVAL_TYPE_LABELS[t]}
+                </option>
+              ))}
             </select>
           </div>
 
+          {formData.approvalType === 'leave' && (
+            <div className={styles.formGroup}>
+              <label htmlFor="leaveType">Duration *</label>
+              <select
+                id="leaveType"
+                name="leaveType"
+                value={formData.leaveType}
+                onChange={handleChange}
+                required
+                className={styles.select}
+              >
+                <option value="full_day">Full day</option>
+                <option value="half_day">Half day</option>
+                <option value="short_leave">Short leave</option>
+              </select>
+            </div>
+          )}
+
           <div className={styles.formGroup}>
-            <label htmlFor="leaveDate">Leave Date *</label>
+            <label htmlFor="leaveDate">Date *</label>
             <DatePickerFilter
               id="leaveDate"
               value={formData.leaveDate}
               onChange={(value) => setFormData((prev) => ({ ...prev, leaveDate: value }))}
-              placeholder="Select leave date"
+              placeholder="Select date"
               fullWidth
             />
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="leaveReason">Reason (optional)</label>
+            <label htmlFor="leaveReason">
+              {formData.approvalType === 'leave' ? 'Reason (optional)' : 'Details *'}
+            </label>
             <textarea
               id="leaveReason"
               name="leaveReason"
@@ -158,7 +197,12 @@ const EditLeavePage: React.FC = () => {
               onChange={handleChange}
               className={styles.textarea}
               rows={3}
-              placeholder="Reason for leave"
+              placeholder={
+                formData.approvalType === 'leave'
+                  ? 'Reason (for leave-type requests)'
+                  : 'Describe this approval request'
+              }
+              required={formData.approvalType !== 'leave'}
             />
           </div>
 
@@ -186,12 +230,12 @@ const EditLeavePage: React.FC = () => {
             <button
               type="button"
               className={styles.cancelButton}
-              onClick={() => router.push(`/leaves/${id}`)}
+              onClick={() => router.push(`/approvals/${id}`)}
             >
               Cancel
             </button>
             <button type="submit" className={styles.submitButton} disabled={loading}>
-              {loading ? 'Updating...' : 'Update Leave Request'}
+              {loading ? 'Updating...' : 'Update approval'}
             </button>
           </div>
         </form>
@@ -200,10 +244,10 @@ const EditLeavePage: React.FC = () => {
   );
 };
 
-export default function EditLeavePageWrapper() {
+export default function EditApprovalPageWrapper() {
   return (
     <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
-      <EditLeavePage />
+      <EditApprovalPage />
     </ProtectedRoute>
   );
 }

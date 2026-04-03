@@ -1,3 +1,11 @@
+// Admin UI — primary actions (buttons, sidebar active, key links, focus ring).
+// Exposed as CSS variables on :root in globals.scss — change here + rebuild to retheme.
+$admin-primary: #111827;
+$admin-primary-hover: #1f2937;
+$admin-primary-focus-ring: rgba(17, 24, 39, 0.12);
+$admin-primary-muted: rgba(17, 24, 39, 0.12);
+$admin-primary-muted-strong: rgba(17, 24, 39, 0.14);
+
 // Color variables
 $background-light: #ffffff;
 $foreground-light: #171717;

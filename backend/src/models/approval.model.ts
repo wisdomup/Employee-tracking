@@ -1,8 +1,12 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-export interface ILeave extends Document {
+export type ApprovalType = 'leave' | 'allowance' | 'advance_salary' | 'query' | 'other';
+export type LeaveDurationType = 'full_day' | 'half_day' | 'short_leave';
+
+export interface IApproval extends Document {
   _id: Types.ObjectId;
-  leaveType: 'full_day' | 'half_day' | 'short_leave';
+  approvalType: ApprovalType;
+  leaveType?: LeaveDurationType;
   employeeId: Types.ObjectId;
   leaveReason?: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -13,12 +17,16 @@ export interface ILeave extends Document {
   updatedAt: Date;
 }
 
-const leaveSchema = new Schema<ILeave>(
+const approvalSchema = new Schema<IApproval>(
   {
+    approvalType: {
+      type: String,
+      enum: ['leave', 'allowance', 'advance_salary', 'query', 'other'],
+      default: 'leave',
+    },
     leaveType: {
       type: String,
       enum: ['full_day', 'half_day', 'short_leave'],
-      required: true,
     },
     employeeId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     leaveReason: { type: String },
@@ -34,8 +42,9 @@ const leaveSchema = new Schema<ILeave>(
   { timestamps: true },
 );
 
-leaveSchema.index({ employeeId: 1 });
-leaveSchema.index({ status: 1 });
-leaveSchema.index({ leaveDate: 1 });
+approvalSchema.index({ employeeId: 1 });
+approvalSchema.index({ status: 1 });
+approvalSchema.index({ leaveDate: 1 });
+approvalSchema.index({ approvalType: 1 });
 
-export const LeaveModel = model<ILeave>('Leave', leaveSchema);
+export const ApprovalModel = model<IApproval>('Approval', approvalSchema);

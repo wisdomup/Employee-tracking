@@ -82,7 +82,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, polylines = [], height = '40
         html: `
           <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-6px);">
             <img src="${iconUrl}" style="width:15px;height:25px;" />
-            ${pinLabel ? `<div style="margin-top:2px;padding:1px 6px;border-radius:10px;background:#111827;color:#fff;font-size:10px;line-height:14px;">${pinLabel}</div>` : ''}
+            ${pinLabel ? `<div style="margin-top:2px;padding:1px 6px;border-radius:10px;background:var(--admin-primary);color:#fff;font-size:10px;line-height:14px;">${pinLabel}</div>` : ''}
           </div>
         `,
         iconSize: [25, 35],
@@ -113,7 +113,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, polylines = [], height = '40
     polylines.forEach((path) => {
       if (!path.points || path.points.length < 2) return;
       const line = L.polyline(path.points, {
-        color: path.color || '#f59e0b',
+        color: path.color || '#111827',
         weight: path.weight ?? 4,
         opacity: path.opacity ?? 0.85,
       }).addTo(map);

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { orderService, Order } from '../../../services/orderService';
-import { clientService, Client } from '../../../services/clientService';
+import { clientService, Client, getClientAssignedRouteId } from '../../../services/clientService';
 import { routeService, Route } from '../../../services/routeService';
 import { productService, Product } from '../../../services/productService';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -104,6 +104,16 @@ const EditOrderPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const clientId = e.target.value;
+    const client = clients.find((c) => c._id === clientId);
+    setFormData((prev) => ({
+      ...prev,
+      clientId,
+      routeId: getClientAssignedRouteId(client),
+    }));
+  };
+
   const handleLineItemChange = (index: number, field: keyof LineItem, value: string | number) => {
     const updated = [...lineItems];
     if (field === 'quantity' || field === 'price') {
@@ -202,7 +212,7 @@ const EditOrderPage: React.FC = () => {
     try {
       await orderService.updateOrder(id as string, {
         dealerId: formData.clientId,
-        routeId: formData.routeId || undefined,
+        routeId: formData.routeId,
         status: formData.status,
         paymentType: formData.paymentType || undefined,
         products: validItems.map((item) => ({
@@ -242,7 +252,7 @@ const EditOrderPage: React.FC = () => {
               id="clientId"
               name="clientId"
               value={formData.clientId}
-              onChange={handleChange}
+              onChange={handleClientChange}
               required
               className={styles.select}
             >
@@ -256,7 +266,10 @@ const EditOrderPage: React.FC = () => {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="routeId">Route (optional)</label>
+            <label htmlFor="routeId">Route</label>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+              Filled automatically from the client&apos;s assigned route; you can change it or clear it.
+            </p>
             <select
               id="routeId"
               name="routeId"

@@ -197,49 +197,54 @@ const ReturnsPage: React.FC = () => {
             + New Return
           </button>
         </div>
-        <div className={styles.searchBar}>
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 220 }}
-          >
-            <option value="">All Clients</option>
-            {clients.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 160 }}
-          >
-            <option value="">All Types</option>
-            <option value="return">Return</option>
-            <option value="damage">Damage</option>
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={styles.searchInput}
-            style={{ maxWidth: 160 }}
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="picked">Picked</option>
-            <option value="completed">Completed</option>
-          </select>
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 220 }}
+              >
+                <option value="">All Clients</option>
+                {clients.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 160 }}
+              >
+                <option value="">All Types</option>
+                <option value="return">Return</option>
+                <option value="damage">Damage</option>
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={styles.searchInput}
+                style={{ maxWidth: 160 }}
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="picked">Picked</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <Table
+              columns={columns}
+              data={returns}
+              loading={loading}
+              onRowClick={(row) => router.push(`/returns/${row._id}`)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={returns}
-          loading={loading}
-          onRowClick={(row) => router.push(`/returns/${row._id}`)}
-        />
       </div>
     </Layout>
   );

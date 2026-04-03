@@ -2,6 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import * as ordersService from './orders.service';
 import { forbidden } from '../../utils/app-error';
 
+function orderCreatedById(doc: { createdBy?: unknown }): string {
+  const c = doc.createdBy;
+  if (c == null) return '';
+  if (typeof c === 'object' && c !== null && '_id' in c) {
+    return String((c as { _id: unknown })._id);
+  }
+  return String(c);
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const order = await ordersService.createOrder(req.body, req.user!.userId);
@@ -14,7 +23,18 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
     const { dealerId, routeId, status, createdBy, startDate, endDate } = req.query as Record<string, string>;
-    const orders = await ordersService.findAll({ dealerId, routeId, status, createdBy, startDate, endDate });
+    let effectiveCreatedBy = createdBy;
+    if (req.user?.role === 'order_taker') {
+      effectiveCreatedBy = req.user.userId;
+    }
+    const orders = await ordersService.findAll({
+      dealerId,
+      routeId,
+      status,
+      createdBy: effectiveCreatedBy,
+      startDate,
+      endDate,
+    });
     res.json(orders);
   } catch (err) {
     next(err);
@@ -24,6 +44,11 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
 export async function findOne(req: Request, res: Response, next: NextFunction) {
   try {
     const order = await ordersService.findById(req.params.id);
+    if (req.user?.role === 'order_taker' && req.user.userId) {
+      if (orderCreatedById(order as { createdBy?: unknown }) !== req.user.userId) {
+        return next(forbidden('You can only view orders you created'));
+      }
+    }
     res.json(order);
   } catch (err) {
     next(err);
@@ -34,6 +59,9 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     if (req.user?.role === 'order_taker') {
       const existing = await ordersService.findById(req.params.id);
+      if (orderCreatedById(existing as { createdBy?: unknown }) !== req.user!.userId) {
+        return next(forbidden('You can only edit orders you created'));
+      }
       if (existing.status !== 'pending') {
         return next(forbidden('Order takers can only edit orders that are still pending'));
       }

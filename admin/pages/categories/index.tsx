@@ -122,16 +122,21 @@ const CategoriesPage: React.FC = () => {
             + Add Category
           </button>
         </div>
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            placeholder="Search categories..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
+            <Table columns={columns} data={filtered} loading={loading} />
+          </div>
         </div>
-        <Table columns={columns} data={filtered} loading={loading} />
       </div>
     </Layout>
   );

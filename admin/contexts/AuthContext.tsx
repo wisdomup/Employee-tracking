@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/router';
-import { authService, User, LoginCredentials } from '../services/authService';
+import { authService, User, LoginCredentials, mapApiUserToAuthUser } from '../services/authService';
+import { profileService } from '../services/profileService';
 
 interface AuthContextType {
   user: User | null;
@@ -8,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,6 +52,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     router.push('/login');
   };
 
+  const refreshUser = async () => {
+    const doc = await profileService.getProfileDocument();
+    const next = mapApiUserToAuthUser(doc);
+    authService.setStoredUser(next);
+    setUser(next);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -58,6 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading,
         login,
         logout,
+        refreshUser,
       }}
     >
       {children}

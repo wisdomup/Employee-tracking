@@ -129,7 +129,7 @@ const ActivityLogsPage: React.FC = () => {
           <Link
             href={href}
             onClick={(e) => e.stopPropagation()}
-            style={{ color: '#2563eb', textDecoration: 'underline' }}
+            style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
           >
             {label}
           </Link>
@@ -159,7 +159,12 @@ const ActivityLogsPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Activity Logs</h1>
         </div>
-        <Table columns={columns} data={logs} loading={loading} />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <Table columns={columns} data={logs} loading={loading} />
+          </div>
+        </div>
       </div>
     </Layout>
   );

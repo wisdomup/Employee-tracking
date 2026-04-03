@@ -88,21 +88,26 @@ const CatalogsPage: React.FC = () => {
             </button>
           )}
         </div>
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            placeholder="Search catalogs..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
+
+        <div className={styles.listCard}>
+          <div className={styles.listCardBody}>
+            <div className={styles.searchBar}>
+              <input
+                type="text"
+                placeholder="Search catalogs..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
+            <Table
+              columns={columns}
+              data={filtered}
+              loading={loading}
+              onRowClick={(row) => router.push('/catalogs/' + row._id)}
+            />
+          </div>
         </div>
-        <Table
-          columns={columns}
-          data={filtered}
-          loading={loading}
-          onRowClick={(row) => router.push('/catalogs/' + row._id)}
-        />
       </div>
     </Layout>
   );

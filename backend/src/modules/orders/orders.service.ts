@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { OrderModel } from '../../models/order.model';
 import { ProductModel } from '../../models/product.model';
+import { DealerModel } from '../../models/dealer.model';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 
@@ -32,6 +33,22 @@ async function restoreStockForOrderProducts(order: { products: { productId: Type
   }
 }
 
+/** When `routeId` is omitted from the body, use the dealer's assigned route. Explicit `''` / null clears route. */
+async function resolveOrderRouteId(
+  dealerId: string,
+  routeId: unknown,
+  routeIdProvided: boolean,
+): Promise<Types.ObjectId | undefined> {
+  if (routeIdProvided) {
+    if (routeId === '' || routeId === null || routeId === undefined) return undefined;
+    const s = String(routeId).trim();
+    return s ? new Types.ObjectId(s) : undefined;
+  }
+  const dealer = await DealerModel.findOne({ _id: dealerId, isTrashed: { $ne: true } }).select('route').lean();
+  if (dealer?.route) return new Types.ObjectId(String(dealer.route));
+  return undefined;
+}
+
 export async function createOrder(
   data: {
     products: { productId: string; quantity: number; price: number }[];
@@ -49,6 +66,8 @@ export async function createOrder(
   userId: string,
 ) {
   const { products, dealerId, routeId, discount, ...rest } = data;
+  const routeIdProvided = Object.prototype.hasOwnProperty.call(data, 'routeId');
+  const resolvedRouteId = await resolveOrderRouteId(dealerId, routeId, routeIdProvided);
 
   const totalPrice = products.reduce((sum, p) => sum + p.quantity * p.price, 0);
   const grandTotal = totalPrice - (discount ?? 0);
@@ -75,7 +94,7 @@ export async function createOrder(
       price: p.price,
     })),
     dealerId: new Types.ObjectId(dealerId),
-    ...(routeId && { routeId: new Types.ObjectId(routeId) }),
+    ...(resolvedRouteId && { routeId: resolvedRouteId }),
     createdBy: new Types.ObjectId(userId),
   });
 
@@ -188,8 +207,23 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
     await restoreStockForOrderProducts(order);
   }
 
+  const hasRouteId = Object.prototype.hasOwnProperty.call(data, 'routeId');
+  const hasDealerId = Object.prototype.hasOwnProperty.call(data, 'dealerId');
+
   if (data.dealerId) data.dealerId = new Types.ObjectId(data.dealerId as string);
-  if (data.routeId) data.routeId = new Types.ObjectId(data.routeId as string);
+
+  const UNCHANGED = Symbol('routeUnchanged');
+  let nextRouteId: Types.ObjectId | undefined | typeof UNCHANGED = UNCHANGED;
+  const dealerIdForRoute =
+    hasDealerId && data.dealerId
+      ? String(data.dealerId)
+      : String(order.dealerId);
+  if (hasRouteId) {
+    nextRouteId = await resolveOrderRouteId(dealerIdForRoute, data.routeId, true);
+  } else if (hasDealerId) {
+    nextRouteId = await resolveOrderRouteId(String(data.dealerId), undefined, false);
+  }
+  delete data.routeId;
 
   if (data.products) {
     data.products = (data.products as any[]).map((p) => ({
@@ -200,6 +234,10 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   }
 
   Object.assign(order, data);
+
+  if (nextRouteId !== UNCHANGED) {
+    order.routeId = nextRouteId as Types.ObjectId | undefined;
+  }
 
   const totalPrice = order.products.reduce((sum, p) => sum + p.quantity * p.price, 0);
   order.totalPrice = totalPrice;

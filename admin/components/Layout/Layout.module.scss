@@ -26,4 +26,9 @@
   .content {
     padding: 1rem;
   }
+
+  /* Space for fixed OrderTakerBottomNav (bar + safe area + small buffer) */
+  .contentWithBottomNav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
 }

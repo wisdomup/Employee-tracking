@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
-import {
-  broadcastNotificationService,
-  BroadcastTarget,
-} from '../../services/broadcastNotificationService';
+import BroadcastAudienceFields from '../../components/Broadcast/BroadcastAudienceFields';
+import { broadcastNotificationService, BroadcastAudienceType } from '../../services/broadcastNotificationService';
+import { employeeService, Employee } from '../../services/employeeService';
 import { toast } from 'react-toastify';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import styles from '../../styles/FormPage.module.scss';
@@ -13,13 +12,28 @@ import styles from '../../styles/FormPage.module.scss';
 const CreateBroadcastNotificationPage: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [employeeOptions, setEmployeeOptions] = useState<{ _id: string; username: string }[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    broadcastTo: 'all' as BroadcastTarget,
+    audienceType: 'all' as BroadcastAudienceType,
+    targetUserIds: [] as string[],
     startAt: '',
     endAt: '',
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const list: Employee[] = await employeeService.getEmployees({ isActive: true });
+        setEmployeeOptions(
+          list.filter((u) => u.role !== 'admin').map((u) => ({ _id: u._id, username: u.username })),
+        );
+      } catch {
+        toast.error('Could not load employees for audience picker');
+      }
+    })();
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -34,8 +48,8 @@ const CreateBroadcastNotificationPage: React.FC = () => {
       toast.error('Please enter Title');
       return;
     }
-    if (!formData.broadcastTo) {
-      toast.error('Please select Broadcast To');
+    if (formData.audienceType === 'specific_users' && formData.targetUserIds.length === 0) {
+      toast.error('Select at least one employee');
       return;
     }
     setLoading(true);
@@ -43,14 +57,21 @@ const CreateBroadcastNotificationPage: React.FC = () => {
       await broadcastNotificationService.createNotification({
         title: formData.title,
         description: formData.description || undefined,
-        broadcastTo: formData.broadcastTo,
+        audienceType: formData.audienceType,
+        targetUserIds:
+          formData.audienceType === 'specific_users' ? formData.targetUserIds : undefined,
         startAt: formData.startAt || undefined,
         endAt: formData.endAt || undefined,
       });
       toast.success('Notification created successfully');
       router.push('/broadcast-notifications');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to create notification');
+    } catch (error: unknown) {
+      const msg =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error(msg || 'Failed to create notification');
     } finally {
       setLoading(false);
     }
@@ -62,6 +83,7 @@ const CreateBroadcastNotificationPage: React.FC = () => {
         <div className={styles.header}>
           <h1>New Broadcast Notification</h1>
           <button
+            type="button"
             className={styles.backButton}
             onClick={() => router.push('/broadcast-notifications')}
           >
@@ -82,22 +104,15 @@ const CreateBroadcastNotificationPage: React.FC = () => {
               placeholder="Notification title"
             />
           </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="broadcastTo">Broadcast To *</label>
-            <select
-              id="broadcastTo"
-              name="broadcastTo"
-              value={formData.broadcastTo}
-              onChange={handleChange}
-              required
-              className={styles.select}
-            >
-              <option value="all">All</option>
-              <option value="employees">Employees</option>
-              <option value="clients">Clients</option>
-              <option value="customers">Customers</option>
-            </select>
-          </div>
+          <BroadcastAudienceFields
+            audienceType={formData.audienceType}
+            targetUserIds={formData.targetUserIds}
+            onAudienceTypeChange={(audienceType) =>
+              setFormData((prev) => ({ ...prev, audienceType }))
+            }
+            onTargetUserIdsChange={(targetUserIds) => setFormData((prev) => ({ ...prev, targetUserIds }))}
+            employeeOptions={employeeOptions}
+          />
           <div className={styles.formGroup}>
             <label htmlFor="description">Description</label>
             <textarea
