@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { VisitModel } from '../../models/visit.model';
 import { RouteModel } from '../../models/route.model';
 import { DealerModel } from '../../models/dealer.model';
+import { RouteAssignmentModel } from '../../models/route-assignment.model';
 import * as routeAssignmentsService from '../route-assignments/route-assignments.service';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
@@ -150,7 +151,7 @@ export async function deleteVisit(id: string, actorId?: string) {
 export async function createVisitsForRoute(
   routeId: string,
   userId?: string,
-): Promise<{ created: number; skipped: number }> {
+): Promise<{ created: number; skipped: number; markedIncomplete: number }> {
   const route = await RouteModel.findOne({ _id: routeId, isTrashed: { $ne: true } });
   if (!route) {
     throw notFound('Route not found');
@@ -179,6 +180,36 @@ export async function createVisitsForRoute(
   endOfDay.setUTCHours(23, 59, 59, 999);
 
   const routeObjectId = new Types.ObjectId(routeId);
+
+  const rolloverResult = await VisitModel.updateMany(
+    {
+      routeId: routeObjectId,
+      isTrashed: { $ne: true },
+      status: { $in: ['todo', 'in_progress'] },
+      $or: [
+        { visitDate: { $lt: startOfDay } },
+        { visitDate: null },
+        { visitDate: { $exists: false } },
+      ],
+    },
+    { $set: { status: 'incomplete' } },
+  ).exec();
+
+  const markedIncomplete = rolloverResult.modifiedCount ?? 0;
+  if (markedIncomplete > 0) {
+    logActivityAsync({
+      module: 'visit',
+      entityId: routeId,
+      action: 'updated',
+      meta: {
+        routeId,
+        markedIncomplete,
+        source: 'visit_rollover',
+        toStatus: 'incomplete',
+      },
+    });
+  }
+
   let created = 0;
   let skipped = 0;
 
@@ -219,7 +250,87 @@ export async function createVisitsForRoute(
     created += 1;
   }
 
-  return { created, skipped };
+  return { created, skipped, markedIncomplete };
+}
+
+/**
+ * Creates today's visits for every route that has an assigned employee and at least one dealer.
+ * Skips routes without assignment, without dealers, or that are trashed (no visits created).
+ */
+export async function createVisitsForAllEligibleRoutes(): Promise<{
+  routesProcessed: number;
+  routesSkippedNoDealers: number;
+  routesSkippedNoActiveRoute: number;
+  totalCreated: number;
+  totalSkippedDuplicates: number;
+  totalMarkedIncomplete: number;
+}> {
+  const assignments = await RouteAssignmentModel.find({}).select('routeId').lean().exec();
+  const routeIdSet = new Set<string>();
+  for (const a of assignments) {
+    if (a.routeId) routeIdSet.add(String(a.routeId));
+  }
+  if (routeIdSet.size === 0) {
+    return {
+      routesProcessed: 0,
+      routesSkippedNoDealers: 0,
+      routesSkippedNoActiveRoute: 0,
+      totalCreated: 0,
+      totalSkippedDuplicates: 0,
+      totalMarkedIncomplete: 0,
+    };
+  }
+
+  const routeObjectIds = [...routeIdSet].map((id) => new Types.ObjectId(id));
+  const activeRoutes = await RouteModel.find({
+    _id: { $in: routeObjectIds },
+    isTrashed: { $ne: true },
+  })
+    .select('_id')
+    .lean()
+    .exec();
+
+  const activeRouteIdSet = new Set(activeRoutes.map((r) => String(r._id)));
+  const routesSkippedNoActiveRoute = routeIdSet.size - activeRouteIdSet.size;
+
+  const dealerAgg = await DealerModel.aggregate<{ _id: Types.ObjectId; count: number }>([
+    {
+      $match: {
+        route: { $in: activeRoutes.map((r) => r._id) },
+        isTrashed: { $ne: true },
+      },
+    },
+    { $group: { _id: '$route', count: { $sum: 1 } } },
+  ]);
+
+  const routeIdsWithDealers = new Set(dealerAgg.map((d) => String(d._id)));
+
+  let totalCreated = 0;
+  let totalSkippedDuplicates = 0;
+  let totalMarkedIncomplete = 0;
+  let routesProcessed = 0;
+  let routesSkippedNoDealers = 0;
+
+  for (const routeId of activeRouteIdSet) {
+    if (!routeIdsWithDealers.has(routeId)) {
+      routesSkippedNoDealers += 1;
+      continue;
+    }
+    const { created, skipped, markedIncomplete } = await createVisitsForRoute(routeId);
+    routesProcessed += 1;
+    totalCreated += created;
+    totalSkippedDuplicates += skipped;
+    totalMarkedIncomplete += markedIncomplete;
+  }
+
+  return {
+    routesProcessed,
+    routesSkippedNoDealers,
+    routesSkippedNoActiveRoute,
+    totalCreated,
+    totalSkippedDuplicates,
+    totalMarkedIncomplete,
+  };
 }
 
 export async function completeVisit(

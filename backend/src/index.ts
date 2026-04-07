@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { connectDatabase } from './config/database';
 import { ensureUploadDirectories } from './services/file-upload.service';
+import { startVisitGenerationCron } from './jobs/visit-generation.cron';
 import app from './app';
 
 const PORT = process.env.PORT || 8001;
@@ -8,6 +9,7 @@ const PORT = process.env.PORT || 8001;
 async function bootstrap() {
   await connectDatabase();
   ensureUploadDirectories();
+  startVisitGenerationCron();
 
   app.listen(PORT, () => {
     console.log(`Express server running on http://localhost:${PORT}`);

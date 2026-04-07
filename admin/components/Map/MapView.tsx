@@ -2,12 +2,29 @@ import React, { useEffect, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
 import styles from './MapView.module.scss';
 
-interface Marker {
+export type MapPinIcon = 'blue' | 'gold' | 'green' | 'red' | 'grey';
+
+const PIN_ICON_BASE =
+  'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img';
+
+const PIN_ICON_URL: Record<MapPinIcon, string> = {
+  blue: `${PIN_ICON_BASE}/marker-icon-blue.png`,
+  gold: `${PIN_ICON_BASE}/marker-icon-gold.png`,
+  green: `${PIN_ICON_BASE}/marker-icon-green.png`,
+  red: `${PIN_ICON_BASE}/marker-icon-red.png`,
+  grey: `${PIN_ICON_BASE}/marker-icon-grey.png`,
+};
+
+export interface Marker {
   lat: number;
   lng: number;
   type: 'client' | 'completion' | 'current';
   label?: string;
   pinLabel?: string;
+  /** When set, overrides icon implied by `type` (backward compatible when omitted). */
+  pinIcon?: MapPinIcon;
+  /** Renders pin badge text with line-through (labels must be app-controlled, not user HTML). */
+  pinLabelStrikethrough?: boolean;
 }
 
 interface PolylinePath {
@@ -75,30 +92,43 @@ const MapView: React.FC<MapViewProps> = ({ markers, polylines = [], height = '40
 
     if (markers.length === 0 && polylines.length === 0) return;
 
+    const resolveIconUrl = (m: Marker): string => {
+      if (m.pinIcon) return PIN_ICON_URL[m.pinIcon];
+      if (m.type === 'client') return PIN_ICON_URL.blue;
+      if (m.type === 'completion') return PIN_ICON_URL.green;
+      return PIN_ICON_URL.red;
+    };
+
     // Use actual pin-style marker icons (not circle badges)
-    const buildPinIcon = (iconUrl: string, pinLabel?: string) =>
-      L.divIcon({
+    const buildPinIcon = (
+      iconUrl: string,
+      pinLabel?: string,
+      pinLabelStrikethrough?: boolean,
+    ) => {
+      const labelInner =
+        pinLabel && pinLabelStrikethrough
+          ? `<span style="text-decoration:line-through">${pinLabel}</span>`
+          : pinLabel ?? '';
+      return L.divIcon({
         className: 'custom-marker',
         html: `
           <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-6px);">
             <img src="${iconUrl}" style="width:15px;height:25px;" />
-            ${pinLabel ? `<div style="margin-top:2px;padding:1px 6px;border-radius:10px;background:var(--admin-primary);color:#fff;font-size:10px;line-height:14px;">${pinLabel}</div>` : ''}
+            ${labelInner ? `<div style="margin-top:2px;padding:1px 6px;border-radius:10px;background:var(--admin-primary);color:#fff;font-size:10px;line-height:14px;">${labelInner}</div>` : ''}
           </div>
         `,
         iconSize: [25, 35],
         iconAnchor: [16, 30],
         popupAnchor: [0, -34],
       });
+    };
 
     // Add markers
     markers.forEach((marker) => {
       const icon = buildPinIcon(
-        marker.type === 'client'
-          ? 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png'
-          : marker.type === 'completion'
-            ? 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png'
-            : 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+        resolveIconUrl(marker),
         marker.pinLabel,
+        marker.pinLabelStrikethrough,
       );
       const markerInstance = L.marker([marker.lat, marker.lng], { icon }).addTo(
         map

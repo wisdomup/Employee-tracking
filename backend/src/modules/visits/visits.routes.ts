@@ -71,9 +71,34 @@ router.post(
  */
 router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
 
+/**
+ * @openapi
+ * /api/visits/{id}/complete:
+ *   patch:
+ *     tags: [Visits]
+ *     summary: Complete a visit with GPS and images [Admin, Employee, Order taker — own visit only]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [latitude, longitude, completionImages]
+ *     responses:
+ *       200: { description: Visit completed }
+ *       400: { description: Validation or business rule error }
+ *       403: { description: Forbidden }
+ */
 router.patch(
   '/:id/complete',
-  requireRoles('admin', 'employee'),
+  requireRoles('admin', 'employee', 'order_taker'),
   validate(completeVisitSchema),
   controller.completeVisit,
 );

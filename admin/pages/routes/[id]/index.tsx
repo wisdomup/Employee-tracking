@@ -143,10 +143,14 @@ const RouteDetailPage: React.FC = () => {
     setCreatingVisits(true);
     try {
       const result = await visitService.createVisitsForRoute(id as string);
+      const rollover =
+        result.markedIncomplete > 0
+          ? `Marked ${result.markedIncomplete} prior open visit(s) incomplete. `
+          : '';
       if (result.skipped > 0) {
-        toast.success(`Created ${result.created} visit(s). ${result.skipped} already existed for today.`);
+        toast.success(`${rollover}Created ${result.created} visit(s). ${result.skipped} already existed for today.`);
       } else {
-        toast.success(`Created ${result.created} visit(s) for today.`);
+        toast.success(`${rollover}Created ${result.created} visit(s) for today.`);
       }
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'response' in err && typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === 'string'
