@@ -17,6 +17,12 @@
   }
 }
 
+html {
+  /* Prevent iOS from shrinking text in ways that make native controls illegible */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 html,
 body {
   max-width: 100vw;
@@ -29,6 +35,31 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Native <select> sheets (especially iOS / mobile WebKit): keep a real px minimum so
+ * options stay readable; 16px+ also avoids unwanted zoom-on-focus on older iOS.
+ */
+select {
+  font-size: max(16px, 1rem);
+  line-height: 1.4;
+}
+
+select option {
+  font-size: max(16px, 1rem);
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  select {
+    font-size: max(18px, 1.125rem);
+    min-height: 2.875rem;
+  }
+
+  select option {
+    font-size: max(18px, 1.125rem);
+  }
 }
 
 * {

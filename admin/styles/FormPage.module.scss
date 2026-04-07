@@ -83,6 +83,15 @@
   }
 }
 
+/* Match globals mobile select sizing; slightly larger tap target for long option lists */
+@media (max-width: 900px) {
+  .select {
+    font-size: max(18px, 1.125rem);
+    min-height: 3rem;
+    padding: 0.875rem 1rem;
+  }
+}
+
 .textarea {
   min-height: 100px;
   resize: vertical;

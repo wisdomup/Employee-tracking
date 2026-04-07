@@ -33,6 +33,12 @@ export interface Client {
   updatedAt: string;
 }
 
+/** Dropdown label: shop/business name when set, else person name, plus phone (dealer id unchanged). */
+export function formatClientSelectLabel(client: Client): string {
+  const displayName = (client.shopName && client.shopName.trim()) || client.name;
+  return `${displayName} — ${client.phone}`;
+}
+
 /** Route assigned to the dealer on the dealer record (`/dealers` populates `route`). */
 export function getClientAssignedRouteId(client: Client | undefined | null): string {
   if (!client?.route) return '';

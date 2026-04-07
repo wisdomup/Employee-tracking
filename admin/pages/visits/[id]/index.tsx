@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { MapTrifold } from '@phosphor-icons/react';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
@@ -10,6 +11,7 @@ import { visitService, Visit, getVisitCompletionImageUrl } from '../../../servic
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
+import { buildGoogleMapsDirectionsUrl, type LatLng } from '../../../utils/googleMapsNavigation';
 
 const VisitDetailPage: React.FC = () => {
   const router = useRouter();
@@ -17,6 +19,7 @@ const VisitDetailPage: React.FC = () => {
   const [visit, setVisit] = useState<Visit | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
     if (id) fetchVisit();
@@ -32,6 +35,45 @@ const VisitDetailPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const dealerCoords = useMemo((): LatLng | null => {
+    if (!visit) return null;
+    const c = visit.dealerId;
+    if (c?.latitude == null || c?.longitude == null) return null;
+    return { lat: c.latitude, lng: c.longitude };
+  }, [visit]);
+
+  const openGoogleMapsNavigation = useCallback(() => {
+    if (!dealerCoords) {
+      toast.error('This client has no map coordinates on file.');
+      return;
+    }
+    setNavigating(true);
+    const finish = (origin: LatLng | null) => {
+      const url = buildGoogleMapsDirectionsUrl({
+        origin,
+        destination: dealerCoords,
+      });
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setNavigating(false);
+    };
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      finish(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        finish({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => {
+        finish(null);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+    );
+  }, [dealerCoords]);
 
   if (loading) {
     return (
@@ -80,6 +122,18 @@ const VisitDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Visit Details</h1>
           <div className={styles.headerActions}>
+            {dealerCoords && (
+              <button
+                type="button"
+                className={styles.navigateButton}
+                onClick={openGoogleMapsNavigation}
+                disabled={navigating}
+                title="Open Google Maps: drive from your location to this visit’s dealer only"
+              >
+                <MapTrifold size={20} weight="bold" aria-hidden />
+                {navigating ? 'Locating…' : 'Navigate'}
+              </button>
+            )}
             <button
               className={styles.editButton}
               onClick={() => router.push(`/visits/${id}/edit`)}
@@ -124,7 +178,22 @@ const VisitDetailPage: React.FC = () => {
                   <StatusBadge status={visit.status as Visit['status']} />
                 </span>
               </div>
+              {dealerCoords && (
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Dealer location:</span>
+                  <span className={styles.value}>
+                    {dealerCoords.lat.toFixed(6)}, {dealerCoords.lng.toFixed(6)}
+                  </span>
+                </div>
+              )}
             </div>
+            {dealerCoords && (
+              <p className={styles.navigateHint}>
+                <strong>Navigate</strong> opens Google Maps for this visit only—from your current
+                location to this dealer (no other stops). If location access is denied, Maps will
+                ask you to choose a starting point.
+              </p>
+            )}
           </div>
 
           {visit.status === 'completed' && visit.completedAt && (

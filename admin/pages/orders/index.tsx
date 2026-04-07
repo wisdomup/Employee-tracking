@@ -6,7 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import { orderService, Order } from '../../services/orderService';
-import { clientService, Client } from '../../services/clientService';
+import { clientService, Client, formatClientSelectLabel } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
 import { can } from '../../utils/permissions';
@@ -209,7 +209,7 @@ const OrdersPage: React.FC = () => {
                 <option value="">All Clients</option>
                 {clients.map((d) => (
                   <option key={d._id} value={d._id}>
-                    {d.name}
+                    {formatClientSelectLabel(d)}
                   </option>
                 ))}
               </select>

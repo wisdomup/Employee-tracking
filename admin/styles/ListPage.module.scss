@@ -91,6 +91,11 @@
   @media (max-width: 480px) {
     max-width: none;
   }
+
+  @media (max-width: 900px) {
+    font-size: max(18px, 1.125rem);
+    min-height: 2.875rem;
+  }
 }
 
 .actions {

@@ -40,6 +40,9 @@
   box-shadow: 0 0 0 2px #fff;
 }
 
+// Must match Header.module.scss / Sidebar strip height so fixed panel clears sticky header
+$headerStripHeight: 4.5rem;
+
 .panel {
   position: absolute;
   top: calc(100% + 0.5rem);
@@ -54,6 +57,24 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
   z-index: 50;
   overflow: hidden;
+}
+
+/*
+ * Bell is not at the viewport’s right edge (user block sits after it), but the panel was
+ * width ~100vw anchored to the bell’s right — so the left edge went off-screen. On narrow
+ * viewports pin the inbox to the screen with horizontal insets instead.
+ */
+@media (max-width: 900px) {
+  .panel {
+    position: fixed;
+    left: max(0.75rem, env(safe-area-inset-left, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    top: calc(#{$headerStripHeight} + 0.5rem);
+    width: auto;
+    max-width: none;
+    max-height: min(24rem, calc(100vh - #{$headerStripHeight} - 2rem));
+    z-index: 200;
+  }
 }
 
 .panelHeader {

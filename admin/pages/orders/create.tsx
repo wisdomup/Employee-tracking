@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { orderService } from '../../services/orderService';
-import { clientService, Client, getClientAssignedRouteId } from '../../services/clientService';
+import { clientService, Client, formatClientSelectLabel, getClientAssignedRouteId } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { productService, Product } from '../../services/productService';
 import { toast } from 'react-toastify';
@@ -191,7 +191,7 @@ const CreateOrderPage: React.FC = () => {
               <option value="">Select a client</option>
               {clients.map((d) => (
                 <option key={d._id} value={d._id}>
-                  {d.name} — {d.phone}
+                  {formatClientSelectLabel(d)}
                 </option>
               ))}
             </select>
