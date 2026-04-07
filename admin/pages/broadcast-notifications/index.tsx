@@ -13,6 +13,7 @@ import {
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const AUDIENCE_FILTER_KEYS: { value: string; label: string }[] = [
   { value: '', label: 'All audiences' },
@@ -157,18 +158,15 @@ const BroadcastNotificationsPage: React.FC = () => {
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
             <div className={styles.searchBar}>
-              <select
+              <SearchableSelect
+                name="targetFilter"
                 value={targetFilter}
                 onChange={(e) => setTargetFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 320 }}
-              >
-                {AUDIENCE_FILTER_KEYS.map((o) => (
-                  <option key={o.value || 'all-aud'} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                placeholder="All audiences"
+                options={AUDIENCE_FILTER_KEYS}
+              />
             </div>
             <Table columns={columns} data={notifications} loading={loading} />
           </div>

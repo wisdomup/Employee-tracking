@@ -3,12 +3,13 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { visitService, Visit, VisitCompletionImage } from '../../services/visitService';
-import { clientService, Client } from '../../services/clientService';
+import { clientService, Client, formatClientSelectLabel } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { ImageUpload } from '../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const CreateVisitPage: React.FC = () => {
   const router = useRouter();
@@ -133,56 +134,51 @@ const CreateVisitPage: React.FC = () => {
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
             <label htmlFor="clientId">Client *</label>
-            <select
+            <SearchableSelect
               id="clientId"
               name="clientId"
               value={formData.clientId}
               onChange={handleChange}
-              required
               className={styles.select}
-            >
-              <option value="">Select a client</option>
-              {clients.map((d) => (
-                <option key={d._id} value={d._id}>
-                  {d.name} — {d.phone}
-                </option>
-              ))}
-            </select>
+              placeholder="Select a client"
+              options={[
+                { value: '', label: 'Select a client' },
+                ...clients.map((d) => ({ value: d._id, label: formatClientSelectLabel(d) })),
+              ]}
+            />
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="employeeId">Employee *</label>
-            <select
+            <SearchableSelect
               id="employeeId"
               name="employeeId"
               value={formData.employeeId}
               onChange={handleChange}
-              required
               className={styles.select}
-            >
-              <option value="">Select an employee</option>
-              {employees.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.username} — {e.role}
-                </option>
-              ))}
-            </select>
+              placeholder="Select an employee"
+              options={[
+                { value: '', label: 'Select an employee' },
+                ...employees.map((e) => ({
+                  value: e._id,
+                  label: `${e.username} — ${e.role}`,
+                })),
+              ]}
+            />
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="routeId">Route (optional)</label>
-            <select
+            <SearchableSelect
               id="routeId"
               name="routeId"
               value={formData.routeId}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="">None</option>
-              {routes.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              placeholder="None"
+              options={[
+                { value: '', label: 'None' },
+                ...routes.map((r) => ({ value: r._id, label: r.name })),
+              ]}
+            />
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="visitDate">Visit Date</label>
@@ -197,19 +193,21 @@ const CreateVisitPage: React.FC = () => {
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="status">Status</label>
-            <select
+            <SearchableSelect
               id="status"
               name="status"
               value={formData.status}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="incomplete">Incomplete</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+              placeholder="Status"
+              options={[
+                { value: 'todo', label: 'To Do' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'incomplete', label: 'Incomplete' },
+                { value: 'cancelled', label: 'Cancelled' },
+              ]}
+            />
           </div>
 
           {formData.status === 'completed' && (

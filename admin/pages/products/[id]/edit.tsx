@@ -8,6 +8,7 @@ import { ImageUpload } from '../../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
 import styles from '../../../styles/FormPage.module.scss';
+import SearchableSelect from '../../../components/UI/SearchableSelect';
 
 interface ExtrasRow {
   name: string;
@@ -174,21 +175,18 @@ const EditProductPage: React.FC = () => {
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="categoryId">Category *</label>
-            <select
+            <SearchableSelect
               id="categoryId"
               name="categoryId"
               value={formData.categoryId}
               onChange={handleChange}
-              required
               className={styles.select}
-            >
-              <option value="">Select a category</option>
-              {categories.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              placeholder="Select a category"
+              options={[
+                { value: '', label: 'Select a category' },
+                ...categories.map((c) => ({ value: c._id, label: c.name })),
+              ]}
+            />
           </div>
           <div className={styles.formRow}>
             <div className={styles.formGroup}>

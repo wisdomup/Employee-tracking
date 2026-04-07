@@ -4,6 +4,7 @@ import {
   BROADCAST_AUDIENCE_LABELS,
 } from '../../services/broadcastNotificationService';
 import styles from '../../styles/FormPage.module.scss';
+import SearchableSelect from '../UI/SearchableSelect';
 
 interface EmployeeOption {
   _id: string;
@@ -54,20 +55,18 @@ const BroadcastAudienceFields: React.FC<Props> = ({
     <>
       <div className={styles.formGroup}>
         <label htmlFor="audienceType">Audience *</label>
-        <select
+        <SearchableSelect
           id="audienceType"
           name="audienceType"
           value={audienceType}
           onChange={handleAudienceSelect}
-          required
           className={styles.select}
-        >
-          {AUDIENCE_ORDER.map((key) => (
-            <option key={key} value={key}>
-              {BROADCAST_AUDIENCE_LABELS[key]}
-            </option>
-          ))}
-        </select>
+          placeholder="Audience"
+          options={AUDIENCE_ORDER.map((key) => ({
+            value: key,
+            label: BROADCAST_AUDIENCE_LABELS[key],
+          }))}
+        />
       </div>
       {audienceType === 'specific_users' && (
         <div className={styles.formGroup}>

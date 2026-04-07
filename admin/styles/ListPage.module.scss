@@ -98,6 +98,16 @@
   }
 }
 
+/* Wrapper for SearchableSelect in filter bars — no extra border (control styles itself) */
+.searchSelect {
+  width: 100%;
+  max-width: 400px;
+
+  @media (max-width: 480px) {
+    max-width: none;
+  }
+}
+
 .actions {
   display: flex;
   gap: 0.5rem;

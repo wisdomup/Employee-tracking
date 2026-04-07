@@ -1,0 +1,75 @@
+/* Wrapper for react-select; inner classes use prefix adminSelect__ (classNamePrefix) */
+
+.wrap {
+  width: 100%;
+}
+
+.wrap :global(.adminSelect__control) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  box-shadow: none;
+  font-size: max(16px, 1rem);
+  line-height: 1.4;
+  background: #fff;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #9ca3af;
+  }
+}
+
+.wrap :global(.adminSelect__control--is-focused) {
+  border-color: var(--admin-primary);
+  box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+}
+
+.wrap :global(.adminSelect__control--is-disabled) {
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.wrap :global(.adminSelect__value-container) {
+  flex: 1 1 auto;
+  padding: 0.125rem 0.5rem;
+}
+
+.wrap :global(.adminSelect__indicators) {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.wrap :global(.adminSelect__placeholder) {
+  color: #9ca3af;
+}
+
+.wrap :global(.adminSelect__single-value) {
+  color: #111827;
+}
+
+.wrap :global(.adminSelect__input-container) {
+  margin: 0;
+  padding: 0;
+  color: #111827;
+}
+
+.wrap :global(.adminSelect__indicator-separator) {
+  background: #e5e7eb;
+}
+
+.wrap :global(.adminSelect__dropdown-indicator) {
+  color: #6b7280;
+}
+
+/* Portaled menu/option styles live in `styles/globals.scss` (CSS modules require a local class). */
+
+@media (max-width: 900px) {
+  .wrap :global(.adminSelect__control) {
+    font-size: max(18px, 1.125rem);
+    min-height: 3rem;
+  }
+}

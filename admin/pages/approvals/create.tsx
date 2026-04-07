@@ -12,6 +12,7 @@ import {
 import { toast } from 'react-toastify';
 import { getApiErrorMessage } from '../../utils/apiError';
 import styles from '../../styles/FormPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const CreateApprovalPage: React.FC = () => {
   const router = useRouter();
@@ -85,36 +86,36 @@ const CreateApprovalPage: React.FC = () => {
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
             <label htmlFor="approvalType">Approval type *</label>
-            <select
+            <SearchableSelect
               id="approvalType"
               name="approvalType"
               value={formData.approvalType}
               onChange={handleChange}
               className={styles.select}
-            >
-              {(Object.keys(APPROVAL_TYPE_LABELS) as ApprovalType[]).map((t) => (
-                <option key={t} value={t}>
-                  {APPROVAL_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
+              placeholder="Approval type"
+              options={(Object.keys(APPROVAL_TYPE_LABELS) as ApprovalType[]).map((t) => ({
+                value: t,
+                label: APPROVAL_TYPE_LABELS[t],
+              }))}
+            />
           </div>
 
           {formData.approvalType === 'leave' && (
             <div className={styles.formGroup}>
               <label htmlFor="leaveType">Duration *</label>
-              <select
+              <SearchableSelect
                 id="leaveType"
                 name="leaveType"
                 value={formData.leaveType}
                 onChange={handleChange}
-                required
                 className={styles.select}
-              >
-                <option value="full_day">Full day</option>
-                <option value="half_day">Half day</option>
-                <option value="short_leave">Short leave</option>
-              </select>
+                placeholder="Duration"
+                options={[
+                  { value: 'full_day', label: 'Full day' },
+                  { value: 'half_day', label: 'Half day' },
+                  { value: 'short_leave', label: 'Short leave' },
+                ]}
+              />
             </div>
           )}
 

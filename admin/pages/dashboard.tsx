@@ -22,6 +22,7 @@ import ProtectedRoute from '../components/Auth/ProtectedRoute';
 import Loader from '../components/UI/Loader';
 import MapView, { type MapPinIcon } from '../components/Map/MapView';
 import DatePickerFilter from '../components/UI/DatePickerFilter';
+import SearchableSelect from '../components/UI/SearchableSelect';
 import {
   dashboardService,
   DashboardReports,
@@ -832,15 +833,18 @@ const Dashboard: React.FC = () => {
           <div className={styles.reportFilters}>
             <DatePickerFilter value={startDate} onChange={setStartDate} placeholder="Start date" />
             <DatePickerFilter value={endDate} onChange={setEndDate} placeholder="End date" />
-            <select
+            <SearchableSelect
+              name="groupBy"
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value as 'day' | 'month' | 'year')}
               className={styles.reportSelect}
-            >
-              <option value="day">Daily</option>
-              <option value="month">Monthly</option>
-              <option value="year">Yearly</option>
-            </select>
+              options={[
+                { value: 'day', label: 'Daily' },
+                { value: 'month', label: 'Monthly' },
+                { value: 'year', label: 'Yearly' },
+              ]}
+              placeholder="Group by"
+            />
           </div>
 
           {reportLoading || !reports ? (

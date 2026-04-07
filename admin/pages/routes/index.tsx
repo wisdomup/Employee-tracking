@@ -9,6 +9,7 @@ import { employeeService, Employee } from '../../services/employeeService';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 import modalStyles from '../../styles/Modal.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const RoutesPage: React.FC = () => {
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -222,19 +223,20 @@ const RoutesPage: React.FC = () => {
               <form onSubmit={handleAssignRoute}>
                 <div className={modalStyles.formGroup}>
                   <label htmlFor="employeeSelect">Select Order Taker *</label>
-                  <select
+                  <SearchableSelect
                     id="employeeSelect"
+                    name="assignEmployeeId"
                     value={assignEmployeeId}
                     onChange={(e) => setAssignEmployeeId(e.target.value)}
-                    required
-                  >
-                    <option value="">Select an employee</option>
-                    {orderTakers.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.username} — {emp.role} — {emp.phone}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select an employee"
+                    options={[
+                      { value: '', label: 'Select an employee' },
+                      ...orderTakers.map((emp) => ({
+                        value: emp._id,
+                        label: `${emp.username} — ${emp.role} — ${emp.phone}`,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className={modalStyles.modalActions}>
                   <button

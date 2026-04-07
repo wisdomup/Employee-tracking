@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import styles from '../../../styles/FormPage.module.scss';
+import SearchableSelect from '../../../components/UI/SearchableSelect';
 
 const GEO_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
@@ -203,6 +204,19 @@ const EditVisitPage: React.FC = () => {
     cursor: 'not-allowed',
   };
 
+  const visitStatusSelectOptions = isOrderTaker
+    ? [
+        { value: 'in_progress', label: 'In Progress' },
+        { value: 'completed', label: 'Completed' },
+      ]
+    : [
+        { value: 'todo', label: 'To Do' },
+        { value: 'in_progress', label: 'In Progress' },
+        { value: 'completed', label: 'Completed' },
+        { value: 'incomplete', label: 'Incomplete' },
+        { value: 'cancelled', label: 'Cancelled' },
+      ];
+
   return (
     <Layout>
       <div className={styles.container}>
@@ -258,29 +272,15 @@ const EditVisitPage: React.FC = () => {
                 <StatusBadge status={formData.status as Visit['status']} />
               </div>
             ) : (
-              <select
+              <SearchableSelect
                 id="status"
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                required
                 className={styles.select}
-              >
-                {isOrderTaker ? (
-                  <>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="todo">To Do</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="incomplete">Incomplete</option>
-                    <option value="cancelled">Cancelled</option>
-                  </>
-                )}
-              </select>
+                placeholder="Status"
+                options={visitStatusSelectOptions}
+              />
             )}
           </div>
 

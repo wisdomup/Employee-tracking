@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
 import modalStyles from '../../styles/Modal.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const AssignmentsPage: React.FC = () => {
   const [routeAssignments, setRouteAssignments] = useState<RouteAssignment[]>([]);
@@ -167,37 +168,37 @@ const AssignmentsPage: React.FC = () => {
               <form onSubmit={handleSubmit}>
                 <div className={modalStyles.formGroup}>
                   <label htmlFor="routeId">Select Route *</label>
-                  <select
+                  <SearchableSelect
                     id="routeId"
                     name="routeId"
                     value={formData.routeId}
                     onChange={handleChange}
-                    required
-                  >
-                    <option value="">Select a route</option>
-                    {routes.map((route) => (
-                      <option key={route._id} value={route._id}>
-                        {route.name} ({route.startingPoint} → {route.endingPoint})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select a route"
+                    options={[
+                      { value: '', label: 'Select a route' },
+                      ...routes.map((route) => ({
+                        value: route._id,
+                        label: `${route.name} (${route.startingPoint} → ${route.endingPoint})`,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className={modalStyles.formGroup}>
                   <label htmlFor="employeeId">Select Order Taker *</label>
-                  <select
+                  <SearchableSelect
                     id="employeeId"
                     name="employeeId"
                     value={formData.employeeId}
                     onChange={handleChange}
-                    required
-                  >
-                    <option value="">Select an order taker</option>
-                    {orderTakers.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.username} — {emp.phone}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select an order taker"
+                    options={[
+                      { value: '', label: 'Select an order taker' },
+                      ...orderTakers.map((emp) => ({
+                        value: emp._id,
+                        label: `${emp.username} — ${emp.phone}`,
+                      })),
+                    ]}
+                  />
                   {orderTakers.length === 0 && (
                     <small style={{ color: '#ef4444' }}>
                       No order takers found. Create a user with the order_taker role first.

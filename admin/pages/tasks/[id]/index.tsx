@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
 import modalStyles from '../../../styles/Modal.module.scss';
+import SearchableSelect from '../../../components/UI/SearchableSelect';
 
 const TaskDetailPage: React.FC = () => {
   const router = useRouter();
@@ -462,19 +463,20 @@ const TaskDetailPage: React.FC = () => {
               <form onSubmit={handleAssign}>
                 <div className={modalStyles.formGroup}>
                   <label htmlFor="employeeSelect">Select Employee *</label>
-                  <select
+                  <SearchableSelect
                     id="employeeSelect"
+                    name="selectedEmployee"
                     value={selectedEmployee}
                     onChange={(e) => setSelectedEmployee(e.target.value)}
-                    required
-                  >
-                    <option value="">Select an employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.username} — {emp.role} — {emp.phone}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select an employee"
+                    options={[
+                      { value: '', label: 'Select an employee' },
+                      ...employees.map((emp) => ({
+                        value: emp._id,
+                        label: `${emp.username} — ${emp.role} — ${emp.phone}`,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className={modalStyles.modalActions}>
                   <button

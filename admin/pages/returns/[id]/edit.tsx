@@ -4,11 +4,12 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
 import { returnService, getReturnImageUrl } from '../../../services/returnService';
-import { clientService, Client } from '../../../services/clientService';
+import { clientService, Client, formatClientSelectLabel } from '../../../services/clientService';
 import { productService, Product } from '../../../services/productService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import styles from '../../../styles/FormPage.module.scss';
+import SearchableSelect from '../../../components/UI/SearchableSelect';
 
 interface LineItem {
   productId: string;
@@ -203,56 +204,55 @@ const EditReturnPage: React.FC = () => {
           {isAdmin && (
             <div className={styles.formGroup}>
               <label htmlFor="status">Status *</label>
-              <select
+              <SearchableSelect
                 id="status"
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                required
                 className={styles.select}
-              >
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="picked">Picked</option>
-                <option value="completed">Completed</option>
-              </select>
+                placeholder="Status"
+                options={[
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'picked', label: 'Picked' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+              />
             </div>
           )}
 
           {/* Client */}
           <div className={styles.formGroup}>
             <label htmlFor="clientId">Client *</label>
-            <select
+            <SearchableSelect
               id="clientId"
               name="clientId"
               value={formData.clientId}
               onChange={handleChange}
-              required
               className={styles.select}
-            >
-              <option value="">Select a client</option>
-              {clients.map((d) => (
-                <option key={d._id} value={d._id}>
-                  {d.name} — {d.phone}
-                </option>
-              ))}
-            </select>
+              placeholder="Select a client"
+              options={[
+                { value: '', label: 'Select a client' },
+                ...clients.map((d) => ({ value: d._id, label: formatClientSelectLabel(d) })),
+              ]}
+            />
           </div>
 
           {/* Return Type */}
           <div className={styles.formGroup}>
             <label htmlFor="returnType">Return Type *</label>
-            <select
+            <SearchableSelect
               id="returnType"
               name="returnType"
               value={formData.returnType}
               onChange={handleChange}
-              required
               className={styles.select}
-            >
-              <option value="return">Return</option>
-              <option value="damage">Damage</option>
-            </select>
+              placeholder="Return type"
+              options={[
+                { value: 'return', label: 'Return' },
+                { value: 'damage', label: 'Damage' },
+              ]}
+            />
           </div>
 
           {/* Invoice Image */}
@@ -363,19 +363,21 @@ const EditReturnPage: React.FC = () => {
                   {lineItems.map((item, idx) => (
                     <tr key={idx}>
                       <td style={{ padding: '0.5rem' }}>
-                        <select
+                        <SearchableSelect
+                          name={`productId-${idx}`}
                           value={item.productId}
                           onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
                           className={styles.select}
                           style={{ margin: 0 }}
-                        >
-                          <option value="">Select product</option>
-                          {products.map((p) => (
-                            <option key={p._id} value={p._id}>
-                              {p.name} ({p.barcode})
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select product"
+                          options={[
+                            { value: '', label: 'Select product' },
+                            ...products.map((p) => ({
+                              value: p._id,
+                              label: `${p.name} (${p.barcode})`,
+                            })),
+                          ]}
+                        />
                       </td>
                       <td style={{ padding: '0.5rem' }}>
                         <input

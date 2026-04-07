@@ -4,11 +4,12 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { taskService } from '../../services/taskService';
 import type { CompletionImage } from '../../services/taskService';
-import { clientService, Client } from '../../services/clientService';
+import { clientService, Client, formatClientSelectLabel } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { ImageUpload } from '../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const CreateTaskPage: React.FC = () => {
   const router = useRouter();
@@ -168,38 +169,40 @@ const CreateTaskPage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="clientId">Client (optional)</label>
-            <select
+            <SearchableSelect
               id="clientId"
               name="clientId"
               value={formData.clientId}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="">Select a client</option>
-              {clients.map((client) => (
-                <option key={client._id} value={client._id}>
-                  {client.name} - {client.phone}
-                </option>
-              ))}
-            </select>
+              placeholder="Select a client"
+              options={[
+                { value: '', label: 'Select a client' },
+                ...clients.map((client) => ({
+                  value: client._id,
+                  label: formatClientSelectLabel(client),
+                })),
+              ]}
+            />
           </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="routeId">Route (optional)</label>
-            <select
+            <SearchableSelect
               id="routeId"
               name="routeId"
               value={formData.routeId}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="">Select a route</option>
-              {routes.map((route) => (
-                <option key={route._id} value={route._id}>
-                  {route.name} ({route.startingPoint} → {route.endingPoint})
-                </option>
-              ))}
-            </select>
+              placeholder="Select a route"
+              options={[
+                { value: '', label: 'Select a route' },
+                ...routes.map((route) => ({
+                  value: route._id,
+                  label: `${route.name} (${route.startingPoint} → ${route.endingPoint})`,
+                })),
+              ]}
+            />
             <small style={{ color: '#6b7280', fontSize: '0.875rem' }}>
               Assign a specific employee to this task from the task detail page.
             </small>
@@ -261,17 +264,19 @@ const CreateTaskPage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="status">Status</label>
-            <select
+            <SearchableSelect
               id="status"
               name="status"
               value={formData.status}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
+              placeholder="Status"
+              options={[
+                { value: 'pending', label: 'Pending' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'completed', label: 'Completed' },
+              ]}
+            />
           </div>
 
           {formData.status === 'completed' && (

@@ -15,6 +15,7 @@ import { toast } from 'react-toastify';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const ApprovalsPage: React.FC = () => {
   const [rows, setRows] = useState<Approval[]>([]);
@@ -215,30 +216,35 @@ const ApprovalsPage: React.FC = () => {
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
             <div className={styles.searchBar} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <select
+              <SearchableSelect
+                name="statusFilter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 180 }}
-              >
-                <option value="">All statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-              <select
+                placeholder="All statuses"
+                options={[
+                  { value: '', label: 'All statuses' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'rejected', label: 'Rejected' },
+                ]}
+              />
+              <SearchableSelect
+                name="typeFilter"
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 200 }}
-              >
-                <option value="">All types</option>
-                {(Object.keys(APPROVAL_TYPE_LABELS) as ApprovalType[]).map((t) => (
-                  <option key={t} value={t}>
-                    {APPROVAL_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </select>
+                placeholder="All types"
+                options={[
+                  { value: '', label: 'All types' },
+                  ...(Object.keys(APPROVAL_TYPE_LABELS) as ApprovalType[]).map((t) => ({
+                    value: t,
+                    label: APPROVAL_TYPE_LABELS[t],
+                  })),
+                ]}
+              />
             </div>
             <Table
               columns={columns}

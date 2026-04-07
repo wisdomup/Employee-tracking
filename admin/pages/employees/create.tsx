@@ -7,6 +7,7 @@ import { PasswordInput } from '../../components/UI/PasswordInput';
 import { ImageUpload } from '../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const EMPLOYEE_ROLES = [
   // { value: 'admin', label: 'Admin' },
@@ -222,20 +223,15 @@ const CreateEmployeePage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="role">Role *</label>
-            <select
+            <SearchableSelect
               id="role"
               name="role"
               value={formData.role}
               onChange={handleChange}
-              required
               className={styles.select}
-            >
-              {EMPLOYEE_ROLES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+              placeholder="Role"
+              options={EMPLOYEE_ROLES}
+            />
           </div>
 
           <div className={styles.formGroup}>

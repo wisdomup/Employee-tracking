@@ -5,6 +5,7 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 import { orderService, Order } from '../../services/orderService';
 import { clientService, Client, formatClientSelectLabel } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
@@ -200,47 +201,48 @@ const OrdersPage: React.FC = () => {
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
             <div className={styles.searchBar}>
-              <select
+              <SearchableSelect
+                name="clientFilter"
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 220 }}
-              >
-                <option value="">All Clients</option>
-                {clients.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {formatClientSelectLabel(d)}
-                  </option>
-                ))}
-              </select>
-              <select
+                placeholder="All Clients"
+                options={[
+                  { value: '', label: 'All Clients' },
+                  ...clients.map((d) => ({ value: d._id, label: formatClientSelectLabel(d) })),
+                ]}
+              />
+              <SearchableSelect
+                name="statusFilter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 180 }}
-              >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="packed">Packed</option>
-                <option value="dispatched">Dispatched</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+                placeholder="All Statuses"
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'packed', label: 'Packed' },
+                  { value: 'dispatched', label: 'Dispatched' },
+                  { value: 'delivered', label: 'Delivered' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                ]}
+              />
               {!isOrderTaker && (
-                <select
+                <SearchableSelect
+                  name="employeeFilter"
                   value={employeeFilter}
                   onChange={(e) => setEmployeeFilter(e.target.value)}
-                  className={styles.searchInput}
+                  className={styles.searchSelect}
                   style={{ maxWidth: 200 }}
-                >
-                  <option value="">All Employees</option>
-                  {employees.map((e) => (
-                    <option key={e._id} value={e._id}>
-                      {e.username}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="All Employees"
+                  options={[
+                    { value: '', label: 'All Employees' },
+                    ...employees.map((e) => ({ value: e._id, label: e.username })),
+                  ]}
+                />
               )}
               <DatePickerFilter
                 value={startDate}

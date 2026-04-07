@@ -38,8 +38,8 @@ body {
 }
 
 /*
- * Native <select> sheets (especially iOS / mobile WebKit): keep a real px minimum so
- * options stay readable; 16px+ also avoids unwanted zoom-on-focus on older iOS.
+ * SearchableSelect control sizing: `SearchableSelect.module.scss`. Portaled menu: `.adminSelect__*` below.
+ * Native `<select>` rules remain for any rare native control or third-party markup.
  */
 select {
   font-size: max(16px, 1rem);
@@ -58,6 +58,56 @@ select option {
   }
 
   select option {
+    font-size: max(18px, 1.125rem);
+  }
+}
+
+/*
+ * SearchableSelect (react-select) menus use menuPortalTarget=document.body, so they are
+ * outside the component’s CSS-module `.wrap`. Global classPrefix `adminSelect__` — keep
+ * these here (not in *.module.scss) to satisfy “pure” CSS-module rules.
+ */
+.adminSelect__menu {
+  background-color: #ffffff !important;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  z-index: 10000;
+}
+
+.adminSelect__menu-list {
+  background-color: #ffffff !important;
+  padding: 0.25rem 0;
+  max-height: 280px;
+}
+
+.adminSelect__option {
+  font-size: max(16px, 1rem);
+  line-height: 1.45;
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+  background-color: #ffffff;
+  color: #111827;
+}
+
+.adminSelect__option--is-focused {
+  background-color: var(--admin-primary-muted) !important;
+  color: #111827;
+}
+
+.adminSelect__option--is-selected {
+  background-color: var(--admin-primary) !important;
+  color: #fff !important;
+}
+
+.adminSelect__option--is-selected.adminSelect__option--is-focused {
+  background-color: var(--admin-primary-hover) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 900px) {
+  .adminSelect__option {
     font-size: max(18px, 1.125rem);
   }
 }

@@ -4,6 +4,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 import Table from '../../components/UI/Table';
 import {
   dashboardService,
@@ -102,15 +103,29 @@ const ReportsPage: React.FC = () => {
         <div className={styles.filters}>
           <DatePickerFilter value={startDate} onChange={setStartDate} placeholder="Start date" />
           <DatePickerFilter value={endDate} onChange={setEndDate} placeholder="End date" />
-          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as 'day' | 'month' | 'year')}>
-            <option value="day">Group by day</option>
-            <option value="month">Group by month</option>
-            <option value="year">Group by year</option>
-          </select>
-          <select value={viewBy} onChange={(e) => setViewBy(e.target.value as 'item' | 'category')}>
-            <option value="item">Item-wise</option>
-            <option value="category">Category-wise</option>
-          </select>
+          <SearchableSelect
+            name="groupBy"
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as 'day' | 'month' | 'year')}
+            className={styles.filterSelect}
+            options={[
+              { value: 'day', label: 'Group by day' },
+              { value: 'month', label: 'Group by month' },
+              { value: 'year', label: 'Group by year' },
+            ]}
+            placeholder="Group by"
+          />
+          <SearchableSelect
+            name="viewBy"
+            value={viewBy}
+            onChange={(e) => setViewBy(e.target.value as 'item' | 'category')}
+            className={styles.filterSelect}
+            options={[
+              { value: 'item', label: 'Item-wise' },
+              { value: 'category', label: 'Category-wise' },
+            ]}
+            placeholder="View by"
+          />
         </div>
 
         <div className={styles.kpiGrid}>

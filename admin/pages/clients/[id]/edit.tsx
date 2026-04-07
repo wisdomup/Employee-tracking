@@ -11,6 +11,7 @@ import { useGeolocationPicker } from '../../../hooks/useGeolocationPicker';
 import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
 import styles from '../../../styles/FormPage.module.scss';
+import SearchableSelect from '../../../components/UI/SearchableSelect';
 
 const DEALER_CATEGORIES = [
   { value: '', label: '— Select category —' },
@@ -389,19 +390,15 @@ const EditClientPage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="category">Category *</label>
-            <select
+            <SearchableSelect
               id="category"
               name="category"
               value={formData.category}
               onChange={handleChange}
               className={styles.select}
-            >
-              {DEALER_CATEGORIES.map((c) => (
-                <option key={c.value || 'none'} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              placeholder="— Select category —"
+              options={DEALER_CATEGORIES}
+            />
           </div>
 
           <div className={styles.formGroup}>
@@ -421,34 +418,37 @@ const EditClientPage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="routeId">Route *</label>
-            <select
+            <SearchableSelect
               id="routeId"
               name="routeId"
               value={formData.routeId}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="">— Select route —</option>
-              {routes.map((route) => (
-                <option key={route._id} value={route._id}>
-                  {route.name} ({route.startingPoint} → {route.endingPoint})
-                </option>
-              ))}
-            </select>
+              placeholder="— Select route —"
+              options={[
+                { value: '', label: '— Select route —' },
+                ...routes.map((route) => ({
+                  value: route._id,
+                  label: `${route.name} (${route.startingPoint} → ${route.endingPoint})`,
+                })),
+              ]}
+            />
           </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="status">Status</label>
-            <select
+            <SearchableSelect
               id="status"
               name="status"
               value={formData.status}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+              placeholder="Status"
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
           </div>
 
           <div className={styles.formActions}>

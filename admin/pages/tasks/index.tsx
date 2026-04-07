@@ -9,6 +9,7 @@ import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 import modalStyles from '../../styles/Modal.module.scss';
 
 const TasksPage: React.FC = () => {
@@ -202,17 +203,20 @@ const TasksPage: React.FC = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 className={styles.searchInput}
               />
-              <select
+              <SearchableSelect
+                name="statusFilter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 180 }}
-              >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
+                placeholder="All Statuses"
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+              />
             </div>
 
             <Table
@@ -233,19 +237,20 @@ const TasksPage: React.FC = () => {
               <form onSubmit={handleAssignTask}>
                 <div className={modalStyles.formGroup}>
                   <label htmlFor="employeeSelect">Select Employee *</label>
-                  <select
+                  <SearchableSelect
                     id="employeeSelect"
+                    name="assignEmployeeId"
                     value={assignEmployeeId}
                     onChange={(e) => setAssignEmployeeId(e.target.value)}
-                    required
-                  >
-                    <option value="">Select an employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.username} — {emp.role} — {emp.phone}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select an employee"
+                    options={[
+                      { value: '', label: 'Select an employee' },
+                      ...employees.map((emp) => ({
+                        value: emp._id,
+                        label: `${emp.username} — ${emp.role} — ${emp.phone}`,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className={modalStyles.modalActions}>
                   <button

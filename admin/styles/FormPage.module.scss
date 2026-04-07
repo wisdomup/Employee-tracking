@@ -66,8 +66,7 @@
 }
 
 .input,
-.textarea,
-.select {
+.textarea {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #d1d5db;
@@ -83,13 +82,18 @@
   }
 }
 
-/* Match globals mobile select sizing; slightly larger tap target for long option lists */
-@media (max-width: 900px) {
-  .select {
-    font-size: max(18px, 1.125rem);
-    min-height: 3rem;
-    padding: 0.875rem 1rem;
-  }
+/*
+ * SearchableSelect outer wrapper only — inner `.adminSelect__control` supplies border,
+ * radius, and padding. Applying the same box as `.input` here caused a double border.
+ */
+.select {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .textarea {

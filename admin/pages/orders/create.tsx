@@ -8,6 +8,7 @@ import { routeService, Route } from '../../services/routeService';
 import { productService, Product } from '../../services/productService';
 import { toast } from 'react-toastify';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 import styles from '../../styles/FormPage.module.scss';
 
 interface LineItem {
@@ -180,21 +181,18 @@ const CreateOrderPage: React.FC = () => {
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
             <label htmlFor="clientId">Client *</label>
-            <select
+            <SearchableSelect
               id="clientId"
               name="clientId"
               value={formData.clientId}
               onChange={handleClientChange}
-              required
               className={styles.select}
-            >
-              <option value="">Select a client</option>
-              {clients.map((d) => (
-                <option key={d._id} value={d._id}>
-                  {formatClientSelectLabel(d)}
-                </option>
-              ))}
-            </select>
+              placeholder="Select a client"
+              options={[
+                { value: '', label: 'Select a client' },
+                ...clients.map((d) => ({ value: d._id, label: formatClientSelectLabel(d) })),
+              ]}
+            />
           </div>
 
           <div className={styles.formGroup}>
@@ -202,20 +200,18 @@ const CreateOrderPage: React.FC = () => {
             <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
               Filled automatically from the client&apos;s assigned route; you can change it or clear it.
             </p>
-            <select
+            <SearchableSelect
               id="routeId"
               name="routeId"
               value={formData.routeId}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="">None</option>
-              {routes.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              placeholder="None"
+              options={[
+                { value: '', label: 'None' },
+                ...routes.map((r) => ({ value: r._id, label: r.name })),
+              ]}
+            />
           </div>
 
           {/* Products Line Items */}
@@ -261,19 +257,21 @@ const CreateOrderPage: React.FC = () => {
                     return (
                     <tr key={idx}>
                       <td style={{ padding: '0.5rem' }}>
-                        <select
+                        <SearchableSelect
+                          name={`productId-${idx}`}
                           value={item.productId}
                           onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
                           className={styles.select}
                           style={{ margin: 0 }}
-                        >
-                          <option value="">Select product</option>
-                          {products.map((p) => (
-                            <option key={p._id} value={p._id}>
-                              {p.name} ({p.barcode})
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select product"
+                          options={[
+                            { value: '', label: 'Select product' },
+                            ...products.map((p) => ({
+                              value: p._id,
+                              label: `${p.name} (${p.barcode})`,
+                            })),
+                          ]}
+                        />
                       </td>
                       <td style={{ padding: '0.5rem', fontSize: '0.8125rem', color: '#374151', verticalAlign: 'top' }}>
                         {item.productId ? (
@@ -362,19 +360,21 @@ const CreateOrderPage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="paymentType">Payment Type</label>
-            <select
+            <SearchableSelect
               id="paymentType"
               name="paymentType"
               value={formData.paymentType}
               onChange={handleChange}
               className={styles.select}
-            >
-              <option value="">— Select payment type —</option>
-              <option value="online">Online</option>
-              <option value="adjustment">Adjustment</option>
-              <option value="cash">Cash</option>
-              <option value="credit">Credit</option>
-            </select>
+              placeholder="— Select payment type —"
+              options={[
+                { value: '', label: '— Select payment type —' },
+                { value: 'online', label: 'Online' },
+                { value: 'adjustment', label: 'Adjustment' },
+                { value: 'cash', label: 'Cash' },
+                { value: 'credit', label: 'Credit' },
+              ]}
+            />
           </div>
 
           <div className={styles.formRow}>

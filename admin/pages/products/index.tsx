@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 import { productService, Product } from '../../services/productService';
 import { categoryService, Category } from '../../services/categoryService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -188,19 +189,18 @@ const ProductsPage: React.FC = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 className={styles.searchInput}
               />
-              <select
+              <SearchableSelect
+                name="categoryFilter"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 200 }}
-              >
-                <option value="">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="All Categories"
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...categories.map((c) => ({ value: c._id, label: c.name })),
+                ]}
+              />
             </div>
             <Table
               columns={columns}

@@ -3,6 +3,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 import { trashService, TrashItem, TrashModule } from '../../services/trashService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -168,22 +169,25 @@ const TrashPage: React.FC = () => {
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
             <div className={styles.searchBar}>
-              <select
-                className={styles.searchInput}
+              <SearchableSelect
+                name="moduleFilter"
+                className={styles.searchSelect}
                 style={{ maxWidth: 220 }}
                 value={moduleFilter}
                 onChange={(e) => setModuleFilter(e.target.value as 'all' | TrashModule)}
-              >
-                <option value="all">All Modules</option>
-                <option value="employee">Employees</option>
-                <option value="client">Clients</option>
-                <option value="product">Products</option>
-                <option value="category">Categories</option>
-                <option value="route">Routes</option>
-                <option value="order">Orders</option>
-                <option value="return">Returns</option>
-                <option value="visit">Visits</option>
-              </select>
+                placeholder="All Modules"
+                options={[
+                  { value: 'all', label: 'All Modules' },
+                  { value: 'employee', label: 'Employees' },
+                  { value: 'client', label: 'Clients' },
+                  { value: 'product', label: 'Products' },
+                  { value: 'category', label: 'Categories' },
+                  { value: 'route', label: 'Routes' },
+                  { value: 'order', label: 'Orders' },
+                  { value: 'return', label: 'Returns' },
+                  { value: 'visit', label: 'Visits' },
+                ]}
+              />
 
               <input
                 type="text"

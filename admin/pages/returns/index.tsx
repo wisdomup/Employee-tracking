@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
+import SearchableSelect from '../../components/UI/SearchableSelect';
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   pending: { bg: '#fef3c7', color: '#92400e' },
@@ -201,41 +202,46 @@ const ReturnsPage: React.FC = () => {
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
             <div className={styles.searchBar}>
-              <select
+              <SearchableSelect
+                name="clientFilter"
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 220 }}
-              >
-                <option value="">All Clients</option>
-                {clients.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <select
+                placeholder="All Clients"
+                options={[
+                  { value: '', label: 'All Clients' },
+                  ...clients.map((d) => ({ value: d._id, label: d.name })),
+                ]}
+              />
+              <SearchableSelect
+                name="typeFilter"
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 160 }}
-              >
-                <option value="">All Types</option>
-                <option value="return">Return</option>
-                <option value="damage">Damage</option>
-              </select>
-              <select
+                placeholder="All Types"
+                options={[
+                  { value: '', label: 'All Types' },
+                  { value: 'return', label: 'Return' },
+                  { value: 'damage', label: 'Damage' },
+                ]}
+              />
+              <SearchableSelect
+                name="statusFilter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className={styles.searchInput}
+                className={styles.searchSelect}
                 style={{ maxWidth: 160 }}
-              >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="picked">Picked</option>
-                <option value="completed">Completed</option>
-              </select>
+                placeholder="All Statuses"
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'picked', label: 'Picked' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+              />
             </div>
             <Table
               columns={columns}
