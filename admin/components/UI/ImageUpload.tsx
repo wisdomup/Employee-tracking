@@ -12,6 +12,10 @@ interface ImageUploadProps {
   onChange: (url: string) => void;
   category: string;
   label?: string;
+  /** No gallery / file picker — only the in-app camera flow. */
+  cameraOnly?: boolean;
+  /** Passed to getUserMedia; default back camera for shop-style shots. */
+  preferredFacingMode?: 'environment' | 'user';
 }
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -19,11 +23,15 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   onChange,
   category,
   label = 'Image',
+  cameraOnly = false,
+  preferredFacingMode = 'environment',
 }) => {
   const [uploading, setUploading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  /** Bumped when a MediaStream is ready so video srcObject attaches after getUserMedia resolves. */
+  const [streamAttachKey, setStreamAttachKey] = useState(0);
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +46,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     : '';
 
   useEffect(() => {
-    if (!pickerOpen) return;
+    if (cameraOnly || !pickerOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setPickerOpen(false);
@@ -46,7 +54,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [pickerOpen]);
+  }, [cameraOnly, pickerOpen]);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -56,6 +64,20 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   useEffect(() => {
     return () => stopStream();
   }, [stopStream]);
+
+  useEffect(() => {
+    if (!cameraOpen || !streamRef.current || streamAttachKey === 0) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    void video.play().catch(() => {
+      /* autoplay policies; playsInline usually enough on mobile */
+    });
+    return () => {
+      video.srcObject = null;
+    };
+  }, [cameraOpen, streamAttachKey]);
 
   const uploadFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -93,29 +115,32 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     if (source === 'gallery') {
       galleryInputRef.current?.click();
     } else {
-      openCamera();
+      void openCamera();
     }
   };
 
-  const openCamera = async () => {
+  const openCamera = useCallback(async () => {
     setCameraError(null);
+    stopStream();
+    streamRef.current = null;
+    setStreamAttachKey(0);
     setCameraOpen(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: { ideal: preferredFacingMode } },
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      setStreamAttachKey((k) => k + 1);
     } catch {
       setCameraError('Could not access camera. Please check browser permissions.');
     }
-  };
+  }, [preferredFacingMode, stopStream]);
 
   const closeCamera = () => {
     stopStream();
+    streamRef.current = null;
+    setStreamAttachKey(0);
     setCameraOpen(false);
     setCameraError(null);
     if (videoRef.current) {
@@ -152,42 +177,57 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             <img src={previewUrl} alt="Preview" className={styles.previewImg} />
           </div>
         )}
-        <div className={styles.actions} ref={pickerRef}>
-          <input
-            ref={galleryInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            disabled={uploading}
-            className={styles.fileInput}
-          />
-          <button
-            type="button"
-            onClick={() => setPickerOpen((prev) => !prev)}
-            disabled={uploading}
-            className={styles.uploadButton}
-          >
-            {uploading ? 'Uploading...' : previewUrl ? 'Change image' : 'Upload image'}
-          </button>
-          {pickerOpen && (
-            <div className={styles.sourcePicker}>
+        <div className={styles.actions} ref={cameraOnly ? undefined : pickerRef}>
+          {cameraOnly ? (
+            <button
+              type="button"
+              onClick={() => {
+                void openCamera();
+              }}
+              disabled={uploading}
+              className={styles.uploadButton}
+            >
+              {uploading ? 'Uploading...' : previewUrl ? 'Retake photo' : 'Take photo'}
+            </button>
+          ) : (
+            <>
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className={styles.fileInput}
+              />
               <button
                 type="button"
-                className={styles.sourceOption}
-                onClick={() => handleSourceSelect('gallery')}
+                onClick={() => setPickerOpen((prev) => !prev)}
+                disabled={uploading}
+                className={styles.uploadButton}
               >
-                <span className={styles.sourceIcon}>🖼️</span>
-                Open Gallery
+                {uploading ? 'Uploading...' : previewUrl ? 'Change image' : 'Upload image'}
               </button>
-              <button
-                type="button"
-                className={styles.sourceOption}
-                onClick={() => handleSourceSelect('camera')}
-              >
-                <span className={styles.sourceIcon}>📷</span>
-                Open Camera
-              </button>
-            </div>
+              {pickerOpen && (
+                <div className={styles.sourcePicker}>
+                  <button
+                    type="button"
+                    className={styles.sourceOption}
+                    onClick={() => handleSourceSelect('gallery')}
+                  >
+                    <span className={styles.sourceIcon}>🖼️</span>
+                    Open Gallery
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.sourceOption}
+                    onClick={() => handleSourceSelect('camera')}
+                  >
+                    <span className={styles.sourceIcon}>📷</span>
+                    Open Camera
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

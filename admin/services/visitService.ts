@@ -62,7 +62,7 @@ export const visitService = {
     return response.data;
   },
 
-  async createVisitsForRoute(routeId: string): Promise<{ created: number; skipped: number }> {
+  async createVisitsForRoute(routeId: string): Promise<{ created: number; skipped: number; markedIncomplete: number }> {
     const response = await api.post('/visits/create-for-route', { routeId });
     return response.data;
   },

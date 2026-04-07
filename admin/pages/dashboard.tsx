@@ -20,7 +20,7 @@ import {
 import Layout from '../components/Layout/Layout';
 import ProtectedRoute from '../components/Auth/ProtectedRoute';
 import Loader from '../components/UI/Loader';
-import MapView from '../components/Map/MapView';
+import MapView, { type MapPinIcon } from '../components/Map/MapView';
 import DatePickerFilter from '../components/UI/DatePickerFilter';
 import {
   dashboardService,
@@ -211,6 +211,29 @@ const Dashboard: React.FC = () => {
   }, [orderTakerVisitsForDate]);
 
   const orderTakerVisitMarkers = useMemo(() => {
+    const dealerPinForStatus = (
+      status: Visit['status'] | undefined,
+    ): {
+      pinIcon: MapPinIcon;
+      pinLabel: string;
+      pinLabelStrikethrough?: boolean;
+    } => {
+      switch (status) {
+        case 'todo':
+          return { pinIcon: 'blue', pinLabel: 'To Do' };
+        case 'in_progress':
+          return { pinIcon: 'gold', pinLabel: 'In progress' };
+        case 'completed':
+          return { pinIcon: 'green', pinLabel: 'Completed', pinLabelStrikethrough: true };
+        case 'incomplete':
+          return { pinIcon: 'grey', pinLabel: 'Incomplete' };
+        case 'cancelled':
+          return { pinIcon: 'grey', pinLabel: 'Cancelled' };
+        default:
+          return { pinIcon: 'grey', pinLabel: 'Visit' };
+      }
+    };
+
     const buildPopup = (visit: Visit, markerType: 'client' | 'completion') => {
       const visitId = visit._id;
       const clientName = visit.dealerId?.name || 'Client';
@@ -254,15 +277,20 @@ const Dashboard: React.FC = () => {
         type: 'client' | 'completion' | 'current';
         label: string;
         pinLabel?: string;
+        pinIcon?: MapPinIcon;
+        pinLabelStrikethrough?: boolean;
       }[] = [];
 
       if (visit.dealerId?.latitude && visit.dealerId?.longitude) {
+        const dp = dealerPinForStatus(visit.status);
         markers.push({
           lat: visit.dealerId.latitude,
           lng: visit.dealerId.longitude,
           type: 'client',
           label: buildPopup(visit, 'client'),
-          pinLabel: 'Dealer',
+          pinIcon: dp.pinIcon,
+          pinLabel: dp.pinLabel,
+          pinLabelStrikethrough: dp.pinLabelStrikethrough,
         });
       }
 
@@ -272,7 +300,9 @@ const Dashboard: React.FC = () => {
           lng: visit.longitude,
           type: 'completion',
           label: buildPopup(visit, 'completion'),
+          pinIcon: 'green',
           pinLabel: 'Completed',
+          pinLabelStrikethrough: visit.status === 'completed',
         });
       }
 
@@ -285,7 +315,8 @@ const Dashboard: React.FC = () => {
         lng: orderTakerLocation.lng,
         type: 'current',
         label: '<div><strong>My Current Location</strong></div>',
-        pinLabel: 'Current',
+        pinIcon: 'red',
+        pinLabel: 'My location',
       });
     }
 

@@ -10,6 +10,22 @@ import Loader from '../../../components/UI/Loader';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import styles from '../../../styles/FormPage.module.scss';
 
+const GEO_OPTIONS: PositionOptions = {
+  enableHighAccuracy: true,
+  timeout: 20_000,
+  maximumAge: 0,
+};
+
+function requestCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by this browser'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, GEO_OPTIONS);
+  });
+}
+
 const EditVisitPage: React.FC = () => {
   const router = useRouter();
   const { id, nextStatus } = router.query;
@@ -96,7 +112,11 @@ const EditVisitPage: React.FC = () => {
     }
     const isCompleting = formData.status === 'completed' && !visit?.completedAt;
     if (isCompleting) {
-      if (latitude == null || longitude == null || !shopImageUrl || !selfieImageUrl) {
+      if (!shopImageUrl || !selfieImageUrl) {
+        toast.error('To mark as completed, add a shop photo and a selfie.');
+        return;
+      }
+      if (!isOrderTaker && (latitude == null || longitude == null)) {
         toast.error('To mark as completed, please provide location, shop image, and selfie.');
         return;
       }
@@ -104,13 +124,28 @@ const EditVisitPage: React.FC = () => {
     setLoading(true);
     try {
       if (isCompleting) {
+        let lat = latitude;
+        let lng = longitude;
+        if (isOrderTaker) {
+          try {
+            const pos = await requestCurrentPosition();
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+          } catch {
+            toast.error(
+              'Could not get your location. Allow location access for this site and try again.',
+            );
+            setLoading(false);
+            return;
+          }
+        }
         const completionImages: VisitCompletionImage[] = [
           { type: 'shop', url: shopImageUrl },
           { type: 'selfie', url: selfieImageUrl },
         ];
         await visitService.completeVisit(id as string, {
-          latitude: latitude as number,
-          longitude: longitude as number,
+          latitude: lat as number,
+          longitude: lng as number,
           completionImages,
         });
         toast.success('Visit marked as completed');
@@ -253,49 +288,68 @@ const EditVisitPage: React.FC = () => {
             <>
               <div className={styles.formGroup}>
                 <label>Completion details</label>
-                <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
-                  To mark this visit as completed, provide your current location, a shop image, and a selfie.
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className={styles.submitButton}
-                    onClick={handleGetLocation}
-                    disabled={locationLoading}
-                  >
-                    {locationLoading ? 'Getting location…' : 'Get my location'}
-                  </button>
-                  {latitude != null && longitude != null && (
-                    <span style={{ fontSize: '0.875rem' }}>
-                      Lat: {latitude.toFixed(6)}, Lng: {longitude.toFixed(6)}
-                    </span>
-                  )}
-                </div>
-                {locationError && (
-                  <span style={{ fontSize: '0.875rem', color: '#dc2626', display: 'block', marginBottom: '0.5rem' }}>
-                    {locationError}
-                  </span>
+                {isOrderTaker ? (
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                    Take a shop photo and a selfie using the camera. When you submit, your location will be
+                    captured automatically (allow location access if prompted).
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                      To mark this visit as completed, provide your current location, a shop image, and a
+                      selfie.
+                    </p>
+                    <div
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}
+                    >
+                      <button
+                        type="button"
+                        className={styles.submitButton}
+                        onClick={handleGetLocation}
+                        disabled={locationLoading}
+                      >
+                        {locationLoading ? 'Getting location…' : 'Get my location'}
+                      </button>
+                      {latitude != null && longitude != null && (
+                        <span style={{ fontSize: '0.875rem' }}>
+                          Lat: {latitude.toFixed(6)}, Lng: {longitude.toFixed(6)}
+                        </span>
+                      )}
+                    </div>
+                    {locationError && (
+                      <span
+                        style={{
+                          fontSize: '0.875rem',
+                          color: '#dc2626',
+                          display: 'block',
+                          marginBottom: '0.5rem',
+                        }}
+                      >
+                        {locationError}
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Latitude"
+                        value={latitude ?? ''}
+                        onChange={(e) => setLatitude(e.target.value ? Number(e.target.value) : null)}
+                        className={styles.input}
+                        style={{ maxWidth: 140 }}
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Longitude"
+                        value={longitude ?? ''}
+                        onChange={(e) => setLongitude(e.target.value ? Number(e.target.value) : null)}
+                        className={styles.input}
+                        style={{ maxWidth: 140 }}
+                      />
+                    </div>
+                  </>
                 )}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Latitude"
-                    value={latitude ?? ''}
-                    onChange={(e) => setLatitude(e.target.value ? Number(e.target.value) : null)}
-                    className={styles.input}
-                    style={{ maxWidth: 140 }}
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Longitude"
-                    value={longitude ?? ''}
-                    onChange={(e) => setLongitude(e.target.value ? Number(e.target.value) : null)}
-                    className={styles.input}
-                    style={{ maxWidth: 140 }}
-                  />
-                </div>
               </div>
               <div className={styles.formGroup}>
                 <ImageUpload
@@ -303,6 +357,7 @@ const EditVisitPage: React.FC = () => {
                   category="completions"
                   value={shopImageUrl}
                   onChange={setShopImageUrl}
+                  cameraOnly={isOrderTaker}
                 />
               </div>
               <div className={styles.formGroup}>
@@ -311,6 +366,8 @@ const EditVisitPage: React.FC = () => {
                   category="completions"
                   value={selfieImageUrl}
                   onChange={setSelfieImageUrl}
+                  cameraOnly={isOrderTaker}
+                  preferredFacingMode={isOrderTaker ? 'user' : 'environment'}
                 />
               </div>
             </>
