@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -26,6 +26,21 @@ const ApprovalsPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (statusFilter) parts.push(`Status: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`);
+    if (typeFilter) parts.push(`Type: ${APPROVAL_TYPE_LABELS[typeFilter as ApprovalType] ?? typeFilter}`);
+    return parts;
+  }, [statusFilter, typeFilter]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Approvals — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Approvals';
+
+  const exportFileName = activeFilterLabels.length
+    ? `approvals-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'approvals';
 
   useEffect(() => {
     if (!user) return;
@@ -246,11 +261,19 @@ const ApprovalsPage: React.FC = () => {
                 ]}
               />
             </div>
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {rows.length} record{rows.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={rows}
               loading={loading}
               onRowClick={(row) => router.push(`/approvals/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

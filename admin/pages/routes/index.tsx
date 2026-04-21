@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -101,6 +101,20 @@ const RoutesPage: React.FC = () => {
       route.startingPoint.toLowerCase().includes(search.toLowerCase()) ||
       route.endingPoint.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (search) parts.push(`Search: "${search}"`);
+    return parts;
+  }, [search]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Routes — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Routes';
+
+  const exportFileName = activeFilterLabels.length
+    ? `routes-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'routes';
 
   const columns = [
     {
@@ -205,11 +219,19 @@ const RoutesPage: React.FC = () => {
               />
             </div>
 
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {filteredRoutes.length} of {routes.length} route{routes.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={filteredRoutes}
               loading={loading}
               onRowClick={(row) => router.push(`/routes/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

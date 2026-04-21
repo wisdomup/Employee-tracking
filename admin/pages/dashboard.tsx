@@ -5,6 +5,7 @@ import {
   ArrowsClockwise,
   CheckCircle,
   ClipboardText,
+  Fingerprint,
   Folders,
   Hourglass,
   MapTrifold,
@@ -31,9 +32,16 @@ import {
 } from '../services/dashboardService';
 import { visitService, Visit, getVisitCompletionImageUrl } from '../services/visitService';
 import { taskService } from '../services/taskService';
+import {
+  attendanceService,
+  Attendance,
+  getEmployeeLabel,
+  getTodayLocalDate,
+} from '../services/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import { ALL_ROLES } from '../utils/permissions';
-import { format } from 'date-fns';
+import { toast } from 'react-toastify';
+import { format, differenceInMinutes } from 'date-fns';
 import styles from '../styles/Dashboard.module.scss';
 import { buildTrendDataFromReports } from '../utils/dashboardReportsTrend';
 
@@ -50,6 +58,144 @@ type DashIcon = React.ComponentType<{
   className?: string;
   'aria-hidden'?: boolean;
 }>;
+
+function AttendanceWidget({
+  todayAttendance,
+  loading,
+  onCheckIn,
+  onCheckOut,
+}: {
+  todayAttendance: Attendance | null | undefined;
+  loading: boolean;
+  onCheckIn: () => void;
+  onCheckOut: () => void;
+}) {
+  const btnBase: React.CSSProperties = {
+    padding: '0.6rem 1.4rem',
+    border: 'none',
+    borderRadius: '0.5rem',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    cursor: loading ? 'wait' : 'pointer',
+    opacity: loading ? 0.7 : 1,
+    transition: 'background-color 0.2s',
+  };
+
+  let statusLine: React.ReactNode;
+  let actionBtn: React.ReactNode;
+
+  if (todayAttendance === undefined) {
+    statusLine = <span style={{ color: '#9ca3af' }}>Loading…</span>;
+  } else if (!todayAttendance) {
+    statusLine = <span style={{ color: '#6b7280' }}>Not checked in yet today.</span>;
+    actionBtn = (
+      <button
+        type="button"
+        disabled={loading}
+        onClick={onCheckIn}
+        style={{ ...btnBase, background: 'var(--admin-primary)', color: '#fff' }}
+      >
+        {loading ? 'Locating…' : 'Check In'}
+      </button>
+    );
+  } else if (!todayAttendance.checkOutTime) {
+    const checkedInAt = format(new Date(todayAttendance.checkInTime), 'hh:mm a');
+    statusLine = (
+      <span style={{ color: '#16a34a', fontWeight: 500 }}>
+        Checked in at {checkedInAt}
+      </span>
+    );
+    actionBtn = (
+      <button
+        type="button"
+        disabled={loading}
+        onClick={onCheckOut}
+        style={{ ...btnBase, background: '#dc2626', color: '#fff' }}
+      >
+        {loading ? 'Locating…' : 'Check Out'}
+      </button>
+    );
+  } else {
+    const checkedInAt = format(new Date(todayAttendance.checkInTime), 'hh:mm a');
+    const checkedOutAt = format(new Date(todayAttendance.checkOutTime), 'hh:mm a');
+    const mins = differenceInMinutes(
+      new Date(todayAttendance.checkOutTime),
+      new Date(todayAttendance.checkInTime),
+    );
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const duration = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    statusLine = (
+      <span style={{ color: '#374151' }}>
+        <span style={{ color: '#16a34a', fontWeight: 500 }}>In: {checkedInAt}</span>
+        {' · '}
+        <span style={{ color: '#dc2626', fontWeight: 500 }}>Out: {checkedOutAt}</span>
+        {' · '}
+        <span style={{ color: '#6b7280' }}>{duration}</span>
+      </span>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e5e7eb',
+        borderRadius: '0.75rem',
+        padding: '1.25rem 1.5rem',
+        marginBottom: '2rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1.25rem',
+        flexWrap: 'wrap',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+      }}
+    >
+      <Fingerprint
+        size={36}
+        weight="duotone"
+        style={{ color: 'var(--admin-primary)', flexShrink: 0 }}
+        aria-hidden
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            color: '#111827',
+            marginBottom: '0.1rem',
+          }}
+        >
+          Today's Attendance
+          <span
+            style={{
+              marginLeft: '0.5rem',
+              fontSize: '0.78rem',
+              fontWeight: 400,
+              color: '#9ca3af',
+            }}
+          >
+            {format(new Date(getTodayLocalDate() + 'T12:00:00'), 'EEE, MMM dd yyyy')}
+          </span>
+        </div>
+        <div style={{ fontSize: '0.9rem' }}>{statusLine}</div>
+      </div>
+      {actionBtn && <div style={{ flexShrink: 0 }}>{actionBtn}</div>}
+      <Link
+        href="/attendance"
+        style={{
+          flexShrink: 0,
+          fontSize: '0.85rem',
+          color: 'var(--admin-primary)',
+          fontWeight: 500,
+          textDecoration: 'none',
+        }}
+      >
+        History →
+      </Link>
+    </div>
+  );
+}
 
 function StatCardIcon({ Icon }: { Icon: DashIcon }) {
   return (
@@ -71,6 +217,11 @@ const Dashboard: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [groupBy, setGroupBy] = useState<'day' | 'month' | 'year'>('month');
+
+  const [todayAttendance, setTodayAttendance] = useState<Attendance | null | undefined>(
+    undefined,
+  );
+  const [checkInOutLoading, setCheckInOutLoading] = useState(false);
 
   const [orderTakerStats, setOrderTakerStats] = useState<{
     totalVisits: number;
@@ -196,6 +347,73 @@ const Dashboard: React.FC = () => {
       setLoading(false);
       setReportLoading(false);
     }
+  };
+
+  // Attendance: fetch today's record for all non-admin roles
+  useEffect(() => {
+    if (isAdmin) return;
+    attendanceService
+      .getTodayRecord()
+      .then((rec) => setTodayAttendance(rec))
+      .catch(() => setTodayAttendance(null));
+  }, [isAdmin]);
+
+  const handleCheckIn = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    setCheckInOutLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const rec = await attendanceService.checkIn(
+            pos.coords.latitude,
+            pos.coords.longitude,
+          );
+          setTodayAttendance(rec);
+          toast.success('Checked in successfully!');
+        } catch (err: any) {
+          toast.error(err?.response?.data?.message || 'Check-in failed');
+        } finally {
+          setCheckInOutLoading(false);
+        }
+      },
+      () => {
+        setCheckInOutLoading(false);
+        toast.error('Location access is required to check in. Please allow location and try again.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  };
+
+  const handleCheckOut = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    setCheckInOutLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const rec = await attendanceService.checkOut(
+            pos.coords.latitude,
+            pos.coords.longitude,
+          );
+          setTodayAttendance(rec);
+          toast.success('Checked out successfully!');
+        } catch (err: any) {
+          toast.error(err?.response?.data?.message || 'Check-out failed');
+        } finally {
+          setCheckInOutLoading(false);
+        }
+      },
+      () => {
+        setCheckInOutLoading(false);
+        toast.error('Location access is required to check out. Please allow location and try again.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   };
 
   const trendData = useMemo(() => buildTrendDataFromReports(reports), [reports]);
@@ -500,6 +718,13 @@ const Dashboard: React.FC = () => {
             Here is a quick overview of your workspace.
           </p>
 
+          <AttendanceWidget
+            todayAttendance={todayAttendance}
+            loading={checkInOutLoading}
+            onCheckIn={handleCheckIn}
+            onCheckOut={handleCheckOut}
+          />
+
           <div className={styles.section} style={{ marginBottom: '2rem' }}>
             <div className={styles.reportHeader} style={{ marginBottom: '1rem' }}>
               <h2 className={styles.sectionTitle}>My Visits Map</h2>
@@ -674,9 +899,15 @@ const Dashboard: React.FC = () => {
       <Layout>
         <div className={styles.dashboard}>
           <h1 className={styles.title}>Welcome, {user?.username}!</h1>
-          <p style={{ color: 'var(--text-secondary, #666)', marginTop: '1rem' }}>
-            More role-specific tools will appear here as they are added.
+          <p style={{ color: 'var(--text-secondary, #666)', marginBottom: '2rem' }}>
+            Here is a quick overview of your workspace.
           </p>
+          <AttendanceWidget
+            todayAttendance={todayAttendance}
+            loading={checkInOutLoading}
+            onCheckIn={handleCheckIn}
+            onCheckOut={handleCheckOut}
+          />
         </div>
       </Layout>
     );

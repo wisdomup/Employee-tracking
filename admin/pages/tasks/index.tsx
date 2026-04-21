@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -107,6 +107,21 @@ const TasksPage: React.FC = () => {
   const filteredTasks = tasks.filter((task) =>
     task.taskName.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (statusFilter) parts.push(`Status: ${statusFilter.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`);
+    if (search) parts.push(`Search: "${search}"`);
+    return parts;
+  }, [statusFilter, search]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Tasks — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Tasks';
+
+  const exportFileName = activeFilterLabels.length
+    ? `tasks-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'tasks';
 
   const columns = [
     { key: 'taskName', title: 'Task Name' },
@@ -219,11 +234,19 @@ const TasksPage: React.FC = () => {
               />
             </div>
 
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {filteredTasks.length} record{filteredTasks.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={filteredTasks}
               loading={loading}
               onRowClick={(row) => router.push(`/tasks/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

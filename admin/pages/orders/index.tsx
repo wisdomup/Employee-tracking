@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -31,6 +31,30 @@ const OrdersPage: React.FC = () => {
   const isOrderTaker = user?.role === 'order_taker';
   const canEditOrder = (order: Order) =>
     isAdmin || (user?.role === 'order_taker' && order.status === 'pending');
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (clientFilter) {
+      const client = clients.find((c) => c._id === clientFilter);
+      parts.push(`Client: ${client ? client.name : clientFilter}`);
+    }
+    if (statusFilter) parts.push(`Status: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`);
+    if (!isOrderTaker && employeeFilter) {
+      const emp = employees.find((e) => e._id === employeeFilter);
+      parts.push(`Employee: ${emp ? emp.username : employeeFilter}`);
+    }
+    if (startDate) parts.push(`From: ${startDate}`);
+    if (endDate) parts.push(`To: ${endDate}`);
+    return parts;
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, clients, employees, isOrderTaker]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Orders — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Orders';
+
+  const exportFileName = activeFilterLabels.length
+    ? `orders-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'orders';
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
@@ -257,11 +281,19 @@ const OrdersPage: React.FC = () => {
                 title="Order date to"
               />
             </div>
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {orders.length} record{orders.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={orders}
               loading={loading}
               onRowClick={(row) => router.push(`/orders/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -34,6 +34,23 @@ const BroadcastNotificationsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [targetFilter, setTargetFilter] = useState('');
   const router = useRouter();
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (targetFilter) {
+      const label = BROADCAST_AUDIENCE_LABELS[targetFilter as BroadcastAudienceType] ?? targetFilter;
+      parts.push(`Audience: ${label}`);
+    }
+    return parts;
+  }, [targetFilter]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Broadcast Notifications — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Broadcast Notifications';
+
+  const exportFileName = activeFilterLabels.length
+    ? `broadcast-notifications-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'broadcast-notifications';
 
   useEffect(() => {
     fetchNotifications();
@@ -168,7 +185,19 @@ const BroadcastNotificationsPage: React.FC = () => {
                 options={AUDIENCE_FILTER_KEYS}
               />
             </div>
-            <Table columns={columns} data={notifications} loading={loading} />
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {notifications.length} record{notifications.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
+            <Table
+              columns={columns}
+              data={notifications}
+              loading={loading}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
+            />
           </div>
         </div>
       </div>

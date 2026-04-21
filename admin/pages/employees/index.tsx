@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -54,6 +54,20 @@ const EmployeesPage: React.FC = () => {
         emp.phone.includes(search) ||
         (emp.email && emp.email.toLowerCase().includes(search.toLowerCase()))
     );
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (search) parts.push(`Search: "${search}"`);
+    return parts;
+  }, [search]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Employees — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Employees';
+
+  const exportFileName = activeFilterLabels.length
+    ? `employees-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'employees';
 
   const columns = [
     {
@@ -169,11 +183,19 @@ const EmployeesPage: React.FC = () => {
               />
             </div>
 
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {filteredEmployees.length} of {employees.length} employee{employees.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={filteredEmployees}
               loading={loading}
               onRowClick={(row) => router.push(`/employees/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

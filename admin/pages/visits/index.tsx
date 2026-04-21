@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -28,6 +28,30 @@ const VisitsPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (clientFilter) {
+      const client = clients.find((c) => c._id === clientFilter);
+      parts.push(`Client: ${client ? client.name : clientFilter}`);
+    }
+    if (!isOrderTaker && employeeFilter) {
+      const emp = employees.find((e) => e._id === employeeFilter);
+      parts.push(`Employee: ${emp ? emp.username : employeeFilter}`);
+    }
+    if (statusFilter) parts.push(`Status: ${statusFilter.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`);
+    if (startDate) parts.push(`From: ${startDate}`);
+    if (endDate) parts.push(`To: ${endDate}`);
+    return parts;
+  }, [clientFilter, employeeFilter, statusFilter, startDate, endDate, clients, employees, isOrderTaker]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Visits — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Visits';
+
+  const exportFileName = activeFilterLabels.length
+    ? `visits-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'visits';
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
@@ -212,11 +236,19 @@ const VisitsPage: React.FC = () => {
                 title="End date"
               />
             </div>
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {visits.length} record{visits.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={visits}
               loading={loading}
               onRowClick={(row) => router.push(`/visits/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

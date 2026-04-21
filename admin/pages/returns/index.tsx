@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -28,6 +28,26 @@ const ReturnsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const router = useRouter();
   const { user } = useAuth();
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (clientFilter) {
+      const client = clients.find((c) => c._id === clientFilter);
+      parts.push(`Client: ${client ? client.name : clientFilter}`);
+    }
+    if (typeFilter) parts.push(`Type: ${typeFilter.charAt(0).toUpperCase() + typeFilter.slice(1)}`);
+    if (statusFilter) parts.push(`Status: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`);
+    return parts;
+  }, [clientFilter, typeFilter, statusFilter, clients]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Returns & Damages — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Returns & Damages';
+
+  const exportFileName = activeFilterLabels.length
+    ? `returns-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'returns';
+
   const returnCreatorId = (ret: Return): string => {
     const c = ret.createdBy;
     if (c == null) return '';
@@ -243,11 +263,19 @@ const ReturnsPage: React.FC = () => {
                 ]}
               />
             </div>
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {returns.length} record{returns.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={returns}
               loading={loading}
               onRowClick={(row) => router.push(`/returns/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

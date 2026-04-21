@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -68,6 +68,24 @@ const ProductsPage: React.FC = () => {
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.barcode.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const activeFilterLabels = useMemo(() => {
+    const parts: string[] = [];
+    if (categoryFilter) {
+      const cat = categories.find((c) => c._id === categoryFilter);
+      parts.push(`Category: ${cat ? cat.name : categoryFilter}`);
+    }
+    if (search) parts.push(`Search: "${search}"`);
+    return parts;
+  }, [categoryFilter, search, categories]);
+
+  const exportPdfTitle = activeFilterLabels.length
+    ? `Products — Filtered by: ${activeFilterLabels.join(' · ')}`
+    : 'Products';
+
+  const exportFileName = activeFilterLabels.length
+    ? `products-${activeFilterLabels.map((l) => l.replace(/[^a-z0-9]+/gi, '-').toLowerCase()).join('_')}`
+    : 'products';
 
   const columns = [
     {
@@ -202,11 +220,19 @@ const ProductsPage: React.FC = () => {
                 ]}
               />
             </div>
+            {activeFilterLabels.length > 0 && (
+              <p className={styles.filterSummary}>
+                Showing {filtered.length} of {products.length} product{products.length !== 1 ? 's' : ''} — filtered by:{' '}
+                {activeFilterLabels.join(' · ')}
+              </p>
+            )}
             <Table
               columns={columns}
               data={filtered}
               loading={loading}
               onRowClick={(row) => router.push(`/products/${row._id}`)}
+              exportFileName={exportFileName}
+              exportPdfTitle={exportPdfTitle}
             />
           </div>
         </div>

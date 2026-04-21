@@ -108,6 +108,17 @@
   }
 }
 
+.filterSummary {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: -0.5rem 0 1rem;
+
+  strong {
+    color: #374151;
+    font-weight: 600;
+  }
+}
+
 .actions {
   display: flex;
   gap: 0.5rem;

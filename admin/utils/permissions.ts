@@ -21,6 +21,8 @@ const ORDER_TAKER_PERMISSIONS = new Set([
   'approvals:create',
   'approvals:edit-non-approved',
   'approvals:delete-non-approved',
+  'attendance:view',
+  'attendance:create',
   'visits:view',
   'visits:update-status',
   'returns:view',

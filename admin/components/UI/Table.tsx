@@ -10,11 +10,8 @@ import {
 import styles from './GlobalDataTable.module.scss';
 import { toast } from 'react-toastify';
 
-/**
- * Table export UI (CSV/PDF sub-header). Set to `true` to show Export again.
- * `admin/utils/tableExport.ts` and `TableExportControl` below stay in place for a quick restore.
- */
-const ENABLE_TABLE_EXPORT_UI = false;
+/** Table export UI (CSV/PDF sub-header). Set to `false` to hide the Export button. */
+const ENABLE_TABLE_EXPORT_UI = true;
 
 export interface TableColumnConfig {
   key: string;

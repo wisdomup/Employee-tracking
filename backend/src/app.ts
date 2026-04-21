@@ -22,6 +22,7 @@ import broadcastNotificationsRouter from './modules/broadcast-notifications/broa
 import uploadRouter from './modules/upload/upload.routes';
 import catalogsRouter from './modules/catalogs/catalogs.routes';
 import trashRouter from './modules/trash/trash.routes';
+import attendanceRouter from './modules/attendance/attendance.routes';
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use('/api/broadcast-notifications', broadcastNotificationsRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/catalogs', catalogsRouter);
 app.use('/api/trash', trashRouter);
+app.use('/api/attendance', attendanceRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({ message: 'GPS Tracking App backend is running' });
