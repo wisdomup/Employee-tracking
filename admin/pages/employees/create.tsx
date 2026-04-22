@@ -23,6 +23,7 @@ const CreateEmployeePage: React.FC = () => {
   const [formData, setFormData] = useState({
     userID: '',
     username: '',
+    fullName: '',
     phone: '',
     email: '',
     password: '',
@@ -109,6 +110,7 @@ const CreateEmployeePage: React.FC = () => {
         role: formData.role,
         isActive: formData.isActive,
         ...(formData.email         && { email: formData.email }),
+        ...(formData.fullName.trim() && { fullName: formData.fullName.trim() }),
         ...(formData.designation   && { designation: formData.designation }),
         ...(formData.profileImage  && { profileImage: formData.profileImage }),
         ...(formData.target        && { target: formData.target }),
@@ -178,6 +180,19 @@ const CreateEmployeePage: React.FC = () => {
               onChange={handleChange}
               required
               className={styles.input}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="fullName">Full name</label>
+            <input
+              type="text"
+              id="fullName"
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleChange}
+              className={styles.input}
+              autoComplete="name"
             />
           </div>
 

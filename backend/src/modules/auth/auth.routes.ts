@@ -151,7 +151,7 @@ router.post('/reset-password', validate(resetPasswordSchema), controller.resetPa
  *       200:
  *         description: Password changed successfully
  *       400:
- *         description: Old password is incorrect
+ *         description: Validation error or current password incorrect (does not use 401 so the client session is not cleared)
  *       401:
  *         description: Unauthorized — missing or invalid JWT token
  */

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
@@ -13,6 +14,8 @@ import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
 import styles from '../../../styles/FormPage.module.scss';
 
+const OrderTermsEditor = dynamic(() => import('../../../components/OrderTermsEditor'), { ssr: false });
+
 interface LineItem {
   productId: string;
   quantity: number;
@@ -26,6 +29,7 @@ const EditOrderPage: React.FC = () => {
   const [fetchLoading, setFetchLoading] = useState(true);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const [termsHtml, setTermsHtml] = useState('');
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -86,6 +90,7 @@ const EditOrderPage: React.FC = () => {
         description: data.description || '',
         deliveryDate: data.deliveryDate ? data.deliveryDate.slice(0, 10) : '',
       });
+      setTermsHtml(data.termsAndConditions || '');
       // Keep separate object references so delta checks compare against an immutable baseline.
       const initialLineItems = items.map((item) => ({ ...item }));
       const initialOriginalLineItems = items.map((item) => ({ ...item }));
@@ -225,6 +230,7 @@ const EditOrderPage: React.FC = () => {
         paidAmount: formData.paidAmount ? parseFloat(formData.paidAmount) : undefined,
         description: formData.description || undefined,
         deliveryDate: formData.deliveryDate || undefined,
+        ...(isAdmin ? { termsAndConditions: termsHtml } : {}),
       });
       toast.success('Order updated successfully');
       router.push(`/orders/${id}`);
@@ -593,6 +599,16 @@ const EditOrderPage: React.FC = () => {
               rows={3}
             />
           </div>
+
+          {isAdmin && (
+            <div className={styles.formGroup}>
+              <label>Invoice terms &amp; conditions (optional)</label>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+                Shown on the printed invoice when provided.
+              </p>
+              <OrderTermsEditor key={String(id)} value={termsHtml} onChange={setTermsHtml} />
+            </div>
+          )}
 
           <div className={styles.formActions}>
             <button type="button" className={styles.cancelButton} onClick={() => router.push(`/orders/${id}`)}>

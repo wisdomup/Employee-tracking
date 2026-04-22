@@ -8,6 +8,9 @@ import { orderService, Order } from '../../../services/orderService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import { printOrderInvoice } from '../../../utils/orderInvoicePdf';
+import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
+import ApproveOrderTermsModal from '../../../components/ApproveOrderTermsModal';
 import styles from '../../../styles/DetailPage.module.scss';
 
 const OrderDetailPage: React.FC = () => {
@@ -15,6 +18,10 @@ const OrderDetailPage: React.FC = () => {
   const { id } = router.query;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [printBusy, setPrintBusy] = useState(false);
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [approveTermsDraft, setApproveTermsDraft] = useState('');
+  const [approveBusy, setApproveBusy] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
@@ -29,14 +36,52 @@ const OrderDetailPage: React.FC = () => {
     }
   }, [id]);
 
-  const handleApprove = async () => {
+  const formatInvoiceLabel = (n?: number) => {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return `INV-${String(Math.floor(n)).padStart(6, '0')}`;
+  };
+
+  const handlePrintInvoice = async () => {
     if (!order) return;
+    setPrintBusy(true);
     try {
-      const updatedOrder = await orderService.approveOrder(order._id);
+      await printOrderInvoice(order);
+    } catch {
+      toast.error('Failed to generate invoice PDF');
+    } finally {
+      setPrintBusy(false);
+    }
+  };
+
+  const openApproveModal = () => {
+    if (!order) return;
+    setApproveTermsDraft(order.termsAndConditions || '');
+    setApproveModalOpen(true);
+  };
+
+  const closeApproveModal = () => {
+    if (approveBusy) return;
+    setApproveModalOpen(false);
+    setApproveTermsDraft('');
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!order) return;
+    setApproveBusy(true);
+    try {
+      const updatedOrder = await orderService.approveOrder(order._id, { termsAndConditions: approveTermsDraft });
       setOrder(updatedOrder);
+      setApproveModalOpen(false);
+      setApproveTermsDraft('');
       toast.success('Order approved');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to approve order');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      toast.error(msg || 'Failed to approve order');
+    } finally {
+      setApproveBusy(false);
     }
   };
 
@@ -54,10 +99,18 @@ const OrderDetailPage: React.FC = () => {
           <h1>Order Details</h1>
           <div className={styles.headerActions}>
             {isAdmin && order.status === 'pending' && (
-              <button className={styles.approveButton} onClick={handleApprove}>
+              <button type="button" className={styles.approveButton} onClick={openApproveModal}>
                 Approve
               </button>
             )}
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={handlePrintInvoice}
+              disabled={printBusy}
+            >
+              {printBusy ? 'Preparing…' : 'Print invoice'}
+            </button>
             {(isAdmin || (isOrderTaker && order.status === 'pending')) && (
               <button className={styles.editButton} onClick={() => router.push(`/orders/${id}/edit`)}>
                 Edit
@@ -76,6 +129,17 @@ const OrderDetailPage: React.FC = () => {
               <div className={styles.infoItem}>
                 <span className={styles.label}>Order ID:</span>
                 <span className={styles.value}>{order._id.toUpperCase()}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Invoice No#:</span>
+                <span className={styles.value}>
+                  {formatInvoiceLabel(order.invoiceNumber)}
+                  {order.invoiceNumber == null && (
+                    <span style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                      Run migration <code>backfill-order-invoice-numbers</code> to assign numbers to existing orders.
+                    </span>
+                  )}
+                </span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Status:</span>
@@ -103,8 +167,15 @@ const OrderDetailPage: React.FC = () => {
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Created By:</span>
                   <span className={styles.value}>
-                    {order.createdBy.username ?? order.createdBy.userID ?? '-'}
-                    {order.createdBy.role ? ` (${order.createdBy.role})` : ''}
+                    {employeeDisplayLabel(order.createdBy) || '-'}
+                  </span>
+                </div>
+              )}
+              {order.status === 'approved' && order.approvedBy && (
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Approved By:</span>
+                  <span className={styles.value}>
+                    {employeeDisplayLabel(order.approvedBy) || '-'}
                   </span>
                 </div>
               )}
@@ -128,6 +199,16 @@ const OrderDetailPage: React.FC = () => {
               )}
             </div>
           </div>
+
+          {isAdmin && order.termsAndConditions && (
+            <div className={styles.section}>
+              <h2>Invoice terms &amp; conditions</h2>
+              <div
+                className={`invoiceTermsRich ${styles.termsPreview}`}
+                dangerouslySetInnerHTML={{ __html: order.termsAndConditions }}
+              />
+            </div>
+          )}
 
           {/* Products breakdown */}
           <div className={styles.section}>
@@ -214,6 +295,15 @@ const OrderDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+      <ApproveOrderTermsModal
+        open={approveModalOpen && !!order && order.status === 'pending'}
+        editorKey={order?._id}
+        value={approveTermsDraft}
+        onChange={setApproveTermsDraft}
+        onClose={closeApproveModal}
+        onApprove={handleApproveConfirm}
+        busy={approveBusy}
+      />
     </Layout>
   );
 };

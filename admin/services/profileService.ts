@@ -12,6 +12,7 @@ export interface ProfileDocument {
   _id: string;
   userID: string;
   username: string;
+  fullName?: string;
   phone: string;
   email?: string;
   role: string;
@@ -22,6 +23,7 @@ export interface ProfileDocument {
 export interface ProfileUpdateBody {
   username?: string;
   phone?: string;
+  fullName?: string;
   email?: string;
   address?: ProfileAddress;
   profileImage?: string;

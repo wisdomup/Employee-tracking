@@ -4,6 +4,8 @@ import { ProductModel } from '../../models/product.model';
 import { DealerModel } from '../../models/dealer.model';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import { allocateNextOrderInvoiceNumber } from './order-invoice-counter';
+import { sanitizeOrderTermsHtml } from './order-terms-sanitize';
 
 function aggregateQuantityByProduct(
   products: { productId: string; quantity: number; price: number }[],
@@ -57,6 +59,7 @@ export async function createOrder(
     grandTotal?: number;
     paidAmount?: number;
     description?: string;
+    termsAndConditions?: string;
     status?: string;
     orderDate?: Date;
     deliveryDate?: Date;
@@ -65,7 +68,8 @@ export async function createOrder(
   },
   userId: string,
 ) {
-  const { products, dealerId, routeId, discount, ...rest } = data;
+  const { products, dealerId, routeId, discount, termsAndConditions, ...rest } = data;
+  const terms = sanitizeOrderTermsHtml(termsAndConditions);
   const routeIdProvided = Object.prototype.hasOwnProperty.call(data, 'routeId');
   const resolvedRouteId = await resolveOrderRouteId(dealerId, routeId, routeIdProvided);
 
@@ -83,8 +87,12 @@ export async function createOrder(
     }
   }
 
+  const invoiceNumber = await allocateNextOrderInvoiceNumber();
+
   const order = await OrderModel.create({
     ...rest,
+    ...(terms ? { termsAndConditions: terms } : {}),
+    invoiceNumber,
     discount: discount ?? 0,
     totalPrice,
     grandTotal,
@@ -168,6 +176,7 @@ export async function findAll(filters?: {
     .populate('dealerId')
     .populate('routeId')
     .populate('createdBy', '-password')
+    .populate('approvedBy', '-password')
     .populate('products.productId')
     .sort({ createdAt: -1 })
     .exec();
@@ -178,6 +187,7 @@ export async function findById(id: string) {
     .populate('dealerId')
     .populate('routeId')
     .populate('createdBy', '-password')
+    .populate('approvedBy', '-password')
     .populate('products.productId')
     .exec();
 
@@ -194,6 +204,14 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   if (!order) {
     throw notFound('Order not found');
   }
+
+  const termsInBody = Object.prototype.hasOwnProperty.call(data, 'termsAndConditions');
+  const termsSanitized = termsInBody ? sanitizeOrderTermsHtml(data.termsAndConditions) : undefined;
+  delete data.termsAndConditions;
+
+  delete data.invoiceNumber;
+  delete data.approvedBy;
+  delete data.approvedAt;
 
   const previousStatus = order.status;
   const nextStatus = typeof data.status === 'string' ? data.status : undefined;
@@ -235,6 +253,11 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
 
   Object.assign(order, data);
 
+  if (termsInBody) {
+    if (termsSanitized) order.termsAndConditions = termsSanitized;
+    else order.set('termsAndConditions', undefined);
+  }
+
   if (nextRouteId !== UNCHANGED) {
     order.routeId = nextRouteId as Types.ObjectId | undefined;
   }
@@ -242,6 +265,11 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   const totalPrice = order.products.reduce((sum, p) => sum + p.quantity * p.price, 0);
   order.totalPrice = totalPrice;
   order.grandTotal = totalPrice - (order.discount ?? 0);
+
+  if (previousStatus === 'pending' && order.status === 'approved' && actorId) {
+    order.approvedBy = new Types.ObjectId(actorId);
+    order.approvedAt = new Date();
+  }
 
   if (data.products && previousStatus !== 'cancelled' && order.status !== 'cancelled') {
     const previousByProduct = aggregateExistingOrderQuantityByProduct(previousProducts);
@@ -305,10 +333,15 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
     },
   });
 
-  return order;
+  // Return same populated shape as GET /orders/:id
+  return findById(id);
 }
 
-export async function approveOrder(id: string, actorId?: string) {
+export async function approveOrder(
+  id: string,
+  actorId?: string,
+  body: { termsAndConditions?: string } = {},
+) {
   const order = await OrderModel.findOne({ _id: id, isTrashed: { $ne: true } });
 
   if (!order) {
@@ -320,6 +353,15 @@ export async function approveOrder(id: string, actorId?: string) {
   }
 
   order.status = 'approved';
+  if (actorId) {
+    order.approvedBy = new Types.ObjectId(actorId);
+    order.approvedAt = new Date();
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'termsAndConditions')) {
+    const t = sanitizeOrderTermsHtml(body.termsAndConditions);
+    if (t) order.termsAndConditions = t;
+    else order.set('termsAndConditions', undefined);
+  }
   await order.save();
 
   logActivityAsync({
@@ -331,7 +373,8 @@ export async function approveOrder(id: string, actorId?: string) {
     meta: { status: order.status, dealerId: String(order.dealerId) },
   });
 
-  return order;
+  // Return same populated shape as GET /orders/:id (client, route, products, etc.)
+  return findById(id);
 }
 
 export async function deleteOrder(id: string, actorId?: string) {

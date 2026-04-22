@@ -5,6 +5,7 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Table from '../../../components/UI/Table';
 import { employeeService, Employee } from '../../../services/employeeService';
+import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import { routeAssignmentService, RouteAssignment } from '../../../services/routeAssignmentService';
 import { taskService, Task } from '../../../services/taskService';
 import { visitService, Visit } from '../../../services/visitService';
@@ -180,6 +181,10 @@ const EmployeeDetailPage: React.FC = () => {
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Name:</span>
+                <span className={styles.value}>{employeeDisplayLabel(employee) || '—'}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Username:</span>
                 <span className={styles.value}>{employee.username}</span>
               </div>
               <div className={styles.infoItem}>

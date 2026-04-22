@@ -8,12 +8,16 @@ export interface OrderProduct {
 
 export interface Order {
   _id: string;
+  /** Sequential sale invoice number (server-assigned). */
+  invoiceNumber?: number;
   products: OrderProduct[];
   totalPrice?: number;
   discount?: number;
   grandTotal?: number;
   paidAmount?: number;
   description?: string;
+  /** Sanitized HTML; admin-only writes. */
+  termsAndConditions?: string;
   status: 'pending' | 'approved' | 'packed' | 'dispatched' | 'delivered' | 'cancelled';
   paymentType?: 'online' | 'adjustment' | 'cash' | 'credit';
   orderDate?: string;
@@ -21,6 +25,9 @@ export interface Order {
   dealerId: any;
   routeId?: any;
   createdBy?: any;
+  /** Populated user who approved (set when status becomes approved from pending). */
+  approvedBy?: any;
+  approvedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,8 +67,8 @@ export const orderService = {
     return response.data;
   },
 
-  async approveOrder(id: string) {
-    const response = await api.patch(`/orders/${id}/approve`);
+  async approveOrder(id: string, body?: { termsAndConditions?: string }) {
+    const response = await api.patch(`/orders/${id}/approve`, body ?? {});
     return response.data;
   },
 

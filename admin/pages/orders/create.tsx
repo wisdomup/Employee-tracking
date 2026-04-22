@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
+import { useAuth } from '../../contexts/AuthContext';
 import { orderService } from '../../services/orderService';
+
+const OrderTermsEditor = dynamic(() => import('../../components/OrderTermsEditor'), { ssr: false });
 import { clientService, Client, formatClientSelectLabel, getClientAssignedRouteId } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { productService, Product } from '../../services/productService';
@@ -19,6 +23,9 @@ interface LineItem {
 
 const CreateOrderPage: React.FC = () => {
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [termsHtml, setTermsHtml] = useState('');
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -159,6 +166,7 @@ const CreateOrderPage: React.FC = () => {
         paidAmount: formData.paidAmount ? parseFloat(formData.paidAmount) : undefined,
         description: formData.description || undefined,
         deliveryDate: formData.deliveryDate || undefined,
+        ...(isAdmin && termsHtml.trim() ? { termsAndConditions: termsHtml } : {}),
       });
       toast.success('Order created successfully');
       router.push('/orders');
@@ -528,6 +536,16 @@ const CreateOrderPage: React.FC = () => {
               rows={3}
             />
           </div>
+
+          {isAdmin && (
+            <div className={styles.formGroup}>
+              <label>Invoice terms &amp; conditions (optional)</label>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+                Shown on the printed invoice when provided. You can edit them later on the order.
+              </p>
+              <OrderTermsEditor value={termsHtml} onChange={setTermsHtml} />
+            </div>
+          )}
 
           <div className={styles.formActions}>
             <button type="button" className={styles.cancelButton} onClick={() => router.push('/orders')}>

@@ -160,3 +160,9 @@
   font-size: 1rem;
   color: #1f2937;
 }
+
+/* Wrapper for rich terms HTML — typography lives in `styles/invoiceTermsRich.scss` (.invoiceTermsRich) */
+.termsPreview {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}

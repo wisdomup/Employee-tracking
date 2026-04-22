@@ -132,7 +132,7 @@ router.get('/me', controller.getMe);
  * /api/users/me:
  *   patch:
  *     tags: [Users]
- *     summary: Update own profile (username, phone, email, address, profileImage only)
+ *     summary: Update own profile (username, fullName, phone, email, address, profileImage only)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -144,6 +144,7 @@ router.get('/me', controller.getMe);
  *             minProperties: 1
  *             properties:
  *               username: { type: string }
+ *               fullName: { type: string, description: Optional display name for invoices }
  *               phone: { type: string }
  *               email: { type: string }
  *               address: { $ref: '#/components/schemas/Address' }

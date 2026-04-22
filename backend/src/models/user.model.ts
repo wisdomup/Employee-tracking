@@ -5,6 +5,8 @@ export interface IUser extends Document {
   _id: Types.ObjectId;
   userID: string;
   username: string;
+  /** Display name for invoices and UI; optional — fall back to username when empty. */
+  fullName?: string;
   phone: string;
   email?: string;
   password: string;
@@ -41,6 +43,7 @@ const userSchema = new Schema<IUser>(
   {
     userID: { type: String, required: true, unique: true },
     username: { type: String, required: true, unique: true },
+    fullName: { type: String, trim: true, maxlength: 200 },
     phone: { type: String, required: true, unique: true },
     email: { type: String },
     password: { type: String, required: true },

@@ -13,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { can } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import ApproveOrderTermsModal from '../../components/ApproveOrderTermsModal';
 import styles from '../../styles/ListPage.module.scss';
 
 const OrdersPage: React.FC = () => {
@@ -25,6 +26,9 @@ const OrdersPage: React.FC = () => {
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [approveModalId, setApproveModalId] = useState<string | null>(null);
+  const [approveTermsDraft, setApproveTermsDraft] = useState('');
+  const [approveBusy, setApproveBusy] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -101,13 +105,30 @@ const OrdersPage: React.FC = () => {
     }
   };
 
-  const handleApprove = async (id: string) => {
+  const openApproveModal = (row: Order) => {
+    setApproveModalId(row._id);
+    setApproveTermsDraft(row.termsAndConditions || '');
+  };
+
+  const closeApproveModal = () => {
+    if (approveBusy) return;
+    setApproveModalId(null);
+    setApproveTermsDraft('');
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!approveModalId) return;
+    setApproveBusy(true);
     try {
-      await orderService.approveOrder(id);
+      await orderService.approveOrder(approveModalId, { termsAndConditions: approveTermsDraft });
       toast.success('Order approved');
+      setApproveModalId(null);
+      setApproveTermsDraft('');
       fetchOrders();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to approve order');
+    } finally {
+      setApproveBusy(false);
     }
   };
 
@@ -170,7 +191,7 @@ const OrdersPage: React.FC = () => {
               className={styles.approveButton}
               onClick={(e) => {
                 e.stopPropagation();
-                handleApprove(row._id);
+                openApproveModal(row);
               }}
             >
               Approve
@@ -298,6 +319,15 @@ const OrdersPage: React.FC = () => {
           </div>
         </div>
       </div>
+      <ApproveOrderTermsModal
+        open={!!approveModalId}
+        editorKey={approveModalId ?? undefined}
+        value={approveTermsDraft}
+        onChange={setApproveTermsDraft}
+        onClose={closeApproveModal}
+        onApprove={handleApproveConfirm}
+        busy={approveBusy}
+      />
     </Layout>
   );
 };

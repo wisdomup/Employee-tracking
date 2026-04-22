@@ -1,12 +1,13 @@
 import bcrypt from 'bcrypt';
 import { Types } from 'mongoose';
 import { UserModel } from '../../models/user.model';
-import { conflict, notFound } from '../../utils/app-error';
+import { badRequest, conflict, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 
 export async function createUser(data: {
   userID: string;
   username: string;
+  fullName?: string;
   phone: string;
   email?: string;
   password: string;
@@ -81,6 +82,7 @@ export async function updateUser(
   data: {
     userID?: string;
     username?: string;
+    fullName?: string;
     phone?: string;
     email?: string;
     password?: string;
@@ -124,6 +126,11 @@ export async function updateUser(
   }
 
   Object.assign(user, data);
+  if (Object.prototype.hasOwnProperty.call(data, 'fullName')) {
+    const f = data.fullName;
+    user.fullName =
+      typeof f === 'string' && f.trim() ? f.trim() : undefined;
+  }
   await user.save();
 
   const userObject: any = user.toObject();
@@ -153,6 +160,7 @@ export async function updateUser(
 export type ProfileUpdatePayload = {
   username?: string;
   phone?: string;
+  fullName?: string | null;
   email?: string;
   address?: {
     street?: string | null;
@@ -164,9 +172,13 @@ export type ProfileUpdatePayload = {
 };
 
 export async function updateProfile(userId: string, data: ProfileUpdatePayload, actorId?: string) {
-  const user = await UserModel.findById(userId);
+  if (!Types.ObjectId.isValid(userId)) {
+    throw badRequest('Invalid user id');
+  }
 
-  if (!user || user.isTrashed) {
+  const existing = await UserModel.findOne({ _id: userId, isTrashed: { $ne: true } });
+
+  if (!existing) {
     throw notFound('User not found');
   }
 
@@ -174,36 +186,92 @@ export async function updateProfile(userId: string, data: ProfileUpdatePayload, 
   if (data.username != null) orConditions.push({ username: data.username });
   if (data.phone != null) orConditions.push({ phone: data.phone });
   if (orConditions.length > 0) {
-    const existing = await UserModel.findOne({
+    const conflictUser = await UserModel.findOne({
       _id: { $ne: userId },
       $or: orConditions,
     });
-    if (existing) {
+    if (conflictUser) {
       throw conflict('Username or phone already exists');
     }
   }
 
-  if (data.username !== undefined) user.username = data.username.trim();
-  if (data.phone !== undefined) user.phone = data.phone.trim();
+  // Atomic update only whitelisted paths — never touch userID, role, password, etc.
+  // (avoids full-document save edge cases where required paths can fail validation.)
+  const $set: Record<string, unknown> = {};
+  const $unset: Record<string, 1> = {};
+
+  if (data.username !== undefined) {
+    $set.username = data.username.trim();
+  }
+  if (data.phone !== undefined) {
+    $set.phone = data.phone.trim();
+  }
+  if (data.fullName !== undefined) {
+    const t = typeof data.fullName === 'string' ? data.fullName.trim() : '';
+    if (t === '') {
+      $unset.fullName = 1;
+    } else {
+      $set.fullName = t;
+    }
+  }
   if (data.email !== undefined) {
-    user.email = data.email === '' ? undefined : data.email.trim();
+    const trimmed = data.email.trim();
+    if (trimmed === '') {
+      $unset.email = 1;
+    } else {
+      $set.email = trimmed;
+    }
   }
   if (data.profileImage !== undefined) {
-    user.profileImage = data.profileImage === '' || data.profileImage == null ? undefined : data.profileImage;
+    if (data.profileImage === '' || data.profileImage == null) {
+      $unset.profileImage = 1;
+    } else {
+      $set.profileImage = data.profileImage;
+    }
   }
   if (data.address !== undefined) {
     const a = data.address;
-    user.address = {
-      street: a.street?.trim() || undefined,
-      city: a.city?.trim() || undefined,
-      state: a.state?.trim() || undefined,
-      country: a.country?.trim() || undefined,
-    };
+    const street = typeof a.street === 'string' ? a.street.trim() : '';
+    const city = typeof a.city === 'string' ? a.city.trim() : '';
+    const state = typeof a.state === 'string' ? a.state.trim() : '';
+    const country = typeof a.country === 'string' ? a.country.trim() : '';
+    if (!street && !city && !state && !country) {
+      $unset.address = 1;
+    } else {
+      if (street) $set['address.street'] = street;
+      else $unset['address.street'] = 1;
+      if (city) $set['address.city'] = city;
+      else $unset['address.city'] = 1;
+      if (state) $set['address.state'] = state;
+      else $unset['address.state'] = 1;
+      if (country) $set['address.country'] = country;
+      else $unset['address.country'] = 1;
+    }
   }
 
-  await user.save();
+  const updateDoc: { $set?: Record<string, unknown>; $unset?: Record<string, 1> } = {};
+  if (Object.keys($set).length > 0) updateDoc.$set = $set;
+  if (Object.keys($unset).length > 0) updateDoc.$unset = $unset;
 
-  const userObject: any = user.toObject();
+  if (!updateDoc.$set && !updateDoc.$unset) {
+    const userObject = existing.toObject() as Record<string, unknown>;
+    delete userObject.password;
+    return userObject;
+  }
+
+  const user = await UserModel.findOneAndUpdate(
+    { _id: userId, isTrashed: { $ne: true } },
+    updateDoc,
+    { new: true, runValidators: true },
+  )
+    .select('-password')
+    .exec();
+
+  if (!user) {
+    throw notFound('User not found');
+  }
+
+  const userObject = user.toObject() as Record<string, unknown>;
   delete userObject.password;
 
   logActivityAsync({

@@ -1,4 +1,5 @@
 import "styles/globals.scss";
+import "styles/invoiceTermsRich.scss";
 import type { AppProps } from "next/app";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ToastContainer } from "react-toastify";

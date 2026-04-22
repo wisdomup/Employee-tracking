@@ -27,12 +27,24 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
 
   try {
     const secret = process.env.JWT_SECRET || 'default_secret';
-    const payload = jwt.verify(token, secret) as any;
+    const payload = jwt.verify(token, secret) as Record<string, unknown>;
+
+    const rawSub = payload.sub;
+    const userId =
+      typeof rawSub === 'string'
+        ? rawSub
+        : rawSub && typeof rawSub === 'object' && rawSub !== null && '$oid' in rawSub
+          ? String((rawSub as { $oid: string }).$oid)
+          : String(rawSub ?? '');
+
+    if (!userId) {
+      return next(unauthorized('Invalid token subject'));
+    }
 
     req.user = {
-      userId: payload.sub,
-      username: payload.username,
-      role: payload.role,
+      userId,
+      username: typeof payload.username === 'string' ? payload.username : '',
+      role: typeof payload.role === 'string' ? payload.role : '',
     };
 
     next();

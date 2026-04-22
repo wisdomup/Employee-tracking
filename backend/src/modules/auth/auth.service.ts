@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { Types } from 'mongoose';
 import { UserModel } from '../../models/user.model';
 import { sendPasswordResetEmail } from '../email/email.service';
 import { unauthorized, conflict, notFound, badRequest } from '../../utils/app-error';
@@ -8,6 +9,7 @@ import { unauthorized, conflict, notFound, badRequest } from '../../utils/app-er
 export async function register(data: {
   userID: string;
   username: string;
+  fullName?: string;
   phone: string;
   email?: string;
   password: string;
@@ -50,7 +52,7 @@ export async function login(data: { username: string; password: string }) {
     throw unauthorized('User account is inactive');
   }
 
-  const payload = { sub: user._id, username: user.username, role: user.role };
+  const payload = { sub: String(user._id), username: user.username, role: user.role };
   const secret = process.env.JWT_SECRET || 'default_secret';
   const expiresIn = process.env.JWT_EXPIRATION || '24h';
 
@@ -59,6 +61,7 @@ export async function login(data: { username: string; password: string }) {
     user: {
       id: user._id,
       username: user.username,
+      fullName: user.fullName,
       role: user.role,
       phone: user.phone,
       email: user.email,
@@ -103,10 +106,14 @@ export async function resetPassword(token: string, newPassword: string) {
     throw badRequest('Invalid or expired reset token');
   }
 
-  matchedUser.password = await bcrypt.hash(newPassword, 10);
-  matchedUser.resetToken = undefined;
-  matchedUser.resetTokenExpiry = undefined;
-  await matchedUser.save();
+  const hashed = await bcrypt.hash(newPassword, 10);
+  await UserModel.updateOne(
+    { _id: matchedUser._id },
+    {
+      $set: { password: hashed },
+      $unset: { resetToken: 1, resetTokenExpiry: 1 },
+    },
+  );
 
   return { message: 'Password reset successfully' };
 }
@@ -116,22 +123,34 @@ export async function changePassword(
   oldPassword: string,
   newPassword: string,
 ) {
-  const user = await UserModel.findById(userId);
-  if (user?.isTrashed) {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw badRequest('Invalid user id');
+  }
+
+  const user = await UserModel.findById(userId).select('password isTrashed');
+  if (!user || user.isTrashed) {
     throw notFound('User not found');
   }
 
-  if (!user) {
-    throw notFound('User not found');
+  let isValid = false;
+  try {
+    isValid = await bcrypt.compare(oldPassword, user.password);
+  } catch {
+    throw badRequest('Could not verify current password');
   }
-
-  const isValid = await bcrypt.compare(oldPassword, user.password);
   if (!isValid) {
-    throw unauthorized('Current password is incorrect');
+    // 400 (not 401): admin axios interceptor logs users out on 401
+    throw badRequest('Current password is incorrect');
   }
 
-  user.password = await bcrypt.hash(newPassword, 10);
-  await user.save();
+  const hashed = await bcrypt.hash(newPassword, 10);
+  const result = await UserModel.updateOne(
+    { _id: userId, isTrashed: { $ne: true } },
+    { $set: { password: hashed } },
+  );
+  if (result.matchedCount === 0) {
+    throw notFound('User not found');
+  }
 
   return { message: 'Password changed successfully' };
 }

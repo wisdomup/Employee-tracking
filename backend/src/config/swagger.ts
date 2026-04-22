@@ -56,7 +56,9 @@ const options: swaggerJsdoc.Options = {
           type: 'object',
           properties: {
             _id: { type: 'string', example: '64a7f3c2e4b0c123456789ef' },
+            userID: { type: 'string', example: 'EMP001' },
             username: { type: 'string', example: 'john_doe' },
+            fullName: { type: 'string', example: 'John Doe', description: 'Optional display name for invoices and UI' },
             phone: { type: 'string', example: '03001234567' },
             email: { type: 'string', example: 'john@example.com' },
             role: {

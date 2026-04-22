@@ -16,9 +16,12 @@ const perksSchema = Joi.object({
   allowance: Joi.number().optional(),
 }).optional();
 
+const fullNameField = Joi.string().trim().max(200).allow('').optional();
+
 export const createUserSchema = Joi.object({
   userID: Joi.string().required(),
   username: Joi.string().required(),
+  fullName: fullNameField,
   phone: Joi.string().required(),
   email: Joi.string().email().optional(),
   password: Joi.string().min(6).required(),
@@ -38,6 +41,7 @@ export const createUserSchema = Joi.object({
 export const updateUserSchema = Joi.object({
   userID: Joi.string().required(),
   username: Joi.string().required(),
+  fullName: fullNameField,
   phone: Joi.string().required(),
   email: Joi.string().email().optional(),
   password: Joi.string().min(6).optional(),
@@ -65,6 +69,7 @@ const profileAddressSchema = Joi.object({
 export const updateProfileSchema = Joi.object({
   username: Joi.string().trim().min(1).optional(),
   phone: Joi.string().trim().min(1).optional(),
+  fullName: fullNameField,
   email: Joi.alternatives().try(Joi.string().trim().email(), Joi.string().valid('')).optional(),
   address: profileAddressSchema,
   profileImage: Joi.string().allow('', null).optional(),

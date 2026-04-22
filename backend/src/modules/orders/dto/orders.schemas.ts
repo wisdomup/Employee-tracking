@@ -1,5 +1,7 @@
 import Joi from 'joi';
 
+const termsAndConditionsField = Joi.string().allow('').max(50_000).optional();
+
 const orderProductSchema = Joi.object({
   productId: Joi.string().required(),
   quantity: Joi.number().required(),
@@ -13,6 +15,7 @@ export const createOrderSchema = Joi.object({
   grandTotal: Joi.number().optional(),
   paidAmount: Joi.number().optional(),
   description: Joi.string().optional(),
+  termsAndConditions: termsAndConditionsField,
   status: Joi.string()
     .valid('pending', 'approved', 'packed', 'dispatched', 'delivered', 'cancelled')
     .optional(),
@@ -30,6 +33,7 @@ export const updateOrderSchema = Joi.object({
   grandTotal: Joi.number().optional(),
   paidAmount: Joi.number().optional(),
   description: Joi.string().optional().allow(''),
+  termsAndConditions: termsAndConditionsField,
   status: Joi.string()
     .valid('pending', 'approved', 'packed', 'dispatched', 'delivered', 'cancelled')
     .optional(),
@@ -38,4 +42,8 @@ export const updateOrderSchema = Joi.object({
   deliveryDate: Joi.date().optional(),
   dealerId: Joi.string().optional(),
   routeId: Joi.string().optional().allow(null, ''),
+});
+
+export const approveOrderSchema = Joi.object({
+  termsAndConditions: termsAndConditionsField,
 });

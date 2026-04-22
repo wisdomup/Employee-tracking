@@ -12,10 +12,16 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "@tiptap/extension-link": "^3.22.4",
+    "@tiptap/extension-underline": "^3.22.4",
+    "@tiptap/pm": "^3.22.4",
+    "@tiptap/react": "^3.22.4",
+    "@tiptap/starter-kit": "^3.22.4",
     "@types/leaflet": "^1.9.21",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "jwt-decode": "^4.0.0",
@@ -30,7 +36,8 @@
     "react-leaflet": "^5.0.0",
     "react-select": "^5.10.2",
     "react-toastify": "^11.0.5",
-    "sass": "^1.97.3"
+    "sass": "^1.97.3",
+    "styled-components": "^6.4.1"
   },
   "devDependencies": {
     "@types/node": "^20",

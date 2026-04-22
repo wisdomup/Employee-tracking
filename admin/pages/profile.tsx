@@ -18,6 +18,7 @@ const ProfilePage: React.FC = () => {
     userID: '',
     role: '',
     username: '',
+    fullName: '',
     phone: '',
     email: '',
     profileImage: '',
@@ -39,6 +40,7 @@ const ProfilePage: React.FC = () => {
           userID: data.userID || '',
           role: data.role || '',
           username: data.username || '',
+          fullName: data.fullName || '',
           phone: data.phone || '',
           email: data.email || '',
           profileImage: data.profileImage || '',
@@ -87,6 +89,7 @@ const ProfilePage: React.FC = () => {
     try {
       await profileService.updateProfile({
         username: formData.username.trim(),
+        fullName: formData.fullName.trim(),
         phone: formData.phone.trim(),
         email: formData.email.trim(),
         address: {
@@ -155,6 +158,18 @@ const ProfilePage: React.FC = () => {
               onChange={handleChange}
               required
               autoComplete="username"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="fullName">Full name</label>
+            <input
+              id="fullName"
+              name="fullName"
+              className={styles.input}
+              value={formData.fullName}
+              onChange={handleChange}
+              autoComplete="name"
             />
           </div>
 

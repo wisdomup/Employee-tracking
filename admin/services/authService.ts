@@ -9,6 +9,7 @@ export interface LoginCredentials {
 export interface User {
   id: string;
   username: string;
+  fullName?: string;
   role: string;
   phone: string;
   email?: string;
@@ -27,6 +28,7 @@ export function mapApiUserToAuthUser(data: {
   _id?: string;
   id?: string;
   username: string;
+  fullName?: string;
   role: string;
   phone: string;
   email?: string;
@@ -38,6 +40,7 @@ export function mapApiUserToAuthUser(data: {
   return {
     id,
     username: data.username,
+    fullName: data.fullName?.trim() || undefined,
     role: data.role,
     phone: data.phone,
     email: data.email,

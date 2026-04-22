@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { requireRoles } from '../../middleware/roles.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createOrderSchema, updateOrderSchema } from './dto/orders.schemas';
+import { createOrderSchema, updateOrderSchema, approveOrderSchema } from './dto/orders.schemas';
 import * as controller from './orders.controller';
 
 const router = Router();
@@ -39,9 +39,11 @@ router.use(authMiddleware);
  *               paidAmount: { type: number }
  *               dealerId: { type: string }
  *               routeId: { type: string }
+ *               termsAndConditions: { type: string, description: Optional invoice terms HTML (admin only; stripped for other roles) }
  *               status: { type: string, enum: [pending, approved, packed, dispatched, delivered, cancelled] }
  *     responses:
- *       201: { description: Order created }
+ *       201:
+ *         description: Order created (includes server-assigned sequential `invoiceNumber` for sale invoices)
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
@@ -143,12 +145,30 @@ router.put(
  *         name: id
  *         required: true
  *         schema: { type: string }
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               termsAndConditions: { type: string, description: Optional sanitized HTML for invoice terms }
  *     responses:
- *       200: { description: Order approved }
+ *       200:
+ *         description: Order approved; response includes populated `approvedBy` and `approvedAt` (server-set from JWT).
  *       400: { description: Order is not pending }
  *       404: { description: Order not found }
  */
-router.patch('/:id/approve', requireRoles('admin'), controller.approve);
+router.patch(
+  '/:id/approve',
+  requireRoles('admin'),
+  (req, res, next) => {
+    if (req.body == null || typeof req.body !== 'object') req.body = {};
+    next();
+  },
+  validate(approveOrderSchema),
+  controller.approve,
+);
 
 /**
  * @openapi

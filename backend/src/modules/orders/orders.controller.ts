@@ -13,6 +13,9 @@ function orderCreatedById(doc: { createdBy?: unknown }): string {
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role !== 'admin') {
+      delete req.body.termsAndConditions;
+    }
     const order = await ordersService.createOrder(req.body, req.user!.userId);
     res.status(201).json(order);
   } catch (err) {
@@ -57,6 +60,9 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
+    if (req.user?.role !== 'admin') {
+      delete req.body.termsAndConditions;
+    }
     if (req.user?.role === 'order_taker') {
       const existing = await ordersService.findById(req.params.id);
       if (orderCreatedById(existing as { createdBy?: unknown }) !== req.user!.userId) {
@@ -76,7 +82,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function approve(req: Request, res: Response, next: NextFunction) {
   try {
-    const order = await ordersService.approveOrder(req.params.id, req.user?.userId);
+    const order = await ordersService.approveOrder(req.params.id, req.user?.userId, req.body);
     res.json(order);
   } catch (err) {
     next(err);

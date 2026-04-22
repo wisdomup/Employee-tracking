@@ -28,8 +28,9 @@ import stockReportsRouter from './modules/stock-reports/stock-reports.routes';
 const app = express();
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Default 100kb is too small for profile images (base64) and other JSON payloads
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Static uploads
 app.use('/api/uploads', express.static('uploads'));
@@ -76,6 +77,36 @@ app.use((_req: Request, res: Response) => {
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({ message: err.message });
+  }
+
+  const e = err as {
+    status?: number;
+    statusCode?: number;
+    type?: string;
+    name?: string;
+    message?: string;
+    code?: number;
+    keyValue?: Record<string, unknown>;
+  };
+
+  const status = e.statusCode ?? e.status;
+  if (status === 413 || e.type === 'entity.too.large') {
+    return res.status(413).json({ message: 'Request body too large. Try a smaller image or use file upload.' });
+  }
+
+  if (e.name === 'ValidationError') {
+    return res.status(400).json({ message: e.message ?? 'Validation failed' });
+  }
+
+  if (e.name === 'CastError') {
+    return res.status(400).json({ message: 'Invalid id or value' });
+  }
+
+  if (e.code === 11000) {
+    return res.status(409).json({
+      message: 'Duplicate value',
+      ...(e.keyValue && { fields: e.keyValue }),
+    });
   }
 
   console.error(err);

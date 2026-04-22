@@ -26,6 +26,7 @@ const EditEmployeePage: React.FC = () => {
   const [formData, setFormData] = useState({
     userID: '',
     username: '',
+    fullName: '',
     phone: '',
     email: '',
     password: '',
@@ -56,6 +57,7 @@ const EditEmployeePage: React.FC = () => {
       setFormData({
         userID: data.userID || '',
         username: data.username,
+        fullName: data.fullName || '',
         phone: data.phone,
         email: data.email || '',
         password: '',
@@ -141,6 +143,7 @@ const EditEmployeePage: React.FC = () => {
       const updateData: Record<string, unknown> = {
         userID: formData.userID.trim(),
         username: formData.username.trim(),
+        fullName: formData.fullName.trim(),
         phone: formData.phone.trim(),
         role: formData.role,
         isActive: formData.isActive,
@@ -226,6 +229,19 @@ const EditEmployeePage: React.FC = () => {
               onChange={handleChange}
               required
               className={styles.input}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="fullName">Full name</label>
+            <input
+              type="text"
+              id="fullName"
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleChange}
+              className={styles.input}
+              autoComplete="name"
             />
           </div>
 

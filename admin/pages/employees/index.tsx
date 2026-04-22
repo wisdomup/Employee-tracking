@@ -6,6 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { useAuth } from '../../contexts/AuthContext';
 import { employeeService, Employee } from '../../services/employeeService';
+import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 
@@ -51,6 +52,7 @@ const EmployeesPage: React.FC = () => {
     .filter(
       (emp) =>
         emp.username.toLowerCase().includes(search.toLowerCase()) ||
+        (emp.fullName && emp.fullName.toLowerCase().includes(search.toLowerCase())) ||
         emp.phone.includes(search) ||
         (emp.email && emp.email.toLowerCase().includes(search.toLowerCase()))
     );
@@ -70,6 +72,11 @@ const EmployeesPage: React.FC = () => {
     : 'employees';
 
   const columns = [
+    {
+      key: 'fullName',
+      title: 'Name',
+      render: (_: unknown, row: Employee) => employeeDisplayLabel(row) || '-',
+    },
     {
       key: 'username',
       title: 'Username',

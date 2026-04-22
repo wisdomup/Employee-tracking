@@ -8,6 +8,8 @@ export interface IOrderProduct {
 
 export interface IOrder extends Document {
   _id: Types.ObjectId;
+  /** Sequential sale invoice number (assigned server-side). */
+  invoiceNumber?: number;
   products: IOrderProduct[];
   totalPrice?: number;
   discount?: number;
@@ -24,6 +26,11 @@ export interface IOrder extends Document {
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
   createdBy: Types.ObjectId;
+  /** Admin (or actor) who approved the order; set when status becomes `approved` from `pending`. */
+  approvedBy?: Types.ObjectId;
+  approvedAt?: Date;
+  /** Sanitized HTML for invoice terms; admin-only writes. */
+  termsAndConditions?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +46,7 @@ const orderProductSchema = new Schema<IOrderProduct>(
 
 const orderSchema = new Schema<IOrder>(
   {
+    invoiceNumber: { type: Number, min: 1 },
     products: { type: [orderProductSchema], required: true },
     totalPrice: { type: Number },
     discount: { type: Number },
@@ -59,9 +67,14 @@ const orderSchema = new Schema<IOrder>(
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvedAt: { type: Date },
+    termsAndConditions: { type: String },
   },
   { timestamps: true },
 );
+
+orderSchema.index({ invoiceNumber: 1 }, { unique: true, sparse: true });
 
 orderSchema.index({ dealerId: 1 });
 orderSchema.index({ routeId: 1 });
