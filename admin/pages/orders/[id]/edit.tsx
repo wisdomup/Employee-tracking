@@ -294,7 +294,7 @@ const EditOrderPage: React.FC = () => {
                 + Add Row
               </button>
             </div>
-            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
+            <div className={styles.desktopOnly} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
               <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
@@ -395,6 +395,106 @@ const EditOrderPage: React.FC = () => {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+            <div className={styles.mobileOnly}>
+              <div className={styles.lineItemCards}>
+                {lineItems.map((item, idx) => {
+                  const stock = item.productId ? getStockForProduct(item.productId) : null;
+                  const totalOrdered = item.productId ? getTotalOrderedForProduct(item.productId) : 0;
+                  const remaining = item.productId ? getRemainingForProduct(item.productId) : null;
+                  return (
+                    <div key={idx} className={styles.lineItemCard}>
+                      <div>
+                        <label className={styles.lineItemFieldLabel}>Product</label>
+                        <SearchableSelect
+                          name={`mobile-productId-${idx}`}
+                          value={item.productId}
+                          onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
+                          className={styles.select}
+                          style={{ margin: 0 }}
+                          placeholder="Select product"
+                          options={[
+                            { value: '', label: 'Select product' },
+                            ...products.map((p) => ({
+                              value: p._id,
+                              label: `${p.name} (${p.barcode})`,
+                            })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className={styles.lineItemFieldLabel}>Qty</label>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => handleLineItemChange(idx, 'quantity', e.target.value)}
+                          className={styles.input}
+                          style={{ margin: 0 }}
+                          min={1}
+                        />
+                      </div>
+                      <div className={styles.lineItemMeta}>
+                        <div>
+                          Unit Price: <strong>Rs. {item.price.toFixed(2)}</strong>
+                        </div>
+                        <div>
+                          Subtotal: <strong>Rs. {(item.quantity * item.price).toFixed(2)}</strong>
+                        </div>
+                        {item.productId ? (
+                          <>
+                            <div>
+                              Stock: <strong>{stock}</strong>
+                            </div>
+                            <div>
+                              Ordered in this order: <strong>{totalOrdered}</strong>
+                            </div>
+                            <div>
+                              Additional needed: <strong>{getAdditionalRequiredForProduct(item.productId)}</strong>
+                            </div>
+                            <div
+                              style={{
+                                color: remaining !== null && remaining < 0 ? '#b91c1c' : '#047857',
+                                fontWeight: 500,
+                              }}
+                            >
+                              {remaining !== null && remaining < 0
+                                ? `Exceeds stock by ${Math.abs(remaining)}`
+                                : `Remaining after: ${remaining}`}
+                            </div>
+                          </>
+                        ) : (
+                          <div>Stock info: —</div>
+                        )}
+                      </div>
+                      <div className={styles.lineItemActions}>
+                        <button
+                          type="button"
+                          onClick={() => removeLineItem(idx)}
+                          className={styles.lineItemRemoveButton}
+                        >
+                          Remove Row
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className={styles.lineItemTotals}>
+                <div>
+                  <span>Total</span>
+                  <strong>Rs. {totalPrice.toFixed(2)}</strong>
+                </div>
+                {discount > 0 && (
+                  <div>
+                    <span>Discount</span>
+                    <strong>-Rs. {discount.toFixed(2)}</strong>
+                  </div>
+                )}
+                <div className={styles.lineItemGrandTotal}>
+                  <span>Grand Total</span>
+                  <strong>Rs. {grandTotal.toFixed(2)}</strong>
+                </div>
+              </div>
             </div>
           </div>
 
