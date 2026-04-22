@@ -78,6 +78,8 @@ const ApproveOrderTermsModal: React.FC<ApproveOrderTermsModalProps> = ({
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
                 background: '#fff',
+                color: busy ? '#6b7280' : '#111827',
+                fontWeight: 500,
                 cursor: busy ? 'not-allowed' : 'pointer',
                 fontSize: '0.875rem',
               }}
