@@ -132,8 +132,26 @@ export async function exportTableToPdf(options: {
   data: unknown[];
   title?: string;
 }): Promise<void> {
-  const { filename, columns, data, title } = options;
-  if (!data.length) return;
+  const { filename } = options;
+  const blob = await buildTablePdfBlob(options);
+  if (!blob) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = safeDownloadFilename(filename, 'pdf');
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function buildTablePdfBlob(options: {
+  columns: TableExportColumn[];
+  data: unknown[];
+  title?: string;
+}): Promise<Blob | null> {
+  const { columns, data, title } = options;
+  if (!data.length) return null;
 
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
@@ -221,5 +239,35 @@ export async function exportTableToPdf(options: {
     },
   });
 
-  doc.save(safeDownloadFilename(filename, 'pdf'));
+  return doc.output('blob');
+}
+
+export async function printTableAsPdf(options: {
+  columns: TableExportColumn[];
+  data: unknown[];
+  title?: string;
+}): Promise<void> {
+  const blob = await buildTablePdfBlob(options);
+  if (!blob) return;
+
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  // Give the browser a moment to render the PDF before triggering print.
+  const triggerPrint = () => {
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      // Ignore print errors from restrictive browser contexts.
+    }
+  };
+
+  win.addEventListener('load', triggerPrint, { once: true });
+  setTimeout(triggerPrint, 900);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

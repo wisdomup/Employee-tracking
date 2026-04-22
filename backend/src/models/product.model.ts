@@ -10,6 +10,7 @@ export interface IProduct extends Document {
   purchasePrice?: number;
   onlinePrice?: number;
   quantity?: number;
+  survivalQuantity?: number;
   categoryId: Types.ObjectId;
   createdBy: Types.ObjectId;
   extras?: Record<string, string>;
@@ -30,6 +31,7 @@ const productSchema = new Schema<IProduct>(
     purchasePrice: { type: Number, min: 0 },
     onlinePrice: { type: Number, min: 0 },
     quantity: { type: Number, min: 0 },
+    survivalQuantity: { type: Number, min: 0 },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     extras: { type: Schema.Types.Mixed },

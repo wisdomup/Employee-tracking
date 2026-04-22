@@ -94,6 +94,40 @@ const ProductDetailPage: React.FC = () => {
                 <span className={styles.label}>Stock Quantity:</span>
                 <span className={styles.value}>
                   {product.quantity !== undefined ? product.quantity : '-'}
+                  {product.survivalQuantity !== undefined &&
+                    product.quantity !== undefined &&
+                    product.quantity <= product.survivalQuantity && (
+                      <span
+                        style={{
+                          marginLeft: '0.5rem',
+                          display: 'inline-block',
+                          background: product.quantity === 0 ? '#fef2f2' : '#fffbeb',
+                          color: product.quantity === 0 ? '#b91c1c' : '#b45309',
+                          border: `1px solid ${product.quantity === 0 ? '#fecaca' : '#fde68a'}`,
+                          borderRadius: '0.375rem',
+                          padding: '0.1rem 0.5rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {product.quantity === 0 ? 'Out of stock' : 'Low stock'}
+                      </span>
+                    )}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Survival Qty:</span>
+                <span className={styles.value}>
+                  {product.survivalQuantity !== undefined ? (
+                    <>
+                      {product.survivalQuantity}
+                      <span style={{ marginLeft: '0.4rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+                        (low stock alert threshold)
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ color: '#9ca3af' }}>Not set</span>
+                  )}
                 </span>
               </div>
               <div className={styles.infoItem}>

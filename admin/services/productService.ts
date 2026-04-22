@@ -10,6 +10,7 @@ export interface Product {
   purchasePrice?: number;
   onlinePrice?: number;
   quantity?: number;
+  survivalQuantity?: number;
   categoryId: any;
   createdBy?: any;
   extras?: Record<string, string>;

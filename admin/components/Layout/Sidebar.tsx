@@ -6,6 +6,7 @@ import {
   Bell,
   BookOpen,
   CalendarCheck,
+  ChartBar,
   ClipboardText,
   Fingerprint,
   MapPin,
@@ -65,6 +66,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: '/visits', label: 'Visits', Icon: MapPin, permission: 'visits:view' },
   { path: '/returns', label: 'Returns', Icon: ArrowUUpLeft, permission: 'returns:view' },
   { path: '/reports', label: 'Reports', Icon: PresentationChart, adminOnly: true },
+  { path: '/stock-reports', label: 'Stock Reports', Icon: ChartBar, adminOnly: true },
   { path: '/trash', label: 'Trash', Icon: Trash, adminOnly: true },
   { path: '/broadcast-notifications', label: 'Notifications', Icon: Bell, adminOnly: true },
 ];

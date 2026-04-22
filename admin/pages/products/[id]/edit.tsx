@@ -31,6 +31,7 @@ const EditProductPage: React.FC = () => {
     purchasePrice: '',
     onlinePrice: '',
     quantity: '',
+    survivalQuantity: '',
     categoryId: '',
   });
 
@@ -51,6 +52,7 @@ const EditProductPage: React.FC = () => {
         purchasePrice: data.purchasePrice !== undefined ? data.purchasePrice.toString() : '',
         onlinePrice: data.onlinePrice !== undefined ? data.onlinePrice.toString() : '',
         quantity: data.quantity !== undefined ? data.quantity.toString() : '',
+        survivalQuantity: data.survivalQuantity !== undefined ? data.survivalQuantity.toString() : '',
         categoryId: data.categoryId?._id || data.categoryId || '',
       });
       setExtrasRows(
@@ -125,6 +127,7 @@ const EditProductPage: React.FC = () => {
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
         onlinePrice: formData.onlinePrice ? parseFloat(formData.onlinePrice) : undefined,
         quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
+        survivalQuantity: formData.survivalQuantity ? parseInt(formData.survivalQuantity) : undefined,
         categoryId: formData.categoryId,
         extras: extras !== undefined ? extras : {},
       });
@@ -229,17 +232,35 @@ const EditProductPage: React.FC = () => {
               />
             </div>
           </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="quantity">Quantity</label>
-            <input
-              type="number"
-              id="quantity"
-              name="quantity"
-              value={formData.quantity}
-              onChange={handleChange}
-              className={styles.input}
-              min={0}
-            />
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="quantity">Quantity</label>
+              <input
+                type="number"
+                id="quantity"
+                name="quantity"
+                value={formData.quantity}
+                onChange={handleChange}
+                className={styles.input}
+                min={0}
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="survivalQuantity">Survival Qty</label>
+              <input
+                type="number"
+                id="survivalQuantity"
+                name="survivalQuantity"
+                value={formData.survivalQuantity}
+                onChange={handleChange}
+                className={styles.input}
+                min={0}
+                placeholder="Low stock threshold"
+              />
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                Triggers low stock alert when current stock falls to or below this value.
+              </p>
+            </div>
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="description">Description</label>

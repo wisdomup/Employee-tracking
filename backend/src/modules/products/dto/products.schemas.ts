@@ -9,6 +9,7 @@ export const createProductSchema = Joi.object({
   purchasePrice: Joi.number().min(0).optional(),
   onlinePrice: Joi.number().min(0).optional(),
   quantity: Joi.number().min(0).optional(),
+  survivalQuantity: Joi.number().min(0).optional(),
   categoryId: Joi.string().required(),
   extras: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
 });
@@ -22,6 +23,7 @@ export const updateProductSchema = Joi.object({
   purchasePrice: Joi.number().min(0).optional(),
   onlinePrice: Joi.number().min(0).optional(),
   quantity: Joi.number().min(0).optional(),
+  survivalQuantity: Joi.number().min(0).optional(),
   categoryId: Joi.string().required(),
   extras: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
 });

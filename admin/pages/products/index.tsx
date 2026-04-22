@@ -136,7 +136,32 @@ const ProductsPage: React.FC = () => {
     {
       key: 'quantity',
       title: 'Qty',
-      render: (value: number) => (value !== undefined ? value : '-'),
+      render: (value: number, row: Product) =>
+        value !== undefined ? (
+          <span>
+            {value}
+            {row.survivalQuantity !== undefined && value <= row.survivalQuantity && (
+              <span
+                style={{
+                  marginLeft: '0.5rem',
+                  display: 'inline-block',
+                  background: value === 0 ? '#fef2f2' : '#fffbeb',
+                  color: value === 0 ? '#b91c1c' : '#b45309',
+                  border: `1px solid ${value === 0 ? '#fecaca' : '#fde68a'}`,
+                  borderRadius: '0.375rem',
+                  padding: '0.1rem 0.45rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  verticalAlign: 'middle',
+                }}
+              >
+                {value === 0 ? 'Out of stock' : 'Low stock'}
+              </span>
+            )}
+          </span>
+        ) : (
+          '-'
+        ),
     },
     {
       key: 'createdBy',

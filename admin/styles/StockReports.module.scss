@@ -1,0 +1,293 @@
+.page {
+  max-width: 1400px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1f2937;
+  }
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.printButton {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+}
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  align-items: flex-end;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 160px;
+  flex: 1 1 160px;
+  max-width: 260px;
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+}
+
+.filterInput {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background: white;
+  color: #1f2937;
+
+  &:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+  }
+}
+
+.filterActions {
+  display: flex;
+  gap: 0.5rem;
+  align-self: flex-end;
+}
+
+.applyButton {
+  padding: 0.55rem 1.25rem;
+  background: var(--admin-primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--admin-primary-hover);
+  }
+}
+
+.resetButton {
+  padding: 0.55rem 1rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  &:hover {
+    color: var(--admin-primary);
+  }
+}
+
+.activeTab {
+  color: var(--admin-primary);
+  border-bottom-color: var(--admin-primary);
+}
+
+.alertBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: white;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+}
+
+// ─── P&L Summary Cards ────────────────────────────────────────────────────────
+
+.plGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.plCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1rem;
+
+  span {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.35rem;
+  }
+
+  strong {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #1f2937;
+  }
+}
+
+.plCardProfit {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+
+  strong {
+    color: #15803d;
+  }
+}
+
+.plCardLoss {
+  border-color: #fecaca;
+  background: #fef2f2;
+
+  strong {
+    color: #b91c1c;
+  }
+}
+
+// ─── Low-stock row highlight ──────────────────────────────────────────────────
+
+.criticalBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 0.375rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.warningBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  border-radius: 0.375rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.lowStockCallout {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  color: #92400e;
+  font-size: 0.9rem;
+
+  strong {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+}
+
+// ─── Period label ─────────────────────────────────────────────────────────────
+
+.periodLabel {
+  font-size: 0.825rem;
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+}
+
+// ─── Print styles ─────────────────────────────────────────────────────────────
+
+@media print {
+  .filterBar,
+  .headerActions,
+  .tabs,
+  .printButton,
+  .applyButton,
+  .resetButton {
+    display: none !important;
+  }
+
+  .page {
+    max-width: 100%;
+  }
+}

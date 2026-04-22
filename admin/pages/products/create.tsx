@@ -28,6 +28,7 @@ const CreateProductPage: React.FC = () => {
     purchasePrice: '',
     onlinePrice: '',
     quantity: '',
+    survivalQuantity: '',
     categoryId: '',
   });
 
@@ -95,6 +96,7 @@ const CreateProductPage: React.FC = () => {
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
         onlinePrice: formData.onlinePrice ? parseFloat(formData.onlinePrice) : undefined,
         quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
+        survivalQuantity: formData.survivalQuantity ? parseInt(formData.survivalQuantity) : undefined,
         categoryId: formData.categoryId,
         extras,
       });
@@ -202,18 +204,36 @@ const CreateProductPage: React.FC = () => {
               />
             </div>
           </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="quantity">Quantity</label>
-            <input
-              type="number"
-              id="quantity"
-              name="quantity"
-              value={formData.quantity}
-              onChange={handleChange}
-              className={styles.input}
-              min={0}
-              placeholder="Stock quantity"
-            />
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="quantity">Quantity</label>
+              <input
+                type="number"
+                id="quantity"
+                name="quantity"
+                value={formData.quantity}
+                onChange={handleChange}
+                className={styles.input}
+                min={0}
+                placeholder="Stock quantity"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="survivalQuantity">Survival Qty</label>
+              <input
+                type="number"
+                id="survivalQuantity"
+                name="survivalQuantity"
+                value={formData.survivalQuantity}
+                onChange={handleChange}
+                className={styles.input}
+                min={0}
+                placeholder="Low stock threshold"
+              />
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                Triggers low stock alert when current stock falls to or below this value.
+              </p>
+            </div>
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="description">Description</label>
