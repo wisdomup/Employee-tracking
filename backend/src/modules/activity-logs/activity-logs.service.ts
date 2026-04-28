@@ -17,7 +17,8 @@ type ActivityModule =
   | 'route'
   | 'return'
   | 'visit'
-  | 'employee';
+  | 'employee'
+  | 'attendance';
 
 export async function logActivity(data: {
   employeeId?: string;

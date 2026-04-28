@@ -254,7 +254,7 @@ export async function updateProfile(userId: string, data: ProfileUpdatePayload, 
   if (Object.keys($unset).length > 0) updateDoc.$unset = $unset;
 
   if (!updateDoc.$set && !updateDoc.$unset) {
-    const userObject = existing.toObject() as Record<string, unknown>;
+    const userObject = existing.toObject() as unknown as Record<string, unknown>;
     delete userObject.password;
     return userObject;
   }
@@ -271,7 +271,7 @@ export async function updateProfile(userId: string, data: ProfileUpdatePayload, 
     throw notFound('User not found');
   }
 
-  const userObject = user.toObject() as Record<string, unknown>;
+  const userObject = user.toObject() as unknown as Record<string, unknown>;
   delete userObject.password;
 
   logActivityAsync({
