@@ -558,11 +558,11 @@ function paymentLabel(type?: string): string {
 }
 
 function bookedByName(order: Order): string {
-  return employeeDisplayLabel(order.createdBy) || '—';
+  return employeeDisplayLabel(order.createdBy)?.charAt(0).toUpperCase() + employeeDisplayLabel(order.createdBy)?.slice(1) || '—';
 }
 
 function approvedByName(order: Order): string {
-  return employeeDisplayLabel(order.approvedBy) || '—';
+  return employeeDisplayLabel(order.approvedBy)?.charAt(0).toUpperCase() + employeeDisplayLabel(order.approvedBy)?.slice(1) || '—';
 }
 
 export async function buildOrderInvoicePdfBlob(order: Order): Promise<Blob> {
@@ -908,9 +908,9 @@ export async function buildOrderInvoicePdfBlob(order: Order): Promise<Blob> {
   // ── SIGNATURES (template: black line, bold title, gray subtitle, generous gap) ─
   const third = INNER_W / 3;
   const sigs: [string, string][] = [
-    ['Prepared By', 'Name & Stamp'],
-    ['Booked By', 'Name & Stamp'],
-    ['Approved By', 'Name & Stamp'],
+    ['Prepared By', bookedByName(order)],
+    ['Booked By', bookedByName(order)],
+    ['Approved By', approvedByName(order)],
   ];
 
   const sigGapAfterTerms = rawTerms ? 6 : 4;

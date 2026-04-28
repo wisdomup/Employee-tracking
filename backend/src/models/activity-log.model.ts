@@ -9,7 +9,8 @@ export type ActivityModule =
   | 'route'
   | 'return'
   | 'visit'
-  | 'employee';
+  | 'employee'
+  | 'attendance';
 
 export type ActivityAction =
   | 'created'
@@ -38,7 +39,7 @@ const activityLogSchema = new Schema<IActivityLog>(
     employeeId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
     module: {
       type: String,
-      enum: ['task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee'],
+      enum: ['task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee', 'attendance'],
       required: true,
     },
     entityId: { type: String, required: true },
