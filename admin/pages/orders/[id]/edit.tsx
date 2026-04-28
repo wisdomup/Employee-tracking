@@ -13,6 +13,7 @@ import Loader from '../../../components/UI/Loader';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
 import styles from '../../../styles/FormPage.module.scss';
+import { withDefaultInvoiceTerms } from '../../../utils/defaultInvoiceTerms';
 
 const OrderTermsEditor = dynamic(() => import('../../../components/OrderTermsEditor'), { ssr: false });
 
@@ -90,7 +91,7 @@ const EditOrderPage: React.FC = () => {
         description: data.description || '',
         deliveryDate: data.deliveryDate ? data.deliveryDate.slice(0, 10) : '',
       });
-      setTermsHtml(data.termsAndConditions || '');
+      setTermsHtml(withDefaultInvoiceTerms(data.termsAndConditions));
       // Keep separate object references so delta checks compare against an immutable baseline.
       const initialLineItems = items.map((item) => ({ ...item }));
       const initialOriginalLineItems = items.map((item) => ({ ...item }));

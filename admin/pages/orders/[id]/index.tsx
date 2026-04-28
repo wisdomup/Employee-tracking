@@ -12,6 +12,7 @@ import { printOrderInvoice } from '../../../utils/orderInvoicePdf';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import ApproveOrderTermsModal from '../../../components/ApproveOrderTermsModal';
 import styles from '../../../styles/DetailPage.module.scss';
+import { withDefaultInvoiceTerms } from '../../../utils/defaultInvoiceTerms';
 
 const OrderDetailPage: React.FC = () => {
   const router = useRouter();
@@ -55,7 +56,7 @@ const OrderDetailPage: React.FC = () => {
 
   const openApproveModal = () => {
     if (!order) return;
-    setApproveTermsDraft(order.termsAndConditions || '');
+    setApproveTermsDraft(withDefaultInvoiceTerms(order.termsAndConditions));
     setApproveModalOpen(true);
   };
 

@@ -14,6 +14,7 @@ import { toast } from 'react-toastify';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../components/UI/SearchableSelect';
 import styles from '../../styles/FormPage.module.scss';
+import { withDefaultInvoiceTerms } from '../../utils/defaultInvoiceTerms';
 
 interface LineItem {
   productId: string;
@@ -25,7 +26,7 @@ const CreateOrderPage: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const [termsHtml, setTermsHtml] = useState('');
+  const [termsHtml, setTermsHtml] = useState(withDefaultInvoiceTerms());
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);

@@ -15,6 +15,7 @@ import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import ApproveOrderTermsModal from '../../components/ApproveOrderTermsModal';
 import styles from '../../styles/ListPage.module.scss';
+import { withDefaultInvoiceTerms } from '../../utils/defaultInvoiceTerms';
 
 const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -107,7 +108,7 @@ const OrdersPage: React.FC = () => {
 
   const openApproveModal = (row: Order) => {
     setApproveModalId(row._id);
-    setApproveTermsDraft(row.termsAndConditions || '');
+    setApproveTermsDraft(withDefaultInvoiceTerms(row.termsAndConditions));
   };
 
   const closeApproveModal = () => {

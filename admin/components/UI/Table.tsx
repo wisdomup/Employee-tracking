@@ -7,6 +7,7 @@ import {
   type TableExportColumn,
   type TableExportFormat,
 } from '../../utils/tableExport';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from './GlobalDataTable.module.scss';
 import { toast } from 'react-toastify';
 
@@ -194,6 +195,8 @@ const Table: React.FC<TableProps> = ({
   exportFormats = ['csv', 'pdf'],
   exportPdfTitle,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const normalizedColumns = useMemo<TableColumn<any>[]>(
     () =>
       columns.map((column) => ({
@@ -214,7 +217,7 @@ const Table: React.FC<TableProps> = ({
   }, [exportFormats]);
 
   const subHeaderComponent =
-    ENABLE_TABLE_EXPORT_UI && exportable ? (
+    ENABLE_TABLE_EXPORT_UI && exportable && isAdmin ? (
       <TableExportControl
         disabled={loading || data.length === 0}
         columns={columns as TableExportColumn[]}
