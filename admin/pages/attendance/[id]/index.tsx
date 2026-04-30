@@ -108,6 +108,20 @@ const AttendanceDetailPage: React.FC = () => {
           </div>
         </div>
 
+        {isAdmin && (
+          <p
+            style={{
+              margin: '0 0 1rem',
+              padding: '0 1rem',
+              color: '#6b7280',
+              fontSize: '0.875rem',
+              lineHeight: 1.5,
+            }}
+          >
+            Use Edit to correct mistaken check-in or check-out times and GPS coordinates when needed.
+          </p>
+        )}
+
         <div className={styles.content}>
           <div className={styles.section}>
             <h2>Attendance Information</h2>

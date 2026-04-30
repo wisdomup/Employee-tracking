@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { UserModel } from '../models/user.model';
 import { unauthorized } from '../utils/app-error';
 
 export interface AuthUser {
@@ -16,7 +17,7 @@ declare global {
   }
 }
 
-export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
+export async function authMiddleware(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -41,10 +42,22 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
       return next(unauthorized('Invalid token subject'));
     }
 
+    const currentUser = await UserModel.findOne({
+      _id: userId,
+      isTrashed: { $ne: true },
+    })
+      .select('_id username role isActive')
+      .lean()
+      .exec();
+
+    if (!currentUser || currentUser.isActive !== true) {
+      return next(unauthorized('User account is inactive'));
+    }
+
     req.user = {
-      userId,
-      username: typeof payload.username === 'string' ? payload.username : '',
-      role: typeof payload.role === 'string' ? payload.role : '',
+      userId: String(currentUser._id),
+      username: currentUser.username,
+      role: currentUser.role,
     };
 
     next();

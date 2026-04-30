@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as returnsService from './returns.service';
 import { saveFile } from '../../services/file-upload.service';
 import { forbidden } from '../../utils/app-error';
+import { serializeReturnForRole, serializeReturnsForRole } from '../../utils/product-privacy';
 
 function returnCreatedById(doc: { createdBy?: unknown }): string {
   const c = doc.createdBy;
@@ -40,7 +41,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       },
       req.user!.userId,
     );
-    res.status(201).json(returnDoc);
+    res.status(201).json(serializeReturnForRole(returnDoc, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -59,7 +60,7 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
       status,
       createdBy: effectiveCreatedBy,
     });
-    res.json(returns);
+    res.json(serializeReturnsForRole(returns as unknown[], req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -73,7 +74,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
         return next(forbidden('You can only view returns you created'));
       }
     }
-    res.json(returnDoc);
+    res.json(serializeReturnForRole(returnDoc, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -111,7 +112,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
     }
 
     const returnDoc = await returnsService.updateReturn(req.params.id, updateData, req.user?.userId);
-    res.json(returnDoc);
+    res.json(serializeReturnForRole(returnDoc, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -138,7 +139,7 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 export async function restore(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await returnsService.restoreReturn(req.params.id, req.user?.userId);
-    res.json(result);
+    res.json(serializeReturnForRole(result, req.user?.role));
   } catch (err) {
     next(err);
   }

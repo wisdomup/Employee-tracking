@@ -1,9 +1,9 @@
 import { Types } from 'mongoose';
 import { RouteAssignmentModel } from '../../models/route-assignment.model';
 import { RouteModel } from '../../models/route.model';
-import { UserModel } from '../../models/user.model';
 import { notFound, badRequest } from '../../utils/app-error';
 import { ROLES } from '../../constants/global';
+import { assertAssignableActiveFieldUser } from '../users/users.service';
 
 export async function assignRouteToEmployee(routeId: string, employeeId: string) {
   const route = await RouteModel.findById(routeId);
@@ -11,10 +11,7 @@ export async function assignRouteToEmployee(routeId: string, employeeId: string)
     throw notFound('Route not found');
   }
 
-  const employee = await UserModel.findById(employeeId);
-  if (!employee) {
-    throw notFound('Employee not found');
-  }
+  const employee = await assertAssignableActiveFieldUser(employeeId, [ROLES.ORDER_TAKER]);
 
   if (employee.role !== ROLES.ORDER_TAKER) {
     throw badRequest('Routes can only be assigned to users with the order_taker role');

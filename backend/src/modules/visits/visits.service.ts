@@ -3,6 +3,7 @@ import { VisitModel } from '../../models/visit.model';
 import { RouteModel } from '../../models/route.model';
 import { DealerModel } from '../../models/dealer.model';
 import { RouteAssignmentModel } from '../../models/route-assignment.model';
+import { UserModel } from '../../models/user.model';
 import * as routeAssignmentsService from '../route-assignments/route-assignments.service';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
@@ -168,6 +169,18 @@ export async function createVisitsForRoute(
       ? employeeIdRaw
       : new Types.ObjectId((employeeIdRaw as { _id?: Types.ObjectId })._id?.toString() ?? (employeeIdRaw as unknown as string));
 
+  const assignedEmployee = await UserModel.findOne({
+    _id: employeeObjectId,
+    isTrashed: { $ne: true },
+  })
+    .select('_id isActive')
+    .lean()
+    .exec();
+
+  if (!assignedEmployee || assignedEmployee.isActive !== true) {
+    return { created: 0, skipped: 0, markedIncomplete: 0 };
+  }
+
   const dealers = await DealerModel.find({ route: new Types.ObjectId(routeId), isTrashed: { $ne: true } }).exec();
   if (!dealers.length) {
     throw badRequest('Route has no dealers');
@@ -261,20 +274,42 @@ export async function createVisitsForAllEligibleRoutes(): Promise<{
   routesProcessed: number;
   routesSkippedNoDealers: number;
   routesSkippedNoActiveRoute: number;
+  routesSkippedInactiveEmployee: number;
   totalCreated: number;
   totalSkippedDuplicates: number;
   totalMarkedIncomplete: number;
 }> {
-  const assignments = await RouteAssignmentModel.find({}).select('routeId').lean().exec();
+  const assignments = await RouteAssignmentModel.find({}).select('routeId employeeId').lean().exec();
+  const employeeIdSet = new Set<string>();
+  for (const assignment of assignments) {
+    if (assignment.employeeId) employeeIdSet.add(String(assignment.employeeId));
+  }
+  const activeEmployees = await UserModel.find({
+    _id: { $in: [...employeeIdSet].map((id) => new Types.ObjectId(id)) },
+    isTrashed: { $ne: true },
+    isActive: true,
+  })
+    .select('_id')
+    .lean()
+    .exec();
+  const activeEmployeeIdSet = new Set(activeEmployees.map((employee) => String(employee._id)));
+
   const routeIdSet = new Set<string>();
+  let routesSkippedInactiveEmployee = 0;
   for (const a of assignments) {
-    if (a.routeId) routeIdSet.add(String(a.routeId));
+    if (!a.routeId) continue;
+    if (!a.employeeId || !activeEmployeeIdSet.has(String(a.employeeId))) {
+      routesSkippedInactiveEmployee += 1;
+      continue;
+    }
+    routeIdSet.add(String(a.routeId));
   }
   if (routeIdSet.size === 0) {
     return {
       routesProcessed: 0,
       routesSkippedNoDealers: 0,
       routesSkippedNoActiveRoute: 0,
+      routesSkippedInactiveEmployee,
       totalCreated: 0,
       totalSkippedDuplicates: 0,
       totalMarkedIncomplete: 0,
@@ -327,6 +362,7 @@ export async function createVisitsForAllEligibleRoutes(): Promise<{
     routesProcessed,
     routesSkippedNoDealers,
     routesSkippedNoActiveRoute,
+    routesSkippedInactiveEmployee,
     totalCreated,
     totalSkippedDuplicates,
     totalMarkedIncomplete,

@@ -34,7 +34,6 @@ export const adminCreateSchema = Joi.object({
 
 /** Admin full update — at least one field required. */
 export const updateAttendanceSchema = Joi.object({
-  employeeId: Joi.string().optional(),
   date: Joi.date().optional(),
   checkInTime: Joi.date().optional(),
   checkInLatitude: Joi.number().optional(),
@@ -44,7 +43,6 @@ export const updateAttendanceSchema = Joi.object({
   checkOutLongitude: Joi.number().optional().allow(null),
   note: Joi.string().optional().allow('', null),
 }).or(
-  'employeeId',
   'date',
   'checkInTime',
   'checkInLatitude',

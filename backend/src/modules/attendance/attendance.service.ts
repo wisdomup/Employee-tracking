@@ -221,7 +221,6 @@ export async function adminCreate(
 export async function update(
   id: string,
   data: Partial<{
-    employeeId: string;
     date: Date;
     checkInTime: Date;
     checkInLatitude: number;
@@ -244,9 +243,6 @@ export async function update(
     }
   }
 
-  if (data.employeeId !== undefined) {
-    record.employeeId = new Types.ObjectId(data.employeeId);
-  }
   if (data.date !== undefined) {
     record.date = toMidnightUTC(new Date(data.date));
   }

@@ -1,29 +1,67 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import DatePicker from 'react-datepicker';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
-import SearchableSelect from '../../../components/UI/SearchableSelect';
 import {
   attendanceService,
   Attendance,
   getEmployeeLabel,
 } from '../../../services/attendanceService';
-import { employeeService, Employee } from '../../../services/employeeService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { ALL_ROLES } from '../../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import 'react-datepicker/dist/react-datepicker.css';
 import styles from '../../../styles/FormPage.module.scss';
+import pickerStyles from '../../../components/UI/DatePickerFilter.module.scss';
+
+function buildAdminUpdatePayload(
+  record: Attendance,
+  fields: {
+    date: string;
+    checkInTime: Date | null;
+    checkInLat: string;
+    checkInLng: string;
+    checkOutTime: Date | null;
+    checkOutLat: string;
+    checkOutLng: string;
+    note: string;
+  },
+): Record<string, unknown> {
+  const clearingCheckout = fields.checkOutTime === null && !!record.checkOutTime;
+  return {
+    date: fields.date || undefined,
+    checkInTime: fields.checkInTime ? fields.checkInTime.toISOString() : undefined,
+    checkInLatitude: fields.checkInLat ? parseFloat(fields.checkInLat) : undefined,
+    checkInLongitude: fields.checkInLng ? parseFloat(fields.checkInLng) : undefined,
+    checkOutTime: fields.checkOutTime
+      ? fields.checkOutTime.toISOString()
+      : clearingCheckout
+        ? null
+        : undefined,
+    checkOutLatitude: clearingCheckout
+      ? null
+      : fields.checkOutLat
+        ? parseFloat(fields.checkOutLat)
+        : undefined,
+    checkOutLongitude: clearingCheckout
+      ? null
+      : fields.checkOutLng
+        ? parseFloat(fields.checkOutLng)
+        : undefined,
+    note: fields.note,
+  };
+}
 
 const EditAttendancePage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   const [record, setRecord] = useState<Attendance | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>([]);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -31,81 +69,69 @@ const EditAttendancePage: React.FC = () => {
   const [note, setNote] = useState('');
 
   // Admin-only fields
-  const [employeeId, setEmployeeId] = useState('');
   const [date, setDate] = useState('');
-  const [checkInTime, setCheckInTime] = useState('');
+  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [checkInLat, setCheckInLat] = useState('');
   const [checkInLng, setCheckInLng] = useState('');
-  const [checkOutTime, setCheckOutTime] = useState('');
+  const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
   const [checkOutLat, setCheckOutLat] = useState('');
   const [checkOutLng, setCheckOutLng] = useState('');
 
-  useEffect(() => {
-    if (isAdmin) {
-      employeeService.getEmployees().then(setEmployees).catch(() => {});
-    }
-  }, [isAdmin]);
+  const applyAdminFieldsFromRecord = useCallback((data: Attendance) => {
+    setDate(data.date ? format(new Date(data.date), 'yyyy-MM-dd') : '');
+    setCheckInTime(data.checkInTime ? new Date(data.checkInTime) : null);
+    setCheckInLat(data.checkInLatitude != null ? String(data.checkInLatitude) : '');
+    setCheckInLng(data.checkInLongitude != null ? String(data.checkInLongitude) : '');
+    setCheckOutTime(data.checkOutTime ? new Date(data.checkOutTime) : null);
+    setCheckOutLat(data.checkOutLatitude != null ? String(data.checkOutLatitude) : '');
+    setCheckOutLng(data.checkOutLongitude != null ? String(data.checkOutLongitude) : '');
+  }, []);
 
   useEffect(() => {
-    if (!id) return;
-    fetchRecord();
-  }, [id]);
-
-  const fetchRecord = async () => {
-    try {
-      const data = await attendanceService.getRecord(id as string);
-      setRecord(data);
-      setNote(data.note || '');
-      if (isAdmin) {
-        const empId =
-          data.employeeId && typeof data.employeeId === 'object'
-            ? data.employeeId._id
-            : String(data.employeeId || '');
-        setEmployeeId(empId);
-        setDate(data.date ? format(new Date(data.date), 'yyyy-MM-dd') : '');
-        setCheckInTime(
-          data.checkInTime
-            ? format(new Date(data.checkInTime), "yyyy-MM-dd'T'HH:mm")
-            : '',
-        );
-        setCheckInLat(data.checkInLatitude != null ? String(data.checkInLatitude) : '');
-        setCheckInLng(data.checkInLongitude != null ? String(data.checkInLongitude) : '');
-        setCheckOutTime(
-          data.checkOutTime
-            ? format(new Date(data.checkOutTime), "yyyy-MM-dd'T'HH:mm")
-            : '',
-        );
-        setCheckOutLat(
-          data.checkOutLatitude != null ? String(data.checkOutLatitude) : '',
-        );
-        setCheckOutLng(
-          data.checkOutLongitude != null ? String(data.checkOutLongitude) : '',
-        );
+    if (!id || authLoading) return;
+    let cancelled = false;
+    setFetchLoading(true);
+    (async () => {
+      try {
+        const data = await attendanceService.getRecord(id as string);
+        if (cancelled) return;
+        setRecord(data);
+        setNote(data.note || '');
+      } catch {
+        if (!cancelled) toast.error('Failed to fetch attendance record');
+      } finally {
+        if (!cancelled) setFetchLoading(false);
       }
-    } catch {
-      toast.error('Failed to fetch attendance record');
-    } finally {
-      setFetchLoading(false);
-    }
-  };
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, authLoading]);
+
+  useEffect(() => {
+    if (!record || !isAdmin) return;
+    applyAdminFieldsFromRecord(record);
+  }, [record, isAdmin, applyAdminFieldsFromRecord]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
     setSaving(true);
     try {
-      if (isAdmin) {
-        await attendanceService.updateRecord(id as string, {
-          employeeId: employeeId || undefined,
-          date: date || undefined,
-          checkInTime: checkInTime || undefined,
-          checkInLatitude: checkInLat ? parseFloat(checkInLat) : undefined,
-          checkInLongitude: checkInLng ? parseFloat(checkInLng) : undefined,
-          checkOutTime: checkOutTime || undefined,
-          checkOutLatitude: checkOutLat ? parseFloat(checkOutLat) : undefined,
-          checkOutLongitude: checkOutLng ? parseFloat(checkOutLng) : undefined,
-          note,
-        } as any);
+      if (isAdmin && record) {
+        await attendanceService.updateRecord(
+          id as string,
+          buildAdminUpdatePayload(record, {
+            date,
+            checkInTime,
+            checkInLat,
+            checkInLng,
+            checkOutTime,
+            checkOutLat,
+            checkOutLng,
+            note,
+          }),
+        );
       } else {
         await attendanceService.updateRecord(id as string, { note });
       }
@@ -134,11 +160,6 @@ const EditAttendancePage: React.FC = () => {
     );
   }
 
-  const employeeOptions = employees.map((e) => ({
-    value: e._id,
-    label: `${e.username} (${e.userID})`,
-  }));
-
   return (
     <Layout>
       <div className={styles.container}>
@@ -162,41 +183,51 @@ const EditAttendancePage: React.FC = () => {
 
           {isAdmin && (
             <>
+              <p
+                style={{
+                  marginBottom: '1.25rem',
+                  marginTop: 0,
+                  color: '#6b7280',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                You can correct mistaken check-in or check-out times and GPS coordinates below.
+                Clearing check-out time removes the checkout and its coordinates on save.
+              </p>
               <div className={styles.formGroup}>
-                <label htmlFor="employeeId">Employee</label>
-                <SearchableSelect
-                  id="employeeId"
-                  name="employeeId"
-                  options={employeeOptions}
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
-                  placeholder="Select employee..."
-                  className={styles.select}
+                <label>Employee</label>
+                <input
+                  type="text"
+                  value={getEmployeeLabel(record.employeeId)}
+                  className={styles.input}
+                  disabled
                 />
               </div>
 
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="date">Date</label>
-                  <input
-                    id="date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className={styles.input}
-                  />
-                </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="date">Date</label>
+                <input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={styles.input}
+                />
               </div>
 
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="checkInTime">Check-in Time</label>
-                  <input
+              <div className={styles.formGroup}>
+                <label htmlFor="checkInTime">Check-in Time</label>
+                <div className={pickerStyles.fullWidth}>
+                  <DatePicker
                     id="checkInTime"
-                    type="datetime-local"
-                    value={checkInTime}
-                    onChange={(e) => setCheckInTime(e.target.value)}
+                    selected={checkInTime}
+                    onChange={(value: Date | null) => setCheckInTime(value)}
+                    showTimeSelect
+                    timeIntervals={5}
+                    dateFormat="MMM d, yyyy h:mm aa"
                     className={styles.input}
+                    placeholderText="Select check-in date and time"
                   />
                 </div>
               </div>
@@ -228,15 +259,19 @@ const EditAttendancePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="checkOutTime">Check-out Time (optional)</label>
-                  <input
+              <div className={styles.formGroup}>
+                <label htmlFor="checkOutTime">Check-out Time (optional)</label>
+                <div className={pickerStyles.fullWidth}>
+                  <DatePicker
                     id="checkOutTime"
-                    type="datetime-local"
-                    value={checkOutTime}
-                    onChange={(e) => setCheckOutTime(e.target.value)}
+                    selected={checkOutTime}
+                    onChange={(value: Date | null) => setCheckOutTime(value)}
+                    showTimeSelect
+                    timeIntervals={5}
+                    dateFormat="MMM d, yyyy h:mm aa"
                     className={styles.input}
+                    placeholderText="Select check-out date and time"
+                    isClearable
                   />
                 </div>
               </div>

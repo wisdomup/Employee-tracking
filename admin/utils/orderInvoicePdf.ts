@@ -8,20 +8,20 @@ const INNER_W = PAGE_W - M * 2; // 182 mm
 /** Light gray strokes for invoice boxes / tables (RGB). */
 const PDF_BORDER_GRAY: [number, number, number] = [180, 180, 180];
 
-/** Header band + matching BILL TO / INVOICE DETAILS panel chrome (template). */
-const INVOICE_HEADER_FILL: [number, number, number] = [245, 245, 245]; // #F5F5F5
+/** Header band fill (logos blend to this); BILL TO / INVOICE boxes stay explicit white below. */
+const INVOICE_HEADER_FILL: [number, number, number] = [255, 255, 255];
 const INVOICE_HEADER_CORNER_MM = 3.2; // ~12px — main header & twin detail boxes
 const INVOICE_BANNER_CORNER_MM = 1.7; // ~6px — SALE INVOICE bar
 const INVOICE_RIGHT_BADGE_CORNER_MM = 2.1; // ~8px — LIGHTSPEED fallback box
 
-/** Terms & Conditions panel (footer template — light fill, rounded, gray stroke). */
-const TERMS_BOX_FILL: [number, number, number] = [242, 242, 242]; // ~#f2f2f2
+/** Terms & Conditions panel (footer template — white fill, rounded, gray stroke). */
+const TERMS_BOX_FILL: [number, number, number] = [255, 255, 255];
 const TERMS_BOX_CORNER_MM = 2.6; // ~10px — closer to expected ref
 /** Inner inset (box border → content). */
 const TERMS_INNER_PAD_MM = 4.5;
 /** Space below the terms panel before signatures. */
 const TERMS_AFTER_BOX_GAP_MM = 12;
-/** Expected ref: title and list body same optical size; title stays bold. */
+/** Title + plain fallback body: 9pt ≈ 12px @96dpi — keep in sync with `.invoiceTermsRich` body. */
 const TERMS_TITLE_FONT_PT = 9;
 const TERMS_BODY_FONT_PT = 9;
 /** Box inner top → “Terms & Conditions:” baseline (mm). */
@@ -121,7 +121,7 @@ function htmlToInvoiceTermsLogicalLines(html: string): string[] {
 const PDF_MM_TO_PX = 96 / 25.4;
 
 /**
- * Trim flat #f2f2f2 bands from top and bottom of html2canvas output (wrapper padding / slack).
+ * Trim flat “paper” bands from top and bottom of html2canvas output (wrapper padding / slack).
  */
 function cropInvoiceTermsCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const [br, bg, bb] = TERMS_BOX_FILL;
@@ -257,7 +257,7 @@ async function drawInvoiceTermsRichBlock(
       useCORS: true,
       allowTaint: true,
       logging: false,
-      backgroundColor: '#f2f2f2',
+      backgroundColor: '#ffffff',
     });
 
     if (!canvas.width || !canvas.height) {
@@ -445,7 +445,7 @@ function applyLightspeedHeaderLogoToCanvas(
 }
 
 /**
- * Loads an image into a canvas (fills white or header gray behind transparency),
+ * Loads an image into a canvas (fills white or header background behind transparency),
  * optionally inverts pixels to replicate `filter: invert(1)`, and returns
  * a base64 data URL + natural dimensions for use with jsPDF addImage.
  *

@@ -14,6 +14,7 @@ const ProductDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const canEditProduct = can(user?.role, 'products:edit');
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,12 +79,14 @@ const ProductDetailPage: React.FC = () => {
                   {product.salePrice !== undefined ? `Rs. ${product.salePrice.toFixed(2)}` : '-'}
                 </span>
               </div>
-              <div className={styles.infoItem}>
-                <span className={styles.label}>Purchase Price:</span>
-                <span className={styles.value}>
-                  {product.purchasePrice !== undefined ? `Rs. ${product.purchasePrice.toFixed(2)}` : '-'}
-                </span>
-              </div>
+              {isAdmin && (
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Purchase Price:</span>
+                  <span className={styles.value}>
+                    {product.purchasePrice !== undefined ? `Rs. ${product.purchasePrice.toFixed(2)}` : '-'}
+                  </span>
+                </div>
+              )}
               <div className={styles.infoItem}>
                 <span className={styles.label}>Online Price:</span>
                 <span className={styles.value}>

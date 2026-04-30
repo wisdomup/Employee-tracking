@@ -54,7 +54,7 @@ const TasksPage: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
-      const data = await employeeService.getEmployees();
+      const data = await employeeService.getEmployees({ isActive: true });
       setEmployees(data);
     } catch {
       // non-critical

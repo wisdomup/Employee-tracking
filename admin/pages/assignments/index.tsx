@@ -47,7 +47,7 @@ const AssignmentsPage: React.FC = () => {
 
   const fetchOrderTakers = async () => {
     try {
-      const data = await employeeService.getEmployees({ role: 'order_taker' });
+      const data = await employeeService.getEmployees({ role: 'order_taker', isActive: true });
       setOrderTakers(data);
     } catch (error) {
       toast.error('Failed to fetch order takers');

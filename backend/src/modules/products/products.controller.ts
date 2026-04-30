@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as productsService from './products.service';
+import { serializeProductForRole, serializeProductsForRole } from '../../utils/product-privacy';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -14,7 +15,7 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
     const { categoryId, search } = req.query as Record<string, string>;
     const products = await productsService.findAll({ categoryId, search });
-    res.json(products);
+    res.json(serializeProductsForRole(products as unknown[], req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -23,7 +24,7 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
 export async function findOne(req: Request, res: Response, next: NextFunction) {
   try {
     const product = await productsService.findById(req.params.id);
-    res.json(product);
+    res.json(serializeProductForRole(product, req.user?.role));
   } catch (err) {
     next(err);
   }

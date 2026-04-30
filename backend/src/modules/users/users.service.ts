@@ -3,6 +3,42 @@ import { Types } from 'mongoose';
 import { UserModel } from '../../models/user.model';
 import { badRequest, conflict, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import { ROLES, type Role } from '../../constants/global';
+
+const DEFAULT_ASSIGNABLE_FIELD_ROLES: Role[] = [
+  ROLES.EMPLOYEE,
+  ROLES.DELIVERY_MAN,
+  ROLES.ORDER_TAKER,
+  ROLES.WAREHOUSE_MANAGER,
+];
+
+export async function assertAssignableActiveFieldUser(
+  userId: string,
+  allowedRoles: Role[] = DEFAULT_ASSIGNABLE_FIELD_ROLES,
+) {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw badRequest('Invalid user id');
+  }
+
+  const user = await UserModel.findOne({
+    _id: userId,
+    isTrashed: { $ne: true },
+  }).select('_id role isActive');
+
+  if (!user) {
+    throw notFound('Employee not found');
+  }
+
+  if (!allowedRoles.includes(user.role as Role)) {
+    throw badRequest('Selected user role cannot be assigned');
+  }
+
+  if (user.isActive !== true) {
+    throw badRequest('Inactive employees cannot be assigned');
+  }
+
+  return user;
+}
 
 export async function createUser(data: {
   userID: string;

@@ -1,10 +1,10 @@
 import { Types } from 'mongoose';
 import { TaskModel, ICompletionImage } from '../../models/task.model';
-import { UserModel } from '../../models/user.model';
 import { calculateDistance } from '../../services/distance.service';
 import { deleteFile } from '../../services/file-upload.service';
 import { logActivity } from '../activity-logs/activity-logs.service';
 import { notFound, badRequest } from '../../utils/app-error';
+import { assertAssignableActiveFieldUser } from '../users/users.service';
 
 export async function createTask(
   data: {
@@ -153,10 +153,7 @@ export async function assignTask(
     throw notFound('Task not found');
   }
 
-  const employee = await UserModel.findById(assignedTo);
-  if (!employee) {
-    throw notFound('Employee not found');
-  }
+  await assertAssignableActiveFieldUser(assignedTo);
 
   if (task.status === 'in_progress') {
     throw badRequest('Cannot reassign a task that is already in progress');

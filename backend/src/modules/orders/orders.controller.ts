@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as ordersService from './orders.service';
 import { forbidden } from '../../utils/app-error';
+import { serializeOrderForRole, serializeOrdersForRole } from '../../utils/product-privacy';
 
 function orderCreatedById(doc: { createdBy?: unknown }): string {
   const c = doc.createdBy;
@@ -17,7 +18,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       delete req.body.termsAndConditions;
     }
     const order = await ordersService.createOrder(req.body, req.user!.userId);
-    res.status(201).json(order);
+    res.status(201).json(serializeOrderForRole(order, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -38,7 +39,7 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
       startDate,
       endDate,
     });
-    res.json(orders);
+    res.json(serializeOrdersForRole(orders as unknown[], req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -52,7 +53,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
         return next(forbidden('You can only view orders you created'));
       }
     }
-    res.json(order);
+    res.json(serializeOrderForRole(order, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -74,7 +75,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
       delete req.body.status;
     }
     const order = await ordersService.updateOrder(req.params.id, req.body, req.user?.userId);
-    res.json(order);
+    res.json(serializeOrderForRole(order, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -83,7 +84,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 export async function approve(req: Request, res: Response, next: NextFunction) {
   try {
     const order = await ordersService.approveOrder(req.params.id, req.user?.userId, req.body);
-    res.json(order);
+    res.json(serializeOrderForRole(order, req.user?.role));
   } catch (err) {
     next(err);
   }
@@ -101,7 +102,7 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 export async function restore(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await ordersService.restoreOrder(req.params.id, req.user?.userId);
-    res.json(result);
+    res.json(serializeOrderForRole(result, req.user?.role));
   } catch (err) {
     next(err);
   }
