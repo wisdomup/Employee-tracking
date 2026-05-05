@@ -65,8 +65,8 @@ function appendTaskFormData(form: FormData, data: TaskCreateUpdate): void {
   if (clientId) form.append('dealerId', clientId);
   const routeId = toId(data.routeId as string | { _id?: string } | undefined);
   if (routeId) form.append('routeId', routeId);
-  if (data.status != null && data.status !== '') {
-    form.append('status', String(data.status));
+  if (data.status != null) {
+    form.append('status', data.status);
   }
   if (data.document instanceof File) form.append('document', data.document);
 }
