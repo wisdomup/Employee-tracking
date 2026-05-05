@@ -46,6 +46,7 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const body = req.body as Record<string, unknown>;
+    const isAdmin = req.user!.role === 'admin';
     const payload: Record<string, unknown> = {
       taskName: body.taskName,
       description: body.description,
@@ -55,6 +56,9 @@ export async function update(req: Request, res: Response, next: NextFunction) {
       dealerId: body.dealerId !== undefined ? (body.dealerId || null) : undefined,
       routeId: body.routeId !== undefined ? (body.routeId || null) : undefined,
     };
+    if (isAdmin && body.status != null && body.status !== '') {
+      payload.status = body.status;
+    }
     if (req.file) {
       payload.document = await saveFile(req.file, 'task-documents');
     }

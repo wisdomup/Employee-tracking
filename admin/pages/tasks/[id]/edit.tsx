@@ -121,7 +121,7 @@ const EditTaskPage: React.FC = () => {
           description: formData.description || undefined,
           employeeNotes: formData.employeeNotes || undefined,
           quantity: formData.quantity || undefined,
-          clientId: formData.clientId || undefined,
+          dealerId: formData.clientId || undefined,
           routeId: formData.routeId || undefined,
           status: formData.status,
           ...(documentFile && { document: documentFile }),

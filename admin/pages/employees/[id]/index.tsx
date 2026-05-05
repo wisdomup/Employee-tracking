@@ -66,7 +66,15 @@ const EmployeeDetailPage: React.FC = () => {
       ]);
 
       setEmployee(employeeData);
-      setAssignedTasks(Array.isArray(tasksData) ? tasksData : []);
+      setAssignedTasks(
+        Array.isArray(tasksData)
+          ? [...tasksData].sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
+            )
+          : [],
+      );
       setAssignedRoutes(Array.isArray(routesData) ? routesData : []);
     } catch (error) {
       toast.error('Failed to fetch employee data');

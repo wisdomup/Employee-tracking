@@ -109,9 +109,15 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  const filteredTasks = tasks.filter((task) =>
-    task.taskName.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filteredTasks = useMemo(() => {
+    const q = search.toLowerCase();
+    return tasks
+      .filter((task) => task.taskName.toLowerCase().includes(q))
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+  }, [tasks, search]);
 
   const activeFilterLabels = useMemo(() => {
     const parts: string[] = [];

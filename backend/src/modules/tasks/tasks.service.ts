@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
-import { TaskModel, ICompletionImage } from '../../models/task.model';
+import type { HydratedDocument } from 'mongoose';
+import { TaskModel, ICompletionImage, ITask } from '../../models/task.model';
 import { calculateDistance } from '../../services/distance.service';
 import { deleteFile } from '../../services/file-upload.service';
 import { logActivity } from '../activity-logs/activity-logs.service';
@@ -104,6 +105,23 @@ export async function findById(id: string) {
   return taskObj;
 }
 
+function applyAdminTaskStatus(task: HydratedDocument<ITask>, next: ITask['status']) {
+  const prev = task.status;
+  task.status = next;
+
+  if (next === 'pending') {
+    task.set('startedAt', undefined);
+    task.set('completedAt', undefined);
+  } else if (next === 'in_progress') {
+    task.set('completedAt', undefined);
+    if (prev === 'completed' || !task.startedAt) {
+      task.startedAt = new Date();
+    }
+  } else if (next === 'completed') {
+    task.completedAt = task.completedAt ?? new Date();
+  }
+}
+
 export async function updateTask(
   id: string,
   data: {
@@ -115,6 +133,7 @@ export async function updateTask(
     quantity?: number;
     dealerId?: string;
     routeId?: string;
+    status?: ITask['status'];
   },
 ) {
   const task = await TaskModel.findById(id);
@@ -131,13 +150,16 @@ export async function updateTask(
     }
   }
 
-  const { dealerId, routeId, ...updateData } = data;
+  const { dealerId, routeId, status, ...updateData } = data;
   const updates: Record<string, unknown> = { ...updateData };
 
   if (dealerId !== undefined) updates.dealerId = dealerId ? new Types.ObjectId(dealerId) : null;
   if (routeId !== undefined) updates.routeId = routeId ? new Types.ObjectId(routeId) : null;
 
   Object.assign(task, updates);
+  if (status !== undefined) {
+    applyAdminTaskStatus(task, status);
+  }
   await task.save();
 
   return task;
