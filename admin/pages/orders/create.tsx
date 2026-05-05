@@ -230,7 +230,7 @@ const CreateOrderPage: React.FC = () => {
               <button
                 type="button"
                 onClick={addLineItem}
-                className={styles.cancelButton}
+                className={`${styles.cancelButton} ${styles.desktopOnly}`}
                 style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
               >
                 + Add Row
@@ -444,6 +444,16 @@ const CreateOrderPage: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={addLineItem}
+                  className={styles.cancelButton}
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                >
+                  + Add Row
+                </button>
               </div>
               <div className={styles.lineItemTotals}>
                 <div>

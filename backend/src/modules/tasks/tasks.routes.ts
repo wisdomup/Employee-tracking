@@ -61,7 +61,7 @@ router.post('/', requireRoles('admin', 'employee'), optionalTaskDocument, valida
  * /api/tasks:
  *   get:
  *     tags: [Tasks]
- *     summary: Get all tasks with optional filters [Admin, Employee]
+ *     summary: Get all tasks with optional filters [Admin, Employee, Order taker, Warehouse manager, Delivery man]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -81,14 +81,18 @@ router.post('/', requireRoles('admin', 'employee'), optionalTaskDocument, valida
  *       200: { description: List of tasks }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get(
+  '/',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.findAll,
+);
 
 /**
  * @openapi
  * /api/tasks/{id}:
  *   get:
  *     tags: [Tasks]
- *     summary: Get a task by ID [Admin, Employee]
+ *     summary: Get a task by ID [Admin, Employee, Order taker, Warehouse manager, Delivery man]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -101,7 +105,11 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  *       401: { description: Unauthorized }
  *       404: { description: Task not found }
  */
-router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
+router.get(
+  '/:id',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.findOne,
+);
 
 /**
  * @openapi
@@ -207,15 +215,15 @@ router.patch(
  *         required: true
  *         schema: { type: string }
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [latitude, longitude]
  *             properties:
  *               latitude: { type: number }
  *               longitude: { type: number }
+ *             description: All fields optional; empty body is allowed.
  *     responses:
  *       200: { description: Task started }
  *       400: { description: Task not in pending status or not assigned to you }
@@ -229,7 +237,7 @@ router.patch('/:id/start', validate(startTaskSchema), controller.startTask);
  * /api/tasks/{id}/complete:
  *   patch:
  *     tags: [Tasks]
- *     summary: Complete a task with GPS and images [All roles]
+ *     summary: Complete a task [All roles]; GPS and completion images optional
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -238,12 +246,11 @@ router.patch('/:id/start', validate(startTaskSchema), controller.startTask);
  *         required: true
  *         schema: { type: string }
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [latitude, longitude, completionImages]
  *             properties:
  *               latitude: { type: number }
  *               longitude: { type: number }
@@ -251,9 +258,11 @@ router.patch('/:id/start', validate(startTaskSchema), controller.startTask);
  *                 type: array
  *                 items:
  *                   type: object
+ *                   required: [type, url]
  *                   properties:
  *                     type: { type: string, enum: [shop, selfie] }
  *                     url: { type: string }
+ *             description: All fields optional; empty body marks complete without extras.
  *     responses:
  *       200: { description: Task completed }
  *       400: { description: Task already completed or not assigned to you }

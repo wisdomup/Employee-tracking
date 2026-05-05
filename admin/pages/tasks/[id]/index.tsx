@@ -4,11 +4,11 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import MapView from '../../../components/Map/MapView';
-import ImageModal from '../../../components/UI/ImageModal';
 import Loader from '../../../components/UI/Loader';
-import { taskService, Task, getTaskDocumentUrl, getTaskCompletionImageUrl } from '../../../services/taskService';
+import { taskService, Task, getTaskDocumentUrl } from '../../../services/taskService';
 import { employeeService, Employee } from '../../../services/employeeService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { ALL_ROLES } from '../../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -20,7 +20,6 @@ const TaskDetailPage: React.FC = () => {
   const { id } = router.query;
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showImageModal, setShowImageModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState('');
@@ -31,6 +30,7 @@ const TaskDetailPage: React.FC = () => {
   const isAdmin = user?.role === 'admin';
   const assignedToId = typeof task?.assignedTo === 'object' ? task?.assignedTo?._id : task?.assignedTo;
   const isAssignedToMe = assignedToId === user?.id;
+  const canActAsAssignee = !isAdmin && isAssignedToMe;
 
   useEffect(() => {
     if (id) {
@@ -60,60 +60,29 @@ const TaskDetailPage: React.FC = () => {
   };
 
   const handleStartTask = async () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by your browser');
-      return;
-    }
     setActionLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          await taskService.startTask(id as string, {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-          toast.success('Task started successfully');
-          fetchTask();
-        } catch (error: any) {
-          toast.error(error.response?.data?.message || 'Failed to start task');
-        } finally {
-          setActionLoading(false);
-        }
-      },
-      () => {
-        toast.error('Could not get your location. Please enable location access.');
-        setActionLoading(false);
-      },
-    );
+    try {
+      await taskService.startTask(id as string, {});
+      toast.success('Task started successfully');
+      fetchTask();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to start task');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleCompleteTask = async () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by your browser');
-      return;
-    }
     setActionLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          await taskService.completeTask(id as string, {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            completionImages: [],
-          });
-          toast.success('Task completed successfully');
-          fetchTask();
-        } catch (error: any) {
-          toast.error(error.response?.data?.message || 'Failed to complete task');
-        } finally {
-          setActionLoading(false);
-        }
-      },
-      () => {
-        toast.error('Could not get your location. Please enable location access.');
-        setActionLoading(false);
-      },
-    );
+    try {
+      await taskService.completeTask(id as string, {});
+      toast.success('Task completed successfully');
+      fetchTask();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to complete task');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleAssign = async (e: React.FormEvent) => {
@@ -153,24 +122,6 @@ const TaskDetailPage: React.FC = () => {
   }
 
   const client = task.dealerId;
-  const markers: { lat: number; lng: number; type: 'client' | 'completion'; label: string }[] = [];
-
-  if (client?.latitude && client?.longitude) {
-    markers.push({
-      lat: client.latitude,
-      lng: client.longitude,
-      type: 'client',
-      label: `Client: ${client.name}`,
-    });
-  }
-  if (task.status === 'completed' && task.latitude && task.longitude) {
-    markers.push({
-      lat: task.latitude,
-      lng: task.longitude,
-      type: 'completion',
-      label: `Completed by: ${task.assignedTo?.username || 'Employee'}`,
-    });
-  }
 
   return (
     <Layout>
@@ -178,7 +129,7 @@ const TaskDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Task Details</h1>
           <div className={styles.headerActions}>
-            {isOrderTaker && isAssignedToMe && task?.status === 'pending' && (
+            {canActAsAssignee && task?.status === 'pending' && (
               <button
                 className={styles.editButton}
                 onClick={handleStartTask}
@@ -187,7 +138,7 @@ const TaskDetailPage: React.FC = () => {
                 {actionLoading ? 'Starting...' : 'Start Task'}
               </button>
             )}
-            {isOrderTaker && isAssignedToMe && task?.status === 'in_progress' && (
+            {canActAsAssignee && task?.status === 'in_progress' && (
               <button
                 className={styles.editButton}
                 onClick={handleCompleteTask}
@@ -362,92 +313,21 @@ const TaskDetailPage: React.FC = () => {
               <p style={{ color: '#6b7280' }}>This task has not been assigned yet.</p>
             )}
 
-            {/* Completion Details */}
             {task.status === 'completed' && task.completedAt && (
               <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb' }}>
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', color: '#1f2937' }}>
-                  Completion Information
+                  Completion
                 </h3>
                 <div className={styles.infoGrid}>
                   <div className={styles.infoItem}>
-                    <span className={styles.label} style={{ color: '#374151' }}>Completed At:</span>
+                    <span className={styles.label} style={{ color: '#374151' }}>
+                      Completed at:
+                    </span>
                     <span className={styles.value}>
                       {format(new Date(task.completedAt), 'MMM dd, yyyy hh:mm a')}
                     </span>
                   </div>
-                  {task.latitude && task.longitude && (
-                    <>
-                      <div className={styles.infoItem}>
-                        <span className={styles.label} style={{ color: '#374151' }}>GPS Location:</span>
-                        <span className={styles.value}>
-                          Lat: {task.latitude.toFixed(6)}, Lng: {task.longitude.toFixed(6)}
-                        </span>
-                      </div>
-                      {task.distanceFromClient !== undefined && (
-                        <div className={styles.infoItem}>
-                          <span className={styles.label} style={{ color: '#374151' }}>Distance from Client:</span>
-                          <span className={styles.value}>
-                            {task.distanceFromClient.toFixed(2)} meters
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
                 </div>
-
-                {task.completionImages && task.completionImages.length > 0 && (
-                  <div style={{ marginTop: '1rem' }}>
-                    <span className={styles.label} style={{ color: '#374151', display: 'block', marginBottom: '0.5rem' }}>Completion Images:</span>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                      {task.completionImages.map((img, idx) => (
-                        <div key={idx} style={{ position: 'relative' }}>
-                          <img
-                            src={getTaskCompletionImageUrl(img.url)}
-                            alt={img.type}
-                            style={{
-                              width: '150px',
-                              height: '150px',
-                              objectFit: 'cover',
-                              borderRadius: '0.5rem',
-                              cursor: 'pointer',
-                              border: '2px solid #e5e7eb',
-                            }}
-                            onClick={() => setShowImageModal(true)}
-                          />
-                          <span
-                            style={{
-                              position: 'absolute',
-                              bottom: '0.5rem',
-                              left: '0.5rem',
-                              background: 'rgba(0,0,0,0.7)',
-                              color: 'white',
-                              padding: '0.25rem 0.5rem',
-                              borderRadius: '0.25rem',
-                              fontSize: '0.75rem',
-                              textTransform: 'capitalize',
-                            }}
-                          >
-                            {img.type}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {task.latitude && task.longitude && markers.length > 0 && (
-                  <div style={{ marginTop: '1.5rem' }}>
-                    <span className={styles.label} style={{ color: '#374151', display: 'block', marginBottom: '0.5rem' }}>Completion Location Map:</span>
-                    <div style={{ marginTop: '0.5rem' }}>
-                      <MapView markers={markers} height="400px" />
-                    </div>
-                    {markers.length > 1 && (
-                      <p style={{ fontSize: '0.875rem', color: '#374151', marginTop: '0.5rem' }}>
-                        Blue marker: Client location | Green marker: Completion location
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -499,16 +379,6 @@ const TaskDetailPage: React.FC = () => {
           </div>
         )}
 
-        {task.completionImages && task.completionImages.length > 0 && (
-          <ImageModal
-            images={task.completionImages.map((img) => ({
-              ...img,
-              url: getTaskCompletionImageUrl(img.url),
-            }))}
-            isOpen={showImageModal}
-            onClose={() => setShowImageModal(false)}
-          />
-        )}
       </div>
     </Layout>
   );
@@ -516,7 +386,7 @@ const TaskDetailPage: React.FC = () => {
 
 export default function TaskDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={ALL_ROLES}>
       <TaskDetailPage />
     </ProtectedRoute>
   );

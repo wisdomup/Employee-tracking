@@ -3,10 +3,8 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import { taskService } from '../../services/taskService';
-import type { CompletionImage } from '../../services/taskService';
-import { clientService, Client, formatClientSelectLabel } from '../../services/clientService';
+import { clientService, Client, formatClientSelectLabel, getClientAssignedRouteId } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
-import { ImageUpload } from '../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
 import SearchableSelect from '../../components/UI/SearchableSelect';
@@ -26,12 +24,6 @@ const CreateTaskPage: React.FC = () => {
     status: 'pending' as 'pending' | 'in_progress' | 'completed',
   });
   const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [shopImageUrl, setShopImageUrl] = useState('');
-  const [selfieImageUrl, setSelfieImageUrl] = useState('');
 
   useEffect(() => {
     fetchClients();
@@ -71,25 +63,14 @@ const CreateTaskPage: React.FC = () => {
     }));
   };
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationError('Geolocation is not supported by your browser');
-      return;
-    }
-    setLocationError(null);
-    setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLatitude(pos.coords.latitude);
-        setLongitude(pos.coords.longitude);
-        setLocationLoading(false);
-      },
-      () => {
-        setLocationError('Could not get location. You can enter coordinates manually.');
-        setLocationLoading(false);
-      },
-      { enableHighAccuracy: true },
-    );
+  const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const clientId = e.target.value;
+    const client = clients.find((c) => c._id === clientId);
+    setFormData((prev) => ({
+      ...prev,
+      clientId,
+      routeId: getClientAssignedRouteId(client),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,12 +80,6 @@ const CreateTaskPage: React.FC = () => {
       return;
     }
     const isCompleting = formData.status === 'completed';
-    if (isCompleting) {
-      if (latitude == null || longitude == null || !shopImageUrl || !selfieImageUrl) {
-        toast.error('To mark as completed, please provide location, shop image, and selfie.');
-        return;
-      }
-    }
     setLoading(true);
     try {
       const taskData = {
@@ -119,15 +94,7 @@ const CreateTaskPage: React.FC = () => {
       if (isCompleting) {
         const created = await taskService.createTask(taskData);
         const newId = (created as { _id: string })._id;
-        const completionImages: CompletionImage[] = [
-          { type: 'shop', url: shopImageUrl },
-          { type: 'selfie', url: selfieImageUrl },
-        ];
-        await taskService.completeTask(newId, {
-          latitude: latitude as number,
-          longitude: longitude as number,
-          completionImages,
-        });
+        await taskService.completeTask(newId, {});
         toast.success('Task created and marked as completed');
         router.push(`/tasks/${newId}`);
       } else {
@@ -173,7 +140,7 @@ const CreateTaskPage: React.FC = () => {
               id="clientId"
               name="clientId"
               value={formData.clientId}
-              onChange={handleChange}
+              onChange={handleClientChange}
               className={styles.select}
               placeholder="Select a client"
               options={[
@@ -188,6 +155,9 @@ const CreateTaskPage: React.FC = () => {
 
           <div className={styles.formGroup}>
             <label htmlFor="routeId">Route (optional)</label>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+              Filled automatically from the client&apos;s assigned route; you can change it or clear it.
+            </p>
             <SearchableSelect
               id="routeId"
               name="routeId"
@@ -278,73 +248,6 @@ const CreateTaskPage: React.FC = () => {
               ]}
             />
           </div>
-
-          {formData.status === 'completed' && (
-            <>
-              <div className={styles.formGroup}>
-                <label>Completion details</label>
-                <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
-                  To mark this task as completed, provide your current location, a shop image, and a selfie.
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className={styles.submitButton}
-                    onClick={handleGetLocation}
-                    disabled={locationLoading}
-                  >
-                    {locationLoading ? 'Getting location…' : 'Get my location'}
-                  </button>
-                  {latitude != null && longitude != null && (
-                    <span style={{ fontSize: '0.875rem' }}>
-                      Lat: {latitude.toFixed(6)}, Lng: {longitude.toFixed(6)}
-                    </span>
-                  )}
-                </div>
-                {locationError && (
-                  <span style={{ fontSize: '0.875rem', color: '#dc2626', display: 'block', marginBottom: '0.5rem' }}>
-                    {locationError}
-                  </span>
-                )}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Latitude"
-                    value={latitude ?? ''}
-                    onChange={(e) => setLatitude(e.target.value ? Number(e.target.value) : null)}
-                    className={styles.input}
-                    style={{ maxWidth: 140 }}
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Longitude"
-                    value={longitude ?? ''}
-                    onChange={(e) => setLongitude(e.target.value ? Number(e.target.value) : null)}
-                    className={styles.input}
-                    style={{ maxWidth: 140 }}
-                  />
-                </div>
-              </div>
-              <div className={styles.formGroup}>
-                <ImageUpload
-                  label="Shop image"
-                  category="completions"
-                  value={shopImageUrl}
-                  onChange={setShopImageUrl}
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <ImageUpload
-                  label="Selfie (employee)"
-                  category="completions"
-                  value={selfieImageUrl}
-                  onChange={setSelfieImageUrl}
-                />
-              </div>
-            </>
-          )}
 
           <div className={styles.formActions}>
             <button

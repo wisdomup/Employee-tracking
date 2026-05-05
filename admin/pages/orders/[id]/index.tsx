@@ -150,6 +150,12 @@ const OrderDetailPage: React.FC = () => {
                 <span className={styles.label}>Client:</span>
                 <span className={styles.value}>{order.dealerId?.name || '-'}</span>
               </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Shop Name:</span>
+                <span className={styles.value}>
+                  {(typeof order.dealerId === 'object' && order.dealerId?.shopName?.trim()) || '-'}
+                </span>
+              </div>
               {order.routeId && (
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Route:</span>

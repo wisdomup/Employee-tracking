@@ -7,6 +7,7 @@ import StatusBadge from '../../components/UI/StatusBadge';
 import { taskService, Task } from '../../services/taskService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
+import { ALL_ROLES } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 import SearchableSelect from '../../components/UI/SearchableSelect';
@@ -26,6 +27,10 @@ const TasksPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
+  const seesOnlyOwnTasks =
+    !!user?.role &&
+    user.role !== 'admin' &&
+    ['order_taker', 'employee', 'warehouse_manager', 'delivery_man'].includes(user.role);
 
   useEffect(() => {
     fetchTasks();
@@ -42,7 +47,7 @@ const TasksPage: React.FC = () => {
     try {
       const data = await taskService.getTasks({
         status: statusFilter || undefined,
-        assignedTo: isOrderTaker && user?.id ? user.id : undefined,
+        assignedTo: seesOnlyOwnTasks && user?.id ? user.id : undefined,
       });
       setTasks(data);
     } catch (error) {
@@ -302,7 +307,7 @@ const TasksPage: React.FC = () => {
 
 export default function TasksPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={ALL_ROLES}>
       <TasksPage />
     </ProtectedRoute>
   );

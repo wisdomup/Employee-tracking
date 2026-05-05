@@ -35,9 +35,18 @@ const ORDER_TAKER_PERMISSIONS = new Set([
  * Check whether the given role has permission to perform an action.
  * Usage: can(user?.role, 'orders:create')
  */
+const TASKS_FIELD_ROLES: Role[] = ['employee', 'warehouse_manager', 'delivery_man'];
+
 export function can(role: Role | string | undefined, permission: string): boolean {
   if (role === 'admin') return true;
   if (role === 'order_taker') return ORDER_TAKER_PERMISSIONS.has(permission);
+  if (
+    role &&
+    TASKS_FIELD_ROLES.includes(role as Role) &&
+    (permission === 'tasks:view' || permission === 'tasks:update-status')
+  ) {
+    return true;
+  }
   return false;
 }
 

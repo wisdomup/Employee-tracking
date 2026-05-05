@@ -89,7 +89,12 @@ export async function assignTask(req: Request, res: Response, next: NextFunction
 
 export async function startTask(req: Request, res: Response, next: NextFunction) {
   try {
-    const task = await tasksService.startTask(req.params.id, req.body, req.user!.userId);
+    const task = await tasksService.startTask(
+      req.params.id,
+      req.body,
+      req.user!.userId,
+      req.user!.role,
+    );
     res.json(task);
   } catch (err) {
     next(err);

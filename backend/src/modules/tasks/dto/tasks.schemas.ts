@@ -25,21 +25,18 @@ export const assignTaskSchema = Joi.object({
   assignedTo: Joi.string().required(),
 });
 
-export const startTaskSchema = Joi.object({
-  latitude: Joi.number().required(),
-  longitude: Joi.number().required(),
+const completionImageItemSchema = Joi.object({
+  type: Joi.string().valid('shop', 'selfie').required(),
+  url: Joi.string().required(),
 });
 
+export const startTaskSchema = Joi.object({
+  latitude: Joi.number().optional(),
+  longitude: Joi.number().optional(),
+}).default({});
+
 export const completeTaskSchema = Joi.object({
-  latitude: Joi.number().required(),
-  longitude: Joi.number().required(),
-  completionImages: Joi.array()
-    .items(
-      Joi.object({
-        type: Joi.string().valid('shop', 'selfie').required(),
-        url: Joi.string().required(),
-      }),
-    )
-    .min(1)
-    .required(),
-});
+  latitude: Joi.number().optional(),
+  longitude: Joi.number().optional(),
+  completionImages: Joi.array().items(completionImageItemSchema).optional(),
+}).default({});

@@ -124,14 +124,14 @@ export const taskService = {
     return response.data;
   },
 
-  async startTask(taskId: string, data: { latitude: number; longitude: number }) {
+  async startTask(taskId: string, data: { latitude?: number; longitude?: number } = {}) {
     const response = await api.patch(`/tasks/${taskId}/start`, data);
     return response.data;
   },
 
   async completeTask(
     taskId: string,
-    data: { latitude: number; longitude: number; completionImages: CompletionImage[] },
+    data: { latitude?: number; longitude?: number; completionImages?: CompletionImage[] } = {},
   ) {
     const response = await api.patch(`/tasks/${taskId}/complete`, data);
     return response.data;

@@ -169,8 +169,9 @@ export async function assignTask(
 
 export async function startTask(
   taskId: string,
-  data: { latitude: number; longitude: number },
+  _data: { latitude?: number; longitude?: number },
   employeeId: string,
+  userRole?: string,
 ) {
   const task = await TaskModel.findById(taskId);
 
@@ -178,7 +179,8 @@ export async function startTask(
     throw notFound('Task not found');
   }
 
-  if (!task.assignedTo || task.assignedTo.toString() !== employeeId) {
+  const isAdmin = userRole === 'admin';
+  if (!isAdmin && (!task.assignedTo || task.assignedTo.toString() !== employeeId)) {
     throw badRequest('This task is not assigned to you');
   }
 
@@ -205,9 +207,9 @@ export async function startTask(
 export async function completeTask(
   taskId: string,
   data: {
-    latitude: number;
-    longitude: number;
-    completionImages: ICompletionImage[];
+    latitude?: number;
+    longitude?: number;
+    completionImages?: ICompletionImage[];
   },
   employeeId: string,
   userRole?: string,
@@ -227,16 +229,20 @@ export async function completeTask(
     throw badRequest('Task is already completed');
   }
 
-  if (!data.completionImages || data.completionImages.length === 0) {
-    throw badRequest('Completion images are required');
-  }
-
   task.status = 'completed';
   task.completedAt = new Date();
-  task.latitude = data.latitude;
-  task.longitude = data.longitude;
-  task.timestamp = new Date();
-  task.completionImages = data.completionImages;
+  if (data.latitude !== undefined) {
+    task.latitude = data.latitude;
+  }
+  if (data.longitude !== undefined) {
+    task.longitude = data.longitude;
+  }
+  if (data.latitude !== undefined || data.longitude !== undefined) {
+    task.timestamp = new Date();
+  }
+  if (data.completionImages !== undefined) {
+    task.completionImages = data.completionImages;
+  }
   await task.save();
 
   await logActivity({
