@@ -12,7 +12,7 @@ async function bootstrap() {
   startVisitGenerationCron();
 
   app.listen(PORT, () => {
-    console.log(`Express server running on http://localhost:${PORT}`);
+    console.log(`Backend server for Tracking App running on http://localhost:${PORT}`);
   });
 }
 
