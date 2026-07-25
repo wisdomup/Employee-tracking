@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 8001,
+      "cwd": "backend"
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5001,
+      "cwd": "admin"
+    }
+  ]
+}

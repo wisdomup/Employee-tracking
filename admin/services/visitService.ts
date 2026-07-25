@@ -67,6 +67,16 @@ export const visitService = {
     return response.data;
   },
 
+  async bulkCreateVisits(data: {
+    employeeId: string;
+    visitDate: string;
+    dealerIds: string[];
+    routeId?: string;
+  }): Promise<Visit[]> {
+    const response = await api.post('/visits/bulk', data);
+    return response.data;
+  },
+
   async updateVisit(id: string, data: Partial<Visit>) {
     const response = await api.put(`/visits/${id}`, data);
     return response.data;

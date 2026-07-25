@@ -6,13 +6,20 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../components/UI/SearchableSelect';
+import VisitsMonthCalendar from '../../components/Visits/VisitsMonthCalendar';
+import AssignVisitsModal from '../../components/Visits/AssignVisitsModal';
+import VisitsDayView from '../../components/Visits/VisitsDayView';
 import { visitService, Visit } from '../../services/visitService';
 import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
+import { ALL_ROLES } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
+import calendarStyles from '../../styles/VisitsCalendar.module.scss';
+
+type ViewMode = 'calendar' | 'list' | 'day';
 
 const VisitsPage: React.FC = () => {
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -27,7 +34,14 @@ const VisitsPage: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const isOrderTaker = user?.role === 'order_taker';
+  const seesOnlyOwnVisits =
+    !!user?.role &&
+    user.role !== 'admin' &&
+    ['order_taker', 'employee', 'warehouse_manager', 'delivery_man'].includes(user.role);
+  const [view, setView] = useState<ViewMode>(isAdmin ? 'calendar' : 'day');
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [assignDate, setAssignDate] = useState<Date | null>(null);
+  const [assignExistingVisits, setAssignExistingVisits] = useState<Visit[]>([]);
 
   const activeFilterLabels = useMemo(() => {
     const parts: string[] = [];
@@ -35,7 +49,7 @@ const VisitsPage: React.FC = () => {
       const client = clients.find((c) => c._id === clientFilter);
       parts.push(`Client: ${client ? client.name : clientFilter}`);
     }
-    if (!isOrderTaker && employeeFilter) {
+    if (!seesOnlyOwnVisits && employeeFilter) {
       const emp = employees.find((e) => e._id === employeeFilter);
       parts.push(`Employee: ${emp ? emp.username : employeeFilter}`);
     }
@@ -43,7 +57,7 @@ const VisitsPage: React.FC = () => {
     if (startDate) parts.push(`From: ${startDate}`);
     if (endDate) parts.push(`To: ${endDate}`);
     return parts;
-  }, [clientFilter, employeeFilter, statusFilter, startDate, endDate, clients, employees, isOrderTaker]);
+  }, [clientFilter, employeeFilter, statusFilter, startDate, endDate, clients, employees, seesOnlyOwnVisits]);
 
   const exportPdfTitle = activeFilterLabels.length
     ? `Visits — Filtered by: ${activeFilterLabels.join(' · ')}`
@@ -61,14 +75,14 @@ const VisitsPage: React.FC = () => {
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || view !== 'list') return;
     fetchVisits();
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, user?.id, isOrderTaker]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, user?.id, seesOnlyOwnVisits, view]);
 
   const fetchVisits = async () => {
     setLoading(true);
     try {
-      const effectiveEmployeeId = isOrderTaker && user?.id ? user.id : (employeeFilter || undefined);
+      const effectiveEmployeeId = seesOnlyOwnVisits && user?.id ? user.id : (employeeFilter || undefined);
       const data = await visitService.getVisits({
         clientId: clientFilter || undefined,
         status: statusFilter || undefined,
@@ -178,6 +192,45 @@ const VisitsPage: React.FC = () => {
           )}
         </div>
 
+        <div className={calendarStyles.viewTabs}>
+          {(isAdmin ? (['calendar', 'list'] as ViewMode[]) : (['day', 'list'] as ViewMode[])).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={`${calendarStyles.viewTabButton} ${
+                view === tab ? calendarStyles.viewTabButtonActive : ''
+              }`}
+              onClick={() => setView(tab)}
+            >
+              {tab === 'calendar' ? 'Calendar' : tab === 'day' ? 'Day' : 'List'}
+            </button>
+          ))}
+        </div>
+
+        {view === 'calendar' && isAdmin && (
+          <>
+            <VisitsMonthCalendar
+              employeeId={employeeFilter || undefined}
+              refreshKey={calendarRefreshKey}
+              onDayClick={(day, dayVisits) => {
+                setAssignDate(day);
+                setAssignExistingVisits(dayVisits);
+              }}
+            />
+            {assignDate && (
+              <AssignVisitsModal
+                date={assignDate}
+                existingVisits={assignExistingVisits}
+                onClose={() => setAssignDate(null)}
+                onAssigned={() => setCalendarRefreshKey((k) => k + 1)}
+              />
+            )}
+          </>
+        )}
+
+        {view === 'day' && user?.id && <VisitsDayView employeeId={user.id} />}
+
+        {view === 'list' && (
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
             <div className={styles.searchBar}>
@@ -193,7 +246,7 @@ const VisitsPage: React.FC = () => {
                   ...clients.map((d) => ({ value: d._id, label: d.name })),
                 ]}
               />
-              {!isOrderTaker && (
+              {!seesOnlyOwnVisits && (
                 <SearchableSelect
                   name="employeeFilter"
                   value={employeeFilter}
@@ -252,6 +305,7 @@ const VisitsPage: React.FC = () => {
             />
           </div>
         </div>
+        )}
       </div>
     </Layout>
   );
@@ -259,7 +313,7 @@ const VisitsPage: React.FC = () => {
 
 export default function VisitsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={ALL_ROLES}>
       <VisitsPage />
     </ProtectedRoute>
   );

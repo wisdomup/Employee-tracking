@@ -39,6 +39,28 @@ export async function createVisit(
   return visit;
 }
 
+export async function bulkCreateVisits(
+  data: { employeeId: string; visitDate: Date; dealerIds: string[]; routeId?: string },
+  userId?: string,
+) {
+  const visits = [];
+  for (const dealerId of data.dealerIds) {
+    visits.push(
+      await createVisit(
+        {
+          dealerId,
+          employeeId: data.employeeId,
+          routeId: data.routeId,
+          visitDate: data.visitDate,
+          status: 'todo',
+        },
+        userId,
+      ),
+    );
+  }
+  return visits;
+}
+
 export async function findAll(filters?: {
   dealerId?: string;
   employeeId?: string;

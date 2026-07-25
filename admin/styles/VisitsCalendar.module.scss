@@ -1,0 +1,436 @@
+@import './_variables.scss';
+
+.viewTabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.viewTabButton {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: $border-radius-md;
+  background-color: white;
+  color: #374151;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background-color: #f3f4f6;
+  }
+}
+
+.viewTabButtonActive {
+  background-color: $admin-primary;
+  border-color: $admin-primary;
+  color: white;
+
+  &:hover {
+    background-color: $admin-primary-hover;
+  }
+}
+
+.calendarCard,
+.dayViewCard {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: $border-radius-md;
+  padding: 1.25rem;
+}
+
+.calendarHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+
+  h2 {
+    flex: 1;
+    text-align: center;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+  }
+}
+
+.navButton,
+.todayButton {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: $border-radius-sm;
+  background-color: white;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 500;
+
+  &:hover {
+    background-color: #f3f4f6;
+  }
+}
+
+.weekdayRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 0.25rem;
+}
+
+.weekdayCell {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 0.25rem 0;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.dayCell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  min-height: 56px;
+  border: 1px solid #e5e7eb;
+  border-radius: $border-radius-sm;
+  background-color: white;
+  color: #1f2937;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.35rem;
+  transition: all $transition-fast;
+
+  &:hover {
+    background-color: #f9fafb;
+    border-color: $admin-primary;
+  }
+}
+
+.dayCellOutside {
+  color: #d1d5db;
+  background-color: #fafafa;
+}
+
+.dayCellToday {
+  border-color: $admin-primary;
+  border-width: 2px;
+}
+
+.dayNumber {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.dayBadge {
+  align-self: center;
+  margin-top: auto;
+  background-color: $admin-primary;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: $border-radius-full;
+  padding: 0.1rem 0.5rem;
+}
+
+.loadingHint,
+.emptyHint {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-top: 0.75rem;
+}
+
+// Assign modal extras
+.existingVisitsBlock {
+  margin-bottom: 1.25rem;
+}
+
+.existingVisitsLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.existingVisitsList {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: $border-radius-sm;
+}
+
+.existingVisitRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: #1f2937;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background-color: #f9fafb;
+  }
+}
+
+.clientSearchInput {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: $border-radius-sm;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+
+  &:focus {
+    outline: none;
+    border-color: $admin-primary;
+    box-shadow: 0 0 0 3px $admin-primary-focus-ring;
+  }
+}
+
+.clientList {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: $border-radius-sm;
+  padding: 0.25rem;
+}
+
+.clientListItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.875rem;
+  color: #1f2937;
+  cursor: pointer;
+  border-radius: $border-radius-sm;
+
+  &:hover {
+    background-color: #f9fafb;
+  }
+
+  input {
+    cursor: pointer;
+  }
+}
+
+// Day view (field roles)
+.dayViewHeader {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dayViewDateGroup {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 200px;
+
+  h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+  }
+}
+
+.todayTag {
+  background-color: $admin-primary-muted;
+  color: $admin-primary;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: $border-radius-full;
+}
+
+.dateJumpInput {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: $border-radius-sm;
+  font-size: 0.875rem;
+}
+
+.visitCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.visitCard {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: $border-radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background-color: #f9fafb;
+    border-color: $admin-primary;
+  }
+}
+
+.visitCardOrder {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $border-radius-full;
+  background-color: $admin-primary-muted;
+  color: $admin-primary;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.visitCardMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+
+  strong {
+    color: #1f2937;
+    font-size: 0.95rem;
+  }
+}
+
+.visitCardSubline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.visitCardRoute {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.visitCardDistance {
+  font-size: 0.75rem;
+  color: $admin-primary;
+  font-weight: 600;
+}
+
+// Route optimization bar (employee Day view)
+.routeBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.85rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: $border-radius-sm;
+}
+
+.routeToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+
+  input {
+    cursor: pointer;
+  }
+}
+
+.routeHint {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.routeHintWarn {
+  font-size: 0.8rem;
+  color: #b45309;
+}
+
+.retryLink {
+  background: none;
+  border: none;
+  padding: 0;
+  color: $admin-primary;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+// Route map (employee Day view)
+.mapWrap {
+  margin-bottom: 1rem;
+}
+
+.mapContainer {
+  width: 100%;
+  height: 360px;
+  border-radius: $border-radius-md;
+  border: 1px solid #e5e7eb;
+  z-index: 0;
+}
+
+.mapMarkerWrap {
+  background: transparent;
+  border: none;
+}
+
+.mapMarkerOrigin,
+.mapMarkerStop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: $border-radius-full;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  border: 2px solid white;
+}
+
+.mapMarkerOrigin {
+  background-color: #2563eb;
+}
+
+.mapMarkerStop {
+  background-color: $admin-primary;
+}
+
+@media (max-width: 640px) {
+  .dayCell {
+    min-height: 44px;
+  }
+
+  .dayViewHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mapContainer {
+    height: 280px;
+  }
+}

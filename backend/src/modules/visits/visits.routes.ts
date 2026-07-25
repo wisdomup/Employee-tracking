@@ -2,7 +2,13 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { requireRoles } from '../../middleware/roles.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createVisitSchema, createVisitsForRouteSchema, completeVisitSchema, updateVisitSchema } from './dto/visits.schemas';
+import {
+  createVisitSchema,
+  createVisitsForRouteSchema,
+  bulkCreateVisitsSchema,
+  completeVisitSchema,
+  updateVisitSchema,
+} from './dto/visits.schemas';
 import * as controller from './visits.controller';
 
 const router = Router();
@@ -46,6 +52,33 @@ router.post(
 
 /**
  * @openapi
+ * /api/visits/bulk:
+ *   post:
+ *     tags: [Visits]
+ *     summary: Assign one employee to visit multiple clients on a given day [Admin, Employee]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [employeeId, visitDate, dealerIds]
+ *             properties:
+ *               employeeId: { type: string }
+ *               visitDate: { type: string, format: date-time }
+ *               dealerIds: { type: array, items: { type: string } }
+ *               routeId: { type: string }
+ *     responses:
+ *       201: { description: Visits created }
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ */
+router.post('/bulk', requireRoles('admin', 'employee'), validate(bulkCreateVisitsSchema), controller.bulkCreate);
+
+/**
+ * @openapi
  * /api/visits:
  *   get:
  *     tags: [Visits]
@@ -69,7 +102,11 @@ router.post(
  *       200: { description: List of visits }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get(
+  '/',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.findAll,
+);
 
 /**
  * @openapi
@@ -98,7 +135,7 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  */
 router.patch(
   '/:id/complete',
-  requireRoles('admin', 'employee', 'order_taker'),
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
   validate(completeVisitSchema),
   controller.completeVisit,
 );
@@ -120,7 +157,11 @@ router.patch(
  *       200: { description: Visit found }
  *       404: { description: Visit not found }
  */
-router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
+router.get(
+  '/:id',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.findOne,
+);
 
 /**
  * @openapi
@@ -148,7 +189,12 @@ router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.
  *       200: { description: Visit updated }
  *       404: { description: Visit not found }
  */
-router.put('/:id', requireRoles('admin', 'employee', 'order_taker'), validate(updateVisitSchema), controller.update);
+router.put(
+  '/:id',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  validate(updateVisitSchema),
+  controller.update,
+);
 
 /**
  * @openapi

@@ -14,6 +14,13 @@ export const createVisitsForRouteSchema = Joi.object({
   routeId: Joi.string().required(),
 });
 
+export const bulkCreateVisitsSchema = Joi.object({
+  employeeId: Joi.string().required(),
+  visitDate: Joi.date().required(),
+  dealerIds: Joi.array().items(Joi.string()).min(1).required(),
+  routeId: Joi.string().optional(),
+});
+
 export const completeVisitSchema = Joi.object({
   latitude: Joi.number().required(),
   longitude: Joi.number().required(),

@@ -43,7 +43,7 @@ export function can(role: Role | string | undefined, permission: string): boolea
   if (
     role &&
     TASKS_FIELD_ROLES.includes(role as Role) &&
-    (permission === 'tasks:view' || permission === 'tasks:update-status')
+    (permission === 'tasks:view' || permission === 'tasks:update-status' || permission === 'visits:view')
   ) {
     return true;
   }

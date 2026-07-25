@@ -13,7 +13,8 @@
     "migrate:route-text-fields": "ts-node src/database/migrations/route-text-fields.ts",
     "migrate:task-default-route": "ts-node src/database/migrations/task-default-route.ts",
     "migrate:update-admin-email": "ts-node src/database/migrations/update-admin-email.ts",
-    "seed:admin": "ts-node src/database/seeds/admin.seed.ts"
+    "seed:admin": "ts-node src/database/seeds/admin.seed.ts",
+    "seed:full": "ts-node src/database/seeds/full.seed.ts"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

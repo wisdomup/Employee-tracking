@@ -11,6 +11,15 @@ export async function create(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function bulkCreate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const visits = await visitsService.bulkCreateVisits(req.body, req.user?.userId);
+    res.status(201).json(visits);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function createForRoute(req: Request, res: Response, next: NextFunction) {
   try {
     const { routeId } = req.body as { routeId: string };
@@ -54,16 +63,18 @@ export async function findOne(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+const STATUS_ONLY_ROLES = ['order_taker', 'warehouse_manager', 'delivery_man'];
+
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    if (req.user?.role === 'order_taker') {
+    if (req.user?.role && STATUS_ONLY_ROLES.includes(req.user.role)) {
       const allowedStatuses = ['in_progress', 'completed'];
       const { status, ...rest } = req.body;
       if (Object.keys(rest).length > 0) {
-        return next(badRequest('Order takers can only update the visit status'));
+        return next(badRequest('You can only update the visit status'));
       }
       if (!status || !allowedStatuses.includes(status)) {
-        return next(badRequest(`Order takers can only set status to: ${allowedStatuses.join(', ')}`));
+        return next(badRequest(`You can only set status to: ${allowedStatuses.join(', ')}`));
       }
       req.body = { status };
     }
