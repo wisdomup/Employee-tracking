@@ -6,6 +6,7 @@ type Status =
   | 'not_assigned'
   | 'to_do'
   | 'in_progress'
+  | 'checked_in'
   | 'completed'
   | 'active'
   | 'inactive'
@@ -31,6 +32,10 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
         return styles.notAssigned;
       case 'in_progress':
         return styles.inProgress;
+      case 'checked_in':
+        return styles.checkedIn;
+      case 'skipped':
+        return styles.skipped;
       case 'completed':
         return styles.completed;
       case 'active':
@@ -65,6 +70,10 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
         return 'To Do';
       case 'in_progress':
         return 'In Progress';
+      case 'checked_in':
+        return 'Checked In';
+      case 'skipped':
+        return 'Skipped';
       case 'pending':
         return 'Pending';
       default:

@@ -7,7 +7,13 @@ import StatusBadge from '../../../components/UI/StatusBadge';
 import MapView from '../../../components/Map/MapView';
 import ImageModal from '../../../components/UI/ImageModal';
 import Loader from '../../../components/UI/Loader';
-import { visitService, Visit, getVisitCompletionImageUrl } from '../../../services/visitService';
+import { useAuth } from '../../../contexts/AuthContext';
+import {
+  visitService,
+  Visit,
+  getVisitCompletionImageUrl,
+  VISIT_DURATION_LIMIT_MINUTES,
+} from '../../../services/visitService';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
@@ -16,6 +22,8 @@ import { buildGoogleMapsDirectionsUrl, type LatLng } from '../../../utils/google
 const VisitDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
+  const isOrderTaker = user?.role === 'order_taker';
   const [visit, setVisit] = useState<Visit | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -134,17 +142,61 @@ const VisitDetailPage: React.FC = () => {
                 {navigating ? 'Locating…' : 'Navigate'}
               </button>
             )}
-            <button
-              className={styles.editButton}
-              onClick={() => router.push(`/visits/${id}/edit`)}
-            >
-              Edit
-            </button>
+            {(() => {
+              if (!isOrderTaker) {
+                return (
+                  <button className={styles.editButton} onClick={() => router.push(`/visits/${id}/edit`)}>
+                    Edit
+                  </button>
+                );
+              }
+              if (visit.status === 'todo' || visit.status === 'in_progress') {
+                return (
+                  <button className={styles.editButton} onClick={() => router.push(`/visits/${id}/edit`)}>
+                    Check In
+                  </button>
+                );
+              }
+              if (visit.status === 'checked_in') {
+                return (
+                  <button className={styles.editButton} onClick={() => router.push(`/visits/${id}/edit`)}>
+                    Complete Visit
+                  </button>
+                );
+              }
+              return null;
+            })()}
             <button className={styles.backButton} onClick={() => router.push('/visits')}>
               ← Back
             </button>
           </div>
         </div>
+
+        {visit.overstayFlagged && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.625rem',
+              padding: '0.875rem 1rem',
+              marginBottom: '1rem',
+              borderRadius: '0.5rem',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#b91c1c',
+            }}
+          >
+            <span aria-hidden style={{ fontSize: '1.125rem', lineHeight: 1.2 }}>⚠️</span>
+            <div>
+              <strong>Overstay flagged</strong>
+              <div style={{ fontSize: '0.875rem', marginTop: '0.125rem' }}>
+                {visit.employeeId?.username ?? visit.employeeId?.userID ?? 'This rider'} spent{' '}
+                {visit.durationMinutes} minutes at this store, over the{' '}
+                {VISIT_DURATION_LIMIT_MINUTES} minute limit.
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className={styles.content}>
           <div className={styles.section}>
@@ -196,6 +248,36 @@ const VisitDetailPage: React.FC = () => {
             )}
           </div>
 
+          {(visit.status === 'checked_in' || visit.status === 'completed') && visit.checkedInAt && (
+            <div
+              style={{
+                marginTop: '1.5rem',
+                paddingTop: '1.5rem',
+                borderTop: '1px solid #e5e7eb',
+              }}
+            >
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', color: '#0369a1' }}>
+                Check-In Information
+              </h3>
+              <div className={styles.infoGrid}>
+                <div className={styles.infoItem}>
+                  <span className={styles.label} style={{ color: '#374151' }}>Checked In At:</span>
+                  <span className={styles.value}>
+                    {format(new Date(visit.checkedInAt), 'MMM dd, yyyy hh:mm a')}
+                  </span>
+                </div>
+                {visit.checkedInLatitude != null && visit.checkedInLongitude != null && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.label} style={{ color: '#374151' }}>Check-In GPS:</span>
+                    <span className={styles.value}>
+                      Lat: {visit.checkedInLatitude.toFixed(6)}, Lng: {visit.checkedInLongitude.toFixed(6)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {visit.status === 'completed' && visit.completedAt && (
             <div
               style={{
@@ -209,11 +291,25 @@ const VisitDetailPage: React.FC = () => {
               </h3>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}>
-                  <span className={styles.label} style={{ color: '#374151' }}>Completed At:</span>
+                  <span className={styles.label} style={{ color: '#374151' }}>Checked Out At:</span>
                   <span className={styles.value}>
                     {format(new Date(visit.completedAt), 'MMM dd, yyyy hh:mm a')}
                   </span>
                 </div>
+                {visit.durationMinutes != null && (
+                  <div className={styles.infoItem}>
+                    <span className={styles.label} style={{ color: '#374151' }}>Time At Store:</span>
+                    <span
+                      className={styles.value}
+                      style={visit.overstayFlagged ? { color: '#b91c1c', fontWeight: 600 } : undefined}
+                    >
+                      {visit.durationMinutes} min
+                      {visit.overstayFlagged
+                        ? ` — over the ${VISIT_DURATION_LIMIT_MINUTES} min limit`
+                        : ''}
+                    </span>
+                  </div>
+                )}
                 {visit.latitude != null && visit.longitude != null && (
                   <div className={styles.infoItem}>
                     <span className={styles.label} style={{ color: '#374151' }}>GPS Location:</span>
@@ -284,6 +380,68 @@ const VisitDetailPage: React.FC = () => {
               )}
             </div>
           )}
+
+          {((visit.galleryImages?.length ?? 0) > 0 || visit.visitNotes) && (
+            <div
+              style={{
+                marginTop: '1.5rem',
+                paddingTop: '1.5rem',
+                borderTop: '1px solid #e5e7eb',
+              }}
+            >
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem', color: '#1f2937' }}>
+                Shop Photos &amp; Notes
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+                Added by {visit.employeeId?.username ?? visit.employeeId?.userID ?? 'the rider'}
+                {visit.galleryUpdatedAt
+                  ? ` on ${format(new Date(visit.galleryUpdatedAt), 'MMM dd, yyyy hh:mm a')}`
+                  : ''}
+                .
+              </p>
+              {visit.visitNotes && (
+                <p
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '0.5rem',
+                    padding: '0.75rem',
+                    color: '#374151',
+                    fontSize: '0.9375rem',
+                    marginBottom: '1rem',
+                  }}
+                >
+                  {visit.visitNotes}
+                </p>
+              )}
+              {(visit.galleryImages?.length ?? 0) > 0 && (
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  {visit.galleryImages!.map((img, idx) => (
+                    <a
+                      key={`${img.url}-${idx}`}
+                      href={getVisitCompletionImageUrl(img.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={img.caption || `Shop photo ${idx + 1}`}
+                    >
+                      <img
+                        src={getVisitCompletionImageUrl(img.url)}
+                        alt={img.caption || `Shop photo ${idx + 1}`}
+                        style={{
+                          width: '150px',
+                          height: '150px',
+                          objectFit: 'cover',
+                          borderRadius: '0.5rem',
+                          border: '2px solid #e5e7eb',
+                        }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {completionImagesForModal.length > 0 && (
@@ -300,7 +458,7 @@ const VisitDetailPage: React.FC = () => {
 
 export default function VisitDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
       <VisitDetailPage />
     </ProtectedRoute>
   );

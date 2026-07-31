@@ -24,6 +24,9 @@ import catalogsRouter from './modules/catalogs/catalogs.routes';
 import trashRouter from './modules/trash/trash.routes';
 import attendanceRouter from './modules/attendance/attendance.routes';
 import stockReportsRouter from './modules/stock-reports/stock-reports.routes';
+import targetsRouter from './modules/targets/targets.routes';
+import analyticsRouter from './modules/analytics/analytics.routes';
+import performanceFlagsRouter from './modules/performance-flags/performance-flags.routes';
 
 const app = express();
 
@@ -63,6 +66,9 @@ app.use('/api/catalogs', catalogsRouter);
 app.use('/api/trash', trashRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/stock-reports', stockReportsRouter);
+app.use('/api/targets', targetsRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/performance-flags', performanceFlagsRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({ message: 'GPS Tracking App backend is running' });

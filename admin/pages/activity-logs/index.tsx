@@ -172,7 +172,7 @@ const ActivityLogsPage: React.FC = () => {
 
 export default function ActivityLogsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
       <ActivityLogsPage />
     </ProtectedRoute>
   );

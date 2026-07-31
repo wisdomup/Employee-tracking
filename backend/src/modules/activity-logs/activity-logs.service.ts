@@ -1,24 +1,8 @@
-import { ActivityLogModel } from '../../models/activity-log.model';
-
-type ActivityAction =
-  | 'created'
-  | 'updated'
-  | 'deleted'
-  | 'status_changed'
-  | 'started_task'
-  | 'completed_task';
-
-type ActivityModule =
-  | 'task'
-  | 'order'
-  | 'product'
-  | 'category'
-  | 'dealer'
-  | 'route'
-  | 'return'
-  | 'visit'
-  | 'employee'
-  | 'attendance';
+import {
+  ActivityLogModel,
+  type ActivityAction,
+  type ActivityModule,
+} from '../../models/activity-log.model';
 
 export async function logActivity(data: {
   employeeId?: string;

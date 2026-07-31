@@ -268,7 +268,7 @@ const ProductsPage: React.FC = () => {
 
 export default function ProductsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
       <ProductsPage />
     </ProtectedRoute>
   );

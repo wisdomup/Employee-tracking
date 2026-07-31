@@ -9,7 +9,7 @@ import SearchableSelect from '../../components/UI/SearchableSelect';
 import VisitsMonthCalendar from '../../components/Visits/VisitsMonthCalendar';
 import AssignVisitsModal from '../../components/Visits/AssignVisitsModal';
 import VisitsDayView from '../../components/Visits/VisitsDayView';
-import { visitService, Visit } from '../../services/visitService';
+import { visitService, Visit, VISIT_DURATION_LIMIT_MINUTES } from '../../services/visitService';
 import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,6 +31,7 @@ const VisitsPage: React.FC = () => {
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [overstayOnly, setOverstayOnly] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -56,8 +57,9 @@ const VisitsPage: React.FC = () => {
     if (statusFilter) parts.push(`Status: ${statusFilter.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`);
     if (startDate) parts.push(`From: ${startDate}`);
     if (endDate) parts.push(`To: ${endDate}`);
+    if (overstayOnly) parts.push('Overstay flagged only');
     return parts;
-  }, [clientFilter, employeeFilter, statusFilter, startDate, endDate, clients, employees, seesOnlyOwnVisits]);
+  }, [clientFilter, employeeFilter, statusFilter, startDate, endDate, overstayOnly, clients, employees, seesOnlyOwnVisits]);
 
   const exportPdfTitle = activeFilterLabels.length
     ? `Visits — Filtered by: ${activeFilterLabels.join(' · ')}`
@@ -77,7 +79,7 @@ const VisitsPage: React.FC = () => {
   useEffect(() => {
     if (!user || view !== 'list') return;
     fetchVisits();
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, user?.id, seesOnlyOwnVisits, view]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, overstayOnly, user?.id, seesOnlyOwnVisits, view]);
 
   const fetchVisits = async () => {
     setLoading(true);
@@ -89,6 +91,7 @@ const VisitsPage: React.FC = () => {
         employeeId: effectiveEmployeeId,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
+        overstayFlagged: overstayOnly || undefined,
       });
       setVisits(data);
     } catch (error) {
@@ -133,7 +136,43 @@ const VisitsPage: React.FC = () => {
     {
       key: 'status',
       title: 'Status',
-      render: (value: string) => <StatusBadge status={value} />,
+      render: (value: string, row: Visit) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+          <StatusBadge status={value} />
+          {row.overstayFlagged && (
+            <span
+              title={`Rider spent ${row.durationMinutes} min at the store, over the ${VISIT_DURATION_LIMIT_MINUTES} min limit`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.125rem 0.5rem',
+                borderRadius: '9999px',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                border: '1px solid #fecaca',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ⚠️ Overstay
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'durationMinutes',
+      title: 'Time At Store',
+      render: (value: number | undefined, row: Visit) =>
+        value == null ? (
+          '-'
+        ) : (
+          <span style={row.overstayFlagged ? { color: '#b91c1c', fontWeight: 600 } : undefined}>
+            {value} min
+          </span>
+        ),
     },
     {
       key: 'createdBy',
@@ -271,6 +310,7 @@ const VisitsPage: React.FC = () => {
                   { value: '', label: 'All Statuses' },
                   { value: 'todo', label: 'To Do' },
                   { value: 'in_progress', label: 'In Progress' },
+                  { value: 'checked_in', label: 'Checked In' },
                   { value: 'completed', label: 'Completed' },
                   { value: 'incomplete', label: 'Incomplete' },
                   { value: 'cancelled', label: 'Cancelled' },
@@ -288,6 +328,25 @@ const VisitsPage: React.FC = () => {
                 placeholder="End date"
                 title="End date"
               />
+              <label
+                title={`Show only visits where the rider stayed longer than ${VISIT_DURATION_LIMIT_MINUTES} minutes`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  fontSize: '0.875rem',
+                  color: overstayOnly ? '#b91c1c' : '#374151',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={overstayOnly}
+                  onChange={(e) => setOverstayOnly(e.target.checked)}
+                />
+                ⚠️ Overstay flagged only
+              </label>
             </div>
             {activeFilterLabels.length > 0 && (
               <p className={styles.filterSummary}>

@@ -23,6 +23,8 @@ export interface Employee {
   achivedTarget?: string;
   extraNotes?: string;
   lastExperience?: string;
+  /** Sales manager this field-staff user reports to ('' or null clears it). */
+  managerId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

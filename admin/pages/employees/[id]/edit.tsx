@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
-import { employeeService } from '../../../services/employeeService';
+import { employeeService, Employee } from '../../../services/employeeService';
+import { FIELD_STAFF_ROLES } from '../../../utils/permissions';
+import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import { PasswordInput } from '../../../components/UI/PasswordInput';
 import { ImageUpload } from '../../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
@@ -14,6 +16,7 @@ const EMPLOYEE_ROLES = [
   // { value: 'admin', label: 'Admin' },
   // { value: 'employee', label: 'Employee' },
   { value: 'warehouse_manager', label: 'Warehouse Manager' },
+  { value: 'sales_manager', label: 'Sales Manager' },
   { value: 'order_taker', label: 'Order Taker' },
   { value: 'delivery_man', label: 'Delivery Man' },
 ];
@@ -23,7 +26,9 @@ const EditEmployeePage: React.FC = () => {
   const { id } = router.query;
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  const [salesManagers, setSalesManagers] = useState<Employee[]>([]);
   const [formData, setFormData] = useState({
+    managerId: '',
     userID: '',
     username: '',
     fullName: '',
@@ -51,10 +56,23 @@ const EditEmployeePage: React.FC = () => {
     }
   }, [id]);
 
+  // Sales managers are the only valid values for the "Reports to" picker.
+  useEffect(() => {
+    employeeService
+      .getEmployees({ role: 'sales_manager', isActive: true })
+      .then((data) => setSalesManagers(Array.isArray(data) ? data : []))
+      .catch(() => setSalesManagers([]));
+  }, []);
+
   const fetchEmployee = async () => {
     try {
       const data = await employeeService.getEmployee(id as string);
       setFormData({
+        // managerId may arrive as a raw id or a populated object.
+        managerId:
+          typeof data.managerId === 'string'
+            ? data.managerId
+            : (data.managerId as { _id?: string } | null)?._id ?? '',
         userID: data.userID || '',
         username: data.username,
         fullName: data.fullName || '',
@@ -152,6 +170,11 @@ const EditEmployeePage: React.FC = () => {
         designation: formData.designation || undefined,
         target: formData.target || undefined,
         achivedTarget: formData.achivedTarget || undefined,
+        // Always send it for field roles so clearing the picker unassigns the manager.
+        // Non-field roles (e.g. sales_manager itself) never carry a manager.
+        managerId: FIELD_STAFF_ROLES.includes(formData.role as never)
+          ? formData.managerId || ''
+          : '',
         ...(addressEntries.length > 0 && { address: Object.fromEntries(addressEntries) }),
       };
 
@@ -296,6 +319,29 @@ const EditEmployeePage: React.FC = () => {
               options={EMPLOYEE_ROLES}
             />
           </div>
+
+          {FIELD_STAFF_ROLES.includes(formData.role as never) && (
+            <div className={styles.formGroup}>
+              <label htmlFor="managerId">Reports to (Sales Manager)</label>
+              <SearchableSelect
+                id="managerId"
+                name="managerId"
+                value={formData.managerId}
+                onChange={handleChange}
+                className={styles.select}
+                placeholder="No manager"
+                options={[
+                  { value: '', label: 'No manager' },
+                  ...salesManagers
+                    .filter((m) => m._id !== id)
+                    .map((m) => ({ value: m._id, label: employeeDisplayLabel(m) })),
+                ]}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                Determines whose analytics dashboard this employee appears in.
+              </span>
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="designation">Designation</label>

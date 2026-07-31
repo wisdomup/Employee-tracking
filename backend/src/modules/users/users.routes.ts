@@ -77,7 +77,7 @@ router.post('/', requireRoles('admin'), validate(createUserSchema), controller.c
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
  */
-router.get('/', requireRoles('admin', 'employee'), controller.findAll);
+router.get('/', requireRoles('admin', 'sales_manager', 'employee'), controller.findAll);
 
 /**
  * @openapi
@@ -105,7 +105,7 @@ router.get('/', requireRoles('admin', 'employee'), controller.findAll);
  *                 $ref: '#/components/schemas/User'
  *       401: { description: Unauthorized }
  */
-router.get('/role/:role', requireRoles('admin', 'employee'), controller.findByRole);
+router.get('/role/:role', requireRoles('admin', 'sales_manager', 'employee'), controller.findByRole);
 
 /**
  * @openapi
@@ -183,7 +183,7 @@ router.patch('/me', validate(updateProfileSchema), controller.updateMe);
  *       401: { description: Unauthorized }
  *       404: { description: User not found }
  */
-router.get('/:id', requireRoles('admin', 'employee'), controller.findOne);
+router.get('/:id', requireRoles('admin', 'sales_manager', 'employee'), controller.findOne);
 
 /**
  * @openapi

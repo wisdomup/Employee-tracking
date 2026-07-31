@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -8,11 +8,14 @@ import { ImageUpload } from '../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
 import SearchableSelect from '../../components/UI/SearchableSelect';
+import { FIELD_STAFF_ROLES } from '../../utils/permissions';
+import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
 
 const EMPLOYEE_ROLES = [
   // { value: 'admin', label: 'Admin' },
   // { value: 'employee', label: 'Employee' },
   { value: 'warehouse_manager', label: 'Warehouse Manager' },
+  { value: 'sales_manager', label: 'Sales Manager' },
   { value: 'order_taker', label: 'Order Taker' },
   { value: 'delivery_man', label: 'Delivery Man' },
 ];
@@ -20,7 +23,9 @@ const EMPLOYEE_ROLES = [
 const CreateEmployeePage: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [salesManagers, setSalesManagers] = useState<Employee[]>([]);
   const [formData, setFormData] = useState({
+    managerId: '',
     userID: '',
     username: '',
     fullName: '',
@@ -41,6 +46,16 @@ const CreateEmployeePage: React.FC = () => {
     },
     isActive: true,
   });
+
+  // Sales managers are the only valid values for the "Reports to" picker.
+  useEffect(() => {
+    employeeService
+      .getEmployees({ role: 'sales_manager', isActive: true })
+      .then((data) => setSalesManagers(Array.isArray(data) ? data : []))
+      .catch(() => setSalesManagers([]));
+  }, []);
+
+  const canHaveManager = FIELD_STAFF_ROLES.includes(formData.role as never);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -115,6 +130,7 @@ const CreateEmployeePage: React.FC = () => {
         ...(formData.profileImage  && { profileImage: formData.profileImage }),
         ...(formData.target        && { target: formData.target }),
         ...(formData.achivedTarget && { achivedTarget: formData.achivedTarget }),
+        ...(canHaveManager && formData.managerId && { managerId: formData.managerId }),
       };
 
       const addressEntries = Object.entries(formData.address).filter(([, v]) => v);
@@ -248,6 +264,30 @@ const CreateEmployeePage: React.FC = () => {
               options={EMPLOYEE_ROLES}
             />
           </div>
+
+          {canHaveManager && (
+            <div className={styles.formGroup}>
+              <label htmlFor="managerId">Reports to (Sales Manager)</label>
+              <SearchableSelect
+                id="managerId"
+                name="managerId"
+                value={formData.managerId}
+                onChange={handleChange}
+                className={styles.select}
+                placeholder="No manager"
+                options={[
+                  { value: '', label: 'No manager' },
+                  ...salesManagers.map((m) => ({
+                    value: m._id,
+                    label: employeeDisplayLabel(m),
+                  })),
+                ]}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                Determines whose analytics dashboard this employee appears in.
+              </span>
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="designation">Designation</label>

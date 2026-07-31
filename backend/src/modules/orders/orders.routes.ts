@@ -79,7 +79,7 @@ router.post(
  *       200: { description: List of orders }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get('/', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findAll);
 
 /**
  * @openapi
@@ -98,7 +98,7 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  *       200: { description: Order found }
  *       404: { description: Order not found }
  */
-router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
+router.get('/:id', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findOne);
 
 /**
  * @openapi

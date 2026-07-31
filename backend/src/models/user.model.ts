@@ -11,6 +11,11 @@ export interface IUser extends Document {
   email?: string;
   password: string;
   role: string;
+  /**
+   * The sales_manager this field-staff user reports to.
+   * Drives analytics scoping: a manager sees only the users pointing at them.
+   */
+  managerId?: Types.ObjectId;
   address?: {
     street?: string;
     city?: string;
@@ -52,6 +57,7 @@ const userSchema = new Schema<IUser>(
       required: true,
       enum: Object.values(ROLES),
     },
+    managerId: { type: Schema.Types.ObjectId, ref: 'User' },
     address: {
       street: String,
       city: String,
@@ -81,6 +87,8 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ role: 1 });
+// Resolving a sales manager's team for analytics scoping
+userSchema.index({ managerId: 1, isTrashed: 1 });
 userSchema.index({ isTrashed: 1, createdAt: -1 });
 userSchema.index({ isTrashed: 1, trashedAt: -1 });
 

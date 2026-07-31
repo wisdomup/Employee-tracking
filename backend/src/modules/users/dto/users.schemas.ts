@@ -36,6 +36,8 @@ export const createUserSchema = Joi.object({
   achivedTarget: Joi.string().optional(),
   extraNotes: Joi.string().optional(),
   lastExperience: Joi.string().optional(),
+  /** Sales manager this user reports to; '' or null clears the assignment. */
+  managerId: Joi.string().allow('', null).optional(),
 });
 
 export const updateUserSchema = Joi.object({
@@ -56,6 +58,8 @@ export const updateUserSchema = Joi.object({
   achivedTarget: Joi.string().optional(),
   extraNotes: Joi.string().optional(),
   lastExperience: Joi.string().optional(),
+  /** Sales manager this user reports to; '' or null clears the assignment. */
+  managerId: Joi.string().allow('', null).optional(),
 });
 
 const profileAddressSchema = Joi.object({

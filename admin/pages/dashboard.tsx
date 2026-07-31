@@ -479,10 +479,24 @@ const Dashboard: React.FC = () => {
           <div style="font-size:12px;color:#4b5563;margin-bottom:6px;">Route: ${routeName}</div>
           <div style="font-size:12px;color:var(--admin-primary);margin-bottom:4px;">Marker: ${markerType === 'client' ? 'Client location' : 'Completion location'}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-            ${visitId ? `<a href="/visits/${visitId}/edit?nextStatus=in_progress" style="display:inline-block;padding:6px 10px;background:#0ea5e9;color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">Set In Progress</a>` : ''}
-            ${visitId ? `<a href="/visits/${visitId}/edit?nextStatus=completed" style="display:inline-block;padding:6px 10px;background:#16a34a;color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">Set Completed</a>` : ''}
+            ${
+              visitId && status !== 'completed' && status !== 'cancelled' && status !== 'incomplete'
+                ? `<a href="/visits/${visitId}/edit" style="display:inline-block;padding:6px 10px;background:${
+                    status === 'checked_in' ? '#16a34a' : '#0ea5e9'
+                  };color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">${
+                    status === 'checked_in' ? 'Complete &amp; Checkout' : 'Check In'
+                  }</a>`
+                : ''
+            }
+            ${visitId ? `<a href="/visits/${visitId}" style="display:inline-block;padding:6px 10px;background:#6b7280;color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">View</a>` : ''}
           </div>
-          ${status !== 'completed' ? '<div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Completion needs GPS location + shop image + selfie.</div>' : ''}
+          ${
+            status === 'checked_in'
+              ? '<div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Checkout needs a shop image + selfie. Your GPS is captured automatically.</div>'
+              : status !== 'completed'
+                ? '<div style="font-size:11px;color:#6b7280;margin-bottom:8px;">You must check in at the store before you can complete this visit.</div>'
+                : ''
+          }
           ${routeUrl ? `<a href="${routeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-bottom:8px;padding:6px 10px;background:var(--admin-primary);color:#fff;border-radius:6px;text-decoration:none;font-size:12px;">View Route</a>` : ''}
           ${imagesHtml ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${imagesHtml}</div>` : '<div style="font-size:12px;color:#6b7280;">No completion images</div>'}
         </div>

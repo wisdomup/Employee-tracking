@@ -7,7 +7,12 @@ import Table from '../../../components/UI/Table';
 import MapView from '../../../components/Map/MapView';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import { clientService, Client } from '../../../services/clientService';
-import { visitService, Visit } from '../../../services/visitService';
+import {
+  visitService,
+  Visit,
+  DealerGalleryEntry,
+  getVisitCompletionImageUrl,
+} from '../../../services/visitService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -29,10 +34,12 @@ const ClientDetailPage: React.FC = () => {
     return `${y}-${m}-${day}`;
   });
   const [loading, setLoading] = useState(true);
+  const [gallery, setGallery] = useState<DealerGalleryEntry[]>([]);
 
   useEffect(() => {
     if (id) {
       fetchClient();
+      fetchGallery();
     }
   }, [id]);
 
@@ -64,6 +71,17 @@ const ClientDetailPage: React.FC = () => {
       setVisits(Array.isArray(data) ? data : []);
     } catch {
       setVisits([]);
+    }
+  };
+
+  /** Shop photos & notes recorded by riders after checking out of this client. */
+  const fetchGallery = async () => {
+    if (!id) return;
+    try {
+      const data = await visitService.getDealerGallery(id as string);
+      setGallery(Array.isArray(data) ? data : []);
+    } catch {
+      setGallery([]);
     }
   };
 
@@ -272,6 +290,103 @@ const ClientDetailPage: React.FC = () => {
             </div>
           )}
 
+          {gallery.length > 0 && (
+            <div className={styles.section}>
+              <h2>Shop Photo Gallery</h2>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+                Photos and notes captured by riders after checking out of this shop.
+              </p>
+              <div style={{ display: 'grid', gap: '1.25rem' }}>
+                {gallery.map((entry) => (
+                  <div
+                    key={entry._id}
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.5rem',
+                      padding: '1rem',
+                      background: '#fff',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'baseline',
+                        gap: '1rem',
+                        flexWrap: 'wrap',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      <strong style={{ color: '#1f2937' }}>
+                        {entry.employeeId?.username ?? entry.employeeId?.userID ?? 'Unknown rider'}
+                      </strong>
+                      <span style={{ fontSize: '0.8125rem', color: '#6b7280' }}>
+                        {entry.galleryUpdatedAt
+                          ? format(new Date(entry.galleryUpdatedAt), 'MMM dd, yyyy hh:mm a')
+                          : entry.completedAt
+                            ? format(new Date(entry.completedAt), 'MMM dd, yyyy hh:mm a')
+                            : ''}
+                      </span>
+                    </div>
+                    {entry.visitNotes && (
+                      <p
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          color: '#374151',
+                          fontSize: '0.9375rem',
+                          marginBottom: (entry.galleryImages?.length ?? 0) > 0 ? '0.75rem' : 0,
+                        }}
+                      >
+                        {entry.visitNotes}
+                      </p>
+                    )}
+                    {(entry.galleryImages?.length ?? 0) > 0 && (
+                      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        {entry.galleryImages!.map((img, idx) => (
+                          <a
+                            key={`${img.url}-${idx}`}
+                            href={getVisitCompletionImageUrl(img.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={img.caption || `Shop photo ${idx + 1}`}
+                          >
+                            <img
+                              src={getVisitCompletionImageUrl(img.url)}
+                              alt={img.caption || `Shop photo ${idx + 1}`}
+                              style={{
+                                width: 130,
+                                height: 130,
+                                objectFit: 'cover',
+                                borderRadius: '0.5rem',
+                                border: '2px solid #e5e7eb',
+                              }}
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/visits/${entry._id}`)}
+                      style={{
+                        marginTop: '0.75rem',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#0369a1',
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      View the visit this came from
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className={styles.section}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               <h2 style={{ margin: 0 }}>Visits ({visits.length})</h2>
@@ -311,7 +426,7 @@ const ClientDetailPage: React.FC = () => {
 
 export default function ClientDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
       <ClientDetailPage />
     </ProtectedRoute>
   );

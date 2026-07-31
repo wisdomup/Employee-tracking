@@ -5,17 +5,40 @@ export interface IVisitCompletionImage {
   url: string;
 }
 
+/** Optional extra shop photo a rider may add after checking out. */
+export interface IVisitGalleryImage {
+  url: string;
+  caption?: string;
+}
+
 export interface IVisit extends Document {
   _id: Types.ObjectId;
   dealerId: Types.ObjectId;
   employeeId: Types.ObjectId;
   routeId?: Types.ObjectId;
   visitDate?: Date;
-  status: 'todo' | 'in_progress' | 'completed' | 'incomplete' | 'cancelled';
+  status: 'todo' | 'in_progress' | 'checked_in' | 'completed' | 'skipped' | 'incomplete' | 'cancelled';
+  checkedInAt?: Date;
+  checkedInLatitude?: number;
+  checkedInLongitude?: number;
+  /** Set when a rider deliberately skips a visit on their route. */
+  skippedAt?: Date;
+  skipReason?: string;
+  skippedBy?: Types.ObjectId;
+  /** Checkout time — set when the rider completes the visit. */
   completedAt?: Date;
+  /** Minutes between check-in and checkout. Null/undefined when never checked in. */
+  durationMinutes?: number;
+  /** True when the stay exceeded VISIT_DURATION_LIMIT_MINUTES; surfaced to admins. */
+  overstayFlagged?: boolean;
   latitude?: number;
   longitude?: number;
   completionImages?: IVisitCompletionImage[];
+  /** Optional extra shop photos added by the rider after checkout. */
+  galleryImages?: IVisitGalleryImage[];
+  /** Optional free-text notes about the shop, added by the rider after checkout. */
+  visitNotes?: string;
+  galleryUpdatedAt?: Date;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -32,6 +55,14 @@ const visitCompletionImageSchema = new Schema<IVisitCompletionImage>(
   { _id: false },
 );
 
+const visitGalleryImageSchema = new Schema<IVisitGalleryImage>(
+  {
+    url: { type: String, required: true },
+    caption: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
 const visitSchema = new Schema<IVisit>(
   {
     dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
@@ -40,13 +71,24 @@ const visitSchema = new Schema<IVisit>(
     visitDate: { type: Date },
     status: {
       type: String,
-      enum: ['todo', 'in_progress', 'completed', 'incomplete', 'cancelled'],
+      enum: ['todo', 'in_progress', 'checked_in', 'completed', 'skipped', 'incomplete', 'cancelled'],
       default: 'todo',
     },
+    skippedAt: { type: Date },
+    skipReason: { type: String, trim: true, maxlength: 300 },
+    skippedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    checkedInAt: { type: Date },
+    checkedInLatitude: { type: Number },
+    checkedInLongitude: { type: Number },
     completedAt: { type: Date },
+    durationMinutes: { type: Number },
+    overstayFlagged: { type: Boolean, default: false },
     latitude: { type: Number },
     longitude: { type: Number },
     completionImages: { type: [visitCompletionImageSchema], default: [] },
+    galleryImages: { type: [visitGalleryImageSchema], default: [] },
+    visitNotes: { type: String, trim: true },
+    galleryUpdatedAt: { type: Date },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -61,5 +103,9 @@ visitSchema.index({ routeId: 1 });
 visitSchema.index({ status: 1 });
 visitSchema.index({ isTrashed: 1, createdAt: -1 });
 visitSchema.index({ isTrashed: 1, trashedAt: -1 });
+// Admin review of riders who overstayed the allowed time at a store
+visitSchema.index({ overstayFlagged: 1, isTrashed: 1, completedAt: -1 });
+// Shop photo gallery lookups (all gallery entries for one dealer, newest first)
+visitSchema.index({ dealerId: 1, galleryUpdatedAt: -1 });
 
 export const VisitModel = model<IVisit>('Visit', visitSchema);

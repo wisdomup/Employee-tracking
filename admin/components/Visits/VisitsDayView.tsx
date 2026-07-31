@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import { addDays, subDays, format, isToday } from 'date-fns';
-import { visitService, Visit } from '../../services/visitService';
+import { visitService, Visit, VISIT_DURATION_LIMIT_MINUTES } from '../../services/visitService';
 import { nearestNeighborOrder } from '../../utils/geo';
 import StatusBadge from '../UI/StatusBadge';
 import styles from '../../styles/VisitsCalendar.module.scss';
@@ -88,6 +88,21 @@ const VisitsDayView: React.FC<VisitsDayViewProps> = ({ employeeId }) => {
     [orderedVisits],
   );
 
+  // Tick while any visit is checked in, so the rider can watch their time at the store.
+  const hasOpenCheckIn = visits.some((v) => v.status === 'checked_in');
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasOpenCheckIn) return;
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [hasOpenCheckIn]);
+
+  /** Minutes elapsed since check-in, for a visit the rider is currently inside. */
+  const elapsedMinutesFor = (v: Visit): number | null =>
+    v.status === 'checked_in' && v.checkedInAt
+      ? Math.max(0, Math.floor((nowTick - new Date(v.checkedInAt).getTime()) / 60_000))
+      : null;
+
   return (
     <div className={styles.dayViewCard}>
       <div className={styles.dayViewHeader}>
@@ -156,6 +171,33 @@ const VisitsDayView: React.FC<VisitsDayViewProps> = ({ employeeId }) => {
                     {v.routeId?.name && <span className={styles.visitCardRoute}>{v.routeId.name}</span>}
                     {optimize && Number.isFinite(distanceKm) && (
                       <span className={styles.visitCardDistance}>{distanceKm.toFixed(1)} km from previous</span>
+                    )}
+                    {(() => {
+                      const elapsed = elapsedMinutesFor(v);
+                      if (elapsed == null) return null;
+                      const over = elapsed > VISIT_DURATION_LIMIT_MINUTES;
+                      return (
+                        <span
+                          style={{
+                            color: over ? '#b91c1c' : '#0369a1',
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={
+                            over
+                              ? `Over the ${VISIT_DURATION_LIMIT_MINUTES} min limit — this visit will be flagged`
+                              : `${VISIT_DURATION_LIMIT_MINUTES} min allowed at the store`
+                          }
+                        >
+                          {over ? '⚠️ ' : '⏱ '}
+                          {elapsed} min at store
+                        </span>
+                      );
+                    })()}
+                    {v.overstayFlagged && v.status === 'completed' && (
+                      <span style={{ color: '#b91c1c', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        ⚠️ {v.durationMinutes} min — flagged
+                      </span>
                     )}
                   </div>
                 </div>

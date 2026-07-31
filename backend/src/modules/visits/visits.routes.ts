@@ -7,7 +7,10 @@ import {
   createVisitsForRouteSchema,
   bulkCreateVisitsSchema,
   completeVisitSchema,
+  checkInVisitSchema,
   updateVisitSchema,
+  updateVisitGallerySchema,
+  skipVisitSchema,
 } from './dto/visits.schemas';
 import * as controller from './visits.controller';
 
@@ -104,8 +107,32 @@ router.post('/bulk', requireRoles('admin', 'employee'), validate(bulkCreateVisit
  */
 router.get(
   '/',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
   controller.findAll,
+);
+
+/**
+ * @openapi
+ * /api/visits/gallery:
+ *   get:
+ *     tags: [Visits]
+ *     summary: Shop photo gallery for a client, with the rider who captured each entry
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: dealerId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Gallery entries }
+ *       400: { description: dealerId is required }
+ */
+// NOTE: must stay above `GET /:id`, otherwise "gallery" is parsed as a visit id.
+router.get(
+  '/gallery',
+  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.dealerGallery,
 );
 
 /**
@@ -142,6 +169,141 @@ router.patch(
 
 /**
  * @openapi
+ * /api/visits/{id}/check-in:
+ *   patch:
+ *     tags: [Visits]
+ *     summary: Check in at a visit location [Employee, Order taker, Delivery man]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [latitude, longitude]
+ *             properties:
+ *               latitude: { type: number }
+ *               longitude: { type: number }
+ *     responses:
+ *       200: { description: Checked in successfully }
+ *       400: { description: Too far from store or invalid state }
+ */
+router.patch(
+  '/:id/check-in',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  validate(checkInVisitSchema),
+  controller.checkInVisit,
+);
+
+/**
+ * @openapi
+ * /api/visits/{id}/skip-preview:
+ *   get:
+ *     tags: [Visits]
+ *     summary: What skipping this visit would do to today's completion rate (read-only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: >
+ *           currentRate, projectedRate, threshold, wouldDropBelowThreshold and the
+ *           day's tally. Nothing is modified.
+ */
+router.get(
+  '/:id/skip-preview',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.previewSkip,
+);
+
+/**
+ * @openapi
+ * /api/visits/{id}/skip:
+ *   patch:
+ *     tags: [Visits]
+ *     summary: Skip a visit on the route [own visit]
+ *     description: >
+ *       Two-step. If skipping would leave the day below the required completion rate and
+ *       `confirm` is not set, NOTHING is written and the response has
+ *       `requiresConfirmation: true` with the projected rate. Re-send with
+ *       `confirm: true` to go ahead — which raises an admin flag against the rider.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason: { type: string }
+ *               confirm: { type: boolean }
+ *     responses:
+ *       200: { description: Skipped, or a confirmation request }
+ *       400: { description: Visit cannot be skipped in its current status }
+ */
+router.patch(
+  '/:id/skip',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  validate(skipVisitSchema),
+  controller.skipVisit,
+);
+
+/**
+ * @openapi
+ * /api/visits/{id}/gallery:
+ *   patch:
+ *     tags: [Visits]
+ *     summary: Add optional shop photos and notes after checkout [own completed visit]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               galleryImages:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     url: { type: string }
+ *                     caption: { type: string }
+ *               visitNotes: { type: string }
+ *     responses:
+ *       200: { description: Gallery updated }
+ *       400: { description: Visit not completed or not assigned to you }
+ */
+router.patch(
+  '/:id/gallery',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  validate(updateVisitGallerySchema),
+  controller.updateGallery,
+);
+
+/**
+ * @openapi
  * /api/visits/{id}:
  *   get:
  *     tags: [Visits]
@@ -159,7 +321,7 @@ router.patch(
  */
 router.get(
   '/:id',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
   controller.findOne,
 );
 

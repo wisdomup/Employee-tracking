@@ -225,7 +225,7 @@ const ApprovalDetailPage: React.FC = () => {
 
 export default function ApprovalDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
       <ApprovalDetailPage />
     </ProtectedRoute>
   );

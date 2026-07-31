@@ -58,6 +58,7 @@ export async function createUser(data: {
   achivedTarget?: string;
   extraNotes?: string;
   lastExperience?: string;
+  managerId?: string | null;
 }, actorId?: string) {
   const existing = await UserModel.findOne({
     $or: [{ userID: data.userID }, { username: data.username }, { phone: data.phone }],
@@ -67,8 +68,14 @@ export async function createUser(data: {
     throw conflict('User ID, username or phone already exists');
   }
 
+  const { managerId, ...rest } = data;
   const hashedPassword = await bcrypt.hash(data.password, 10);
-  const user = await UserModel.create({ ...data, password: hashedPassword });
+  const user = await UserModel.create({
+    ...rest,
+    password: hashedPassword,
+    // '' / null mean "no manager"; only a real id becomes an ObjectId ref.
+    ...(managerId ? { managerId: new Types.ObjectId(managerId) } : {}),
+  });
 
   const userObject: any = user.toObject();
   delete userObject.password;
@@ -113,6 +120,39 @@ export async function findByRole(role: string) {
   return UserModel.find({ role, isActive: true, isTrashed: { $ne: true } }).select('-password').exec();
 }
 
+/** Field staff reporting to the given sales manager (excludes trashed users). */
+export async function findTeamOf(managerId: string) {
+  return UserModel.find({
+    managerId: new Types.ObjectId(managerId),
+    isTrashed: { $ne: true },
+  })
+    .select('-password')
+    .sort({ username: 1 })
+    .exec();
+}
+
+/**
+ * The set of employee ids a viewer is allowed to see analytics for.
+ * - admin: `null` (unrestricted — no id filter is applied)
+ * - sales_manager: their own reports, plus themselves
+ * - anyone else: only themselves
+ */
+export async function resolveVisibleEmployeeIds(
+  viewerId: string,
+  viewerRole: string,
+): Promise<Types.ObjectId[] | null> {
+  if (viewerRole === ROLES.ADMIN) return null;
+
+  const self = new Types.ObjectId(viewerId);
+  if (viewerRole !== ROLES.SALES_MANAGER) return [self];
+
+  const team = await UserModel.find({ managerId: self, isTrashed: { $ne: true } })
+    .select('_id')
+    .lean()
+    .exec();
+  return [self, ...team.map((member) => member._id as Types.ObjectId)];
+}
+
 export async function updateUser(
   id: string,
   data: {
@@ -133,6 +173,7 @@ export async function updateUser(
     achivedTarget?: string;
     extraNotes?: string;
     lastExperience?: string;
+    managerId?: string | null;
   },
   actorId?: string,
 ) {
@@ -161,11 +202,16 @@ export async function updateUser(
     data.password = await bcrypt.hash(data.password, 10);
   }
 
-  Object.assign(user, data);
+  const { managerId, ...assignable } = data;
+  Object.assign(user, assignable);
   if (Object.prototype.hasOwnProperty.call(data, 'fullName')) {
     const f = data.fullName;
     user.fullName =
       typeof f === 'string' && f.trim() ? f.trim() : undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'managerId')) {
+    // '' / null clear the assignment; a real id links the user to that manager.
+    user.managerId = managerId ? new Types.ObjectId(managerId) : undefined;
   }
   await user.save();
 

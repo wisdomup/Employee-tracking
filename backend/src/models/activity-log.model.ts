@@ -18,7 +18,8 @@ export type ActivityAction =
   | 'deleted'
   | 'status_changed'
   | 'started_task'
-  | 'completed_task';
+  | 'completed_task'
+  | 'flagged';
 
 export interface IActivityLog extends Document {
   _id: Types.ObjectId;
@@ -45,7 +46,7 @@ const activityLogSchema = new Schema<IActivityLog>(
     entityId: { type: String, required: true },
     action: {
       type: String,
-      enum: ['created', 'updated', 'deleted', 'status_changed', 'started_task', 'completed_task'],
+      enum: ['created', 'updated', 'deleted', 'status_changed', 'started_task', 'completed_task', 'flagged'],
       required: true,
     },
     taskId: { type: Schema.Types.ObjectId, ref: 'Task', required: false },

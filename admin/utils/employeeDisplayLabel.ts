@@ -3,6 +3,7 @@ const ROLE_SLUGS = new Set([
   'admin',
   'employee',
   'warehouse_manager',
+  'sales_manager',
   'order_taker',
   'delivery_man',
 ]);

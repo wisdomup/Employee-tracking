@@ -63,6 +63,17 @@ Wisdomup/
 
 ---
 
+## Feature Documentation
+
+| Doc | Covers |
+| --- | --- |
+| [Changelog](docs/CHANGELOG.md) | Running log of notable changes, newest first |
+| [Visit Check-In / Checkout Flow](docs/visit-checkin-checkout-flow.md) | Geofenced rider check-in, timed checkout, the 30-minute overstay flag, and the per-shop photo gallery |
+| [Performance Analytics & Targets](docs/analytics-and-targets.md) | The `sales_manager` role, rider→manager hierarchy, monthly targets, achievement rules, and analytics scoping |
+| [Visit Completion, Skipping & Flags](docs/visit-completion-and-flags.md) | The 75% completion rule, skipping visits with warnings, and the admin performance-flag queue |
+
+---
+
 ## Configuration
 
 ### Backend — `backend/.env`

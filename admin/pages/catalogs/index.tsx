@@ -115,7 +115,7 @@ const CatalogsPage: React.FC = () => {
 
 export default function CatalogsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
       <CatalogsPage />
     </ProtectedRoute>
   );
