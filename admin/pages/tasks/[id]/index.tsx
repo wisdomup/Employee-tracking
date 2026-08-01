@@ -4,6 +4,7 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import MapView from '../../../components/Map/MapView';
+import NavigateButton from '../../../components/Map/NavigateButton';
 import Loader from '../../../components/UI/Loader';
 import { taskService, Task, getTaskDocumentUrl } from '../../../services/taskService';
 import { employeeService, Employee } from '../../../services/employeeService';
@@ -235,7 +236,25 @@ const TaskDetailPage: React.FC = () => {
           {/* Client Information */}
           {client && (
             <div className={styles.section}>
-              <h2>Client Information</h2>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap',
+                  marginBottom: '1rem',
+                }}
+              >
+                <h2 style={{ margin: 0 }}>Client Information</h2>
+                {client.latitude != null && client.longitude != null && (
+                  <NavigateButton
+                    destination={{ lat: client.latitude, lng: client.longitude }}
+                    className={styles.navigateButton}
+                    title={`Open driving directions to ${client.name}`}
+                  />
+                )}
+              </div>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Client Name:</span>

@@ -5,6 +5,7 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import SearchableSelect from '../../components/UI/SearchableSelect';
+import NavigateButton from '../../components/Map/NavigateButton';
 import { clientService, Client, RouteRef } from '../../services/clientService';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
@@ -21,6 +22,15 @@ const ClientsPage: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  /**
+   * Riders only receive their own city's clients from the API. Surface that so a short
+   * list reads as "filtered", not "clients are missing". Empty when unrestricted.
+   */
+  const riderCity = useMemo(() => {
+    const cityScopedRoles = ['order_taker', 'delivery_man'];
+    if (!user?.role || !cityScopedRoles.includes(user.role)) return '';
+    return user.address?.city?.trim() ?? '';
+  }, [user]);
 
   useEffect(() => {
     fetchClients();
@@ -195,7 +205,7 @@ const ClientsPage: React.FC = () => {
       title: 'Actions',
       omitFromExport: true,
       render: (_: any, row: Client) => (
-        <div className={styles.actions}>
+        <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
           <button
             className={styles.editButton}
             onClick={(e) => {
@@ -205,6 +215,13 @@ const ClientsPage: React.FC = () => {
           >
             View
           </button>
+          {row.latitude != null && row.longitude != null && (
+            <NavigateButton
+              destination={{ lat: row.latitude, lng: row.longitude }}
+              variant="link"
+              title={`Open driving directions to ${row.name}`}
+            />
+          )}
           {isAdmin && (
             <button
               className={styles.deleteButton}
@@ -233,6 +250,29 @@ const ClientsPage: React.FC = () => {
             + Add Client
           </button>
         </div>
+
+        {riderCity && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.625rem 0.875rem',
+              marginBottom: '1rem',
+              borderRadius: '0.5rem',
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              color: '#0369a1',
+              fontSize: '0.875rem',
+            }}
+          >
+            <span aria-hidden>📍</span>
+            <span>
+              Showing clients in <strong>{riderCity}</strong> only — the city on your
+              profile. Contact an admin if you need access to another city.
+            </span>
+          </div>
+        )}
 
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>

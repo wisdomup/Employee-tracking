@@ -5,6 +5,7 @@ import { addDays, subDays, format, isToday } from 'date-fns';
 import { visitService, Visit, VISIT_DURATION_LIMIT_MINUTES } from '../../services/visitService';
 import { nearestNeighborOrder } from '../../utils/geo';
 import StatusBadge from '../UI/StatusBadge';
+import NavigateButton from '../Map/NavigateButton';
 import styles from '../../styles/VisitsCalendar.module.scss';
 
 const VisitsRouteMap = dynamic(() => import('./VisitsRouteMap'), { ssr: false });
@@ -197,6 +198,15 @@ const VisitsDayView: React.FC<VisitsDayViewProps> = ({ employeeId }) => {
                     {v.overstayFlagged && v.status === 'completed' && (
                       <span style={{ color: '#b91c1c', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         ⚠️ {v.durationMinutes} min — flagged
+                      </span>
+                    )}
+                    {v.dealerId?.latitude != null && v.dealerId?.longitude != null && (
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <NavigateButton
+                          destination={{ lat: v.dealerId.latitude, lng: v.dealerId.longitude }}
+                          variant="link"
+                          title={`Open driving directions to ${v.dealerId?.name ?? 'this client'}`}
+                        />
                       </span>
                     )}
                   </div>

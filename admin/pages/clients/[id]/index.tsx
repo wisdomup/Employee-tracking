@@ -5,6 +5,7 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Table from '../../../components/UI/Table';
 import MapView from '../../../components/Map/MapView';
+import NavigateButton from '../../../components/Map/NavigateButton';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import { clientService, Client } from '../../../services/clientService';
 import {
@@ -275,8 +276,23 @@ const ClientDetailPage: React.FC = () => {
 
           {client.latitude != null && client.longitude != null && markers.length > 0 && (
             <div className={styles.section}>
-              <h2>Location</h2>
-              <div className={styles.infoGrid}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <h2 style={{ margin: 0 }}>Location</h2>
+                <NavigateButton
+                  destination={{ lat: client.latitude, lng: client.longitude }}
+                  className={styles.navigateButton}
+                  title={`Open driving directions to ${client.name}`}
+                />
+              </div>
+              <div className={styles.infoGrid} style={{ marginTop: '1rem' }}>
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Coordinates:</span>
                   <span className={styles.value}>

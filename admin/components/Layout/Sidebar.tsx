@@ -11,6 +11,7 @@ import {
   ClipboardText,
   Fingerprint,
   MapPin,
+  MapPinArea,
   Package,
   PresentationChart,
   ShoppingCart,
@@ -70,6 +71,8 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   // Everyone gets this: riders see their own scorecard, managers their team, admin all.
   { path: '/analytics', label: 'Performance', Icon: ChartLineUp, permission: 'analytics:view-own' },
   { path: '/flags', label: 'Flags', Icon: WarningCircle, permission: 'analytics:view-own' },
+  // Admin + sales managers only — an oversight view, not something riders need.
+  { path: '/region-sales', label: 'Region Sales', Icon: MapPinArea, permission: 'region-sales:view' },
   { path: '/reports', label: 'Reports', Icon: PresentationChart, adminOnly: true },
   { path: '/stock-reports', label: 'Stock Reports', Icon: ChartBar, adminOnly: true },
   { path: '/trash', label: 'Trash', Icon: Trash, adminOnly: true },

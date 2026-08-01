@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { MapTrifold } from '@phosphor-icons/react';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import MapView from '../../../components/Map/MapView';
+import NavigateButton from '../../../components/Map/NavigateButton';
 import ImageModal from '../../../components/UI/ImageModal';
 import Loader from '../../../components/UI/Loader';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -17,7 +17,7 @@ import {
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
-import { buildGoogleMapsDirectionsUrl, type LatLng } from '../../../utils/googleMapsNavigation';
+import { type LatLng } from '../../../utils/googleMapsNavigation';
 
 const VisitDetailPage: React.FC = () => {
   const router = useRouter();
@@ -27,7 +27,6 @@ const VisitDetailPage: React.FC = () => {
   const [visit, setVisit] = useState<Visit | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
     if (id) fetchVisit();
@@ -50,38 +49,6 @@ const VisitDetailPage: React.FC = () => {
     if (c?.latitude == null || c?.longitude == null) return null;
     return { lat: c.latitude, lng: c.longitude };
   }, [visit]);
-
-  const openGoogleMapsNavigation = useCallback(() => {
-    if (!dealerCoords) {
-      toast.error('This client has no map coordinates on file.');
-      return;
-    }
-    setNavigating(true);
-    const finish = (origin: LatLng | null) => {
-      const url = buildGoogleMapsDirectionsUrl({
-        origin,
-        destination: dealerCoords,
-      });
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setNavigating(false);
-    };
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      finish(null);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        finish({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      },
-      () => {
-        finish(null);
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
-    );
-  }, [dealerCoords]);
 
   if (loading) {
     return (
@@ -130,18 +97,12 @@ const VisitDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Visit Details</h1>
           <div className={styles.headerActions}>
-            {dealerCoords && (
-              <button
-                type="button"
-                className={styles.navigateButton}
-                onClick={openGoogleMapsNavigation}
-                disabled={navigating}
-                title="Open Google Maps: drive from your location to this visit’s dealer only"
-              >
-                <MapTrifold size={20} weight="bold" aria-hidden />
-                {navigating ? 'Locating…' : 'Navigate'}
-              </button>
-            )}
+            <NavigateButton
+              destination={dealerCoords}
+              className={styles.navigateButton}
+              title="Open Google Maps: drive from your location to this visit’s client"
+              missingCoordsMessage="This client has no map coordinates on file."
+            />
             {(() => {
               if (!isOrderTaker) {
                 return (
@@ -367,7 +328,26 @@ const VisitDetailPage: React.FC = () => {
               )}
               {visit.latitude != null && visit.longitude != null && markers.length > 0 && (
                 <div style={{ marginTop: '1.5rem' }}>
-                  <span className={styles.label} style={{ color: '#374151', display: 'block', marginBottom: '0.5rem' }}>Completion Location Map:</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                      flexWrap: 'wrap',
+                      marginBottom: '0.5rem',
+                    }}
+                  >
+                    <span className={styles.label} style={{ color: '#374151' }}>
+                      Completion Location Map:
+                    </span>
+                    <NavigateButton
+                      destination={{ lat: visit.latitude, lng: visit.longitude }}
+                      label="Navigate to checkout point"
+                      variant="link"
+                      title="Open driving directions to where this visit was checked out"
+                    />
+                  </div>
                   <div style={{ marginTop: '0.5rem' }}>
                     <MapView markers={markers} height="300px" />
                   </div>

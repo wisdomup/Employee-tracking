@@ -61,6 +61,7 @@ const SALES_MANAGER_PERMISSIONS = new Set([
   'analytics:view-team',
   'targets:view',
   'targets:manage',
+  'region-sales:view',
 ]);
 
 /**

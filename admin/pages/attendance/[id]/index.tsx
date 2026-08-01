@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
+import NavigateButton from '../../../components/Map/NavigateButton';
 import {
   attendanceService,
   Attendance,
@@ -169,7 +170,25 @@ const AttendanceDetailPage: React.FC = () => {
 
           {/* Check-in location */}
           <div className={styles.section}>
-            <h2>Check-in Location</h2>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                flexWrap: 'wrap',
+                marginBottom: '1rem',
+              }}
+            >
+              <h2 style={{ margin: 0 }}>Check-in Location</h2>
+              {record.checkInLatitude != null && record.checkInLongitude != null && (
+                <NavigateButton
+                  destination={{ lat: record.checkInLatitude, lng: record.checkInLongitude }}
+                  className={styles.navigateButton}
+                  title="Open driving directions to the check-in location"
+                />
+              )}
+            </div>
             {checkInMarkers.length > 0 ? (
               <>
                 <div className={styles.infoGrid} style={{ marginBottom: '1rem' }}>
@@ -196,7 +215,25 @@ const AttendanceDetailPage: React.FC = () => {
           {/* Check-out location */}
           {record.checkOutTime && (
             <div className={styles.section}>
-              <h2>Check-out Location</h2>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap',
+                  marginBottom: '1rem',
+                }}
+              >
+                <h2 style={{ margin: 0 }}>Check-out Location</h2>
+                {record.checkOutLatitude != null && record.checkOutLongitude != null && (
+                  <NavigateButton
+                    destination={{ lat: record.checkOutLatitude, lng: record.checkOutLongitude }}
+                    className={styles.navigateButton}
+                    title="Open driving directions to the check-out location"
+                  />
+                )}
+              </div>
               {checkOutMarkers.length > 0 ? (
                 <>
                   <div className={styles.infoGrid} style={{ marginBottom: '1rem' }}>

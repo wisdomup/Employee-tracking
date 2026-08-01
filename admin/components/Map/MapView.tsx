@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
 import styles from './MapView.module.scss';
+import { buildGoogleMapsDirectionsUrl } from '../../utils/googleMapsNavigation';
 
 export type MapPinIcon = 'blue' | 'gold' | 'green' | 'red' | 'grey';
 
@@ -39,9 +40,25 @@ interface MapViewProps {
   markers: Marker[];
   polylines?: PolylinePath[];
   height?: string;
+  /** Adds a "Navigate" link to every marker popup. On by default. */
+  showNavigate?: boolean;
 }
 
-const MapView: React.FC<MapViewProps> = ({ markers, polylines = [], height = '400px' }) => {
+/** Escapes HTML so user-entered names can't inject markup into a popup. */
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
+  );
+}
+
+const MapView: React.FC<MapViewProps> = ({
+  markers,
+  polylines = [],
+  height = '400px',
+  showNavigate = true,
+}) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
 
@@ -134,8 +151,23 @@ const MapView: React.FC<MapViewProps> = ({ markers, polylines = [], height = '40
         map
       );
 
-      if (marker.label) {
-        markerInstance.bindPopup(marker.label);
+      // Every marker gets a Navigate link so any map in the app can start directions.
+      // No origin is passed — Google Maps then uses the device's own location, which
+      // avoids a geolocation prompt inside a popup.
+      const navUrl = buildGoogleMapsDirectionsUrl({
+        destination: { lat: marker.lat, lng: marker.lng },
+      });
+      const navLink = showNavigate
+        ? `<a href="${navUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;border-radius:6px;background:#0f766e;color:#fff;text-decoration:none;font-size:12px;font-weight:600;">➤ Navigate</a>`
+        : '';
+
+      if (marker.label || navLink) {
+        // Labels carry user-entered names, so escape before injecting into popup HTML.
+        const safeLabel = marker.label
+          ? `<div style="font-weight:600;">${escapeHtml(marker.label)}</div>`
+          : '';
+        const coords = `<div style="color:#6b7280;font-size:11px;margin-top:2px;">${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}</div>`;
+        markerInstance.bindPopup(`<div style="min-width:150px;">${safeLabel}${coords}${navLink}</div>`);
       }
     });
 
@@ -161,7 +193,7 @@ const MapView: React.FC<MapViewProps> = ({ markers, polylines = [], height = '40
       const bounds = L.latLngBounds(allPoints);
       map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [markers, polylines]);
+  }, [markers, polylines, showNavigate]);
 
   return <div ref={mapRef} className={styles.mapContainer} style={{ height }} />;
 };
