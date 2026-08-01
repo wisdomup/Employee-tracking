@@ -82,5 +82,7 @@ orderSchema.index({ createdBy: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ isTrashed: 1, createdAt: -1 });
 orderSchema.index({ isTrashed: 1, trashedAt: -1 });
+// Per-salesman sale over a date window — the shape every region-sales query uses.
+orderSchema.index({ createdBy: 1, status: 1, createdAt: -1 });
 
 export const OrderModel = model<IOrder>('Order', orderSchema);

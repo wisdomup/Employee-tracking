@@ -60,6 +60,8 @@ const dealerSchema = new Schema<IDealer>(
 );
 
 dealerSchema.index({ status: 1 });
+// Riders' client list is filtered to their own city.
+dealerSchema.index({ 'address.city': 1, isTrashed: 1 });
 dealerSchema.index({ shopName: 1 });
 dealerSchema.index({ latitude: 1, longitude: 1 });
 dealerSchema.index({ isTrashed: 1, createdAt: -1 });

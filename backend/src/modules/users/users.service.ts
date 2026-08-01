@@ -153,6 +153,38 @@ export async function resolveVisibleEmployeeIds(
   return [self, ...team.map((member) => member._id as Types.ObjectId)];
 }
 
+/**
+ * Roles whose client list is narrowed to the city they work in.
+ * Office and oversight roles (admin, sales_manager, employee, warehouse_manager)
+ * are deliberately excluded — they need to see every client.
+ */
+const CITY_SCOPED_ROLES: readonly string[] = [ROLES.ORDER_TAKER, ROLES.DELIVERY_MAN];
+
+/**
+ * The city a viewer's client list should be restricted to.
+ *
+ * Returns `null` for "unrestricted", which covers two distinct cases on purpose:
+ *  - the role is not city-scoped (admin, managers, office staff), and
+ *  - the rider has no city recorded yet.
+ *
+ * The second case is a deliberate fallback: riders predate this feature and most have
+ * an empty `address.city`, so failing open keeps them working instead of silently
+ * emptying their client list. Set a rider's city to switch the filter on for them.
+ */
+export async function resolveCityScope(
+  viewerId: string,
+  viewerRole: string,
+): Promise<string | null> {
+  if (!CITY_SCOPED_ROLES.includes(viewerRole)) return null;
+
+  const user = await UserModel.findById(viewerId).select('address.city').lean().exec();
+  const city = user?.address?.city;
+  if (typeof city !== 'string') return null;
+
+  const trimmed = city.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 export async function updateUser(
   id: string,
   data: {

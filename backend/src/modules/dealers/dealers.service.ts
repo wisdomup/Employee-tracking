@@ -28,6 +28,20 @@ async function assertDealerPhoneAvailable(phone: string, excludeDealerId?: strin
   }
 }
 
+/** Escapes regex metacharacters so a city name is matched literally, not as a pattern. */
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Case- and whitespace-insensitive exact match on a city name.
+ * City is free text ("Lahore" / "lahore" / " Lahore "), so a plain equality check
+ * would miss rows that are obviously the same place.
+ */
+function cityMatcher(city: string): RegExp {
+  return new RegExp(`^\\s*${escapeRegex(city.trim())}\\s*$`, 'i');
+}
+
 function isPhoneDuplicateKey(err: unknown): boolean {
   if (typeof err !== 'object' || err === null || !('code' in err)) return false;
   if ((err as { code: number }).code !== 11000) return false;
@@ -94,11 +108,21 @@ export async function createDealer(
   }
 }
 
-export async function findAll(filters?: { status?: string; search?: string; routeId?: string }) {
+export async function findAll(filters?: {
+  status?: string;
+  search?: string;
+  routeId?: string;
+  /**
+   * Restrict to clients in this city. `null`/undefined means unrestricted.
+   * Resolved from the caller by `resolveCityScope` in users.service.
+   */
+  cityScope?: string | null;
+}) {
   const query: Record<string, unknown> = { isTrashed: { $ne: true } };
 
   if (filters?.status) query.status = filters.status;
   if (filters?.routeId) query.route = new Types.ObjectId(filters.routeId);
+  if (filters?.cityScope) query['address.city'] = cityMatcher(filters.cityScope);
 
   if (filters?.search) {
     query.$or = [
@@ -112,8 +136,12 @@ export async function findAll(filters?: { status?: string; search?: string; rout
   return DealerModel.find(query).populate('route').populate('createdBy', '-password').sort({ createdAt: -1 }).exec();
 }
 
-export async function findById(id: string) {
-  const dealer = await DealerModel.findOne({ _id: id, isTrashed: { $ne: true } }).populate('route').populate('createdBy', '-password').exec();
+export async function findById(id: string, cityScope?: string | null) {
+  const query: Record<string, unknown> = { _id: id, isTrashed: { $ne: true } };
+  // Without this, a city-scoped rider could still open any client by guessing the URL.
+  if (cityScope) query['address.city'] = cityMatcher(cityScope);
+
+  const dealer = await DealerModel.findOne(query).populate('route').populate('createdBy', '-password').exec();
 
   if (!dealer) {
     throw notFound('Dealer not found');
@@ -122,8 +150,16 @@ export async function findById(id: string) {
   return dealer;
 }
 
-export async function findByLocation(lat: number, lng: number, radius: number) {
-  const dealers = await DealerModel.find({ status: 'active', isTrashed: { $ne: true } }).exec();
+export async function findByLocation(
+  lat: number,
+  lng: number,
+  radius: number,
+  cityScope?: string | null,
+) {
+  const query: Record<string, unknown> = { status: 'active', isTrashed: { $ne: true } };
+  if (cityScope) query['address.city'] = cityMatcher(cityScope);
+
+  const dealers = await DealerModel.find(query).exec();
 
   return dealers.filter((dealer) => {
     if (dealer.latitude == null || dealer.longitude == null) return false;

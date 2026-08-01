@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as dealersService from './dealers.service';
+import { resolveCityScope } from '../users/users.service';
 import { badRequest } from '../../utils/app-error';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
@@ -14,7 +15,9 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
     const { status, search, routeId } = req.query as Record<string, string>;
-    const dealers = await dealersService.findAll({ status, search, routeId });
+    // Riders only see clients in their own city; office roles see everything.
+    const cityScope = await resolveCityScope(req.user!.userId, req.user!.role);
+    const dealers = await dealersService.findAll({ status, search, routeId, cityScope });
     res.json(dealers);
   } catch (err) {
     next(err);
@@ -29,10 +32,12 @@ export async function findNearby(req: Request, res: Response, next: NextFunction
       return next(badRequest('lat, lng and radius query params are required'));
     }
 
+    const cityScope = await resolveCityScope(req.user!.userId, req.user!.role);
     const dealers = await dealersService.findByLocation(
       parseFloat(lat),
       parseFloat(lng),
       parseFloat(radius),
+      cityScope,
     );
     res.json(dealers);
   } catch (err) {
@@ -42,7 +47,8 @@ export async function findNearby(req: Request, res: Response, next: NextFunction
 
 export async function findOne(req: Request, res: Response, next: NextFunction) {
   try {
-    const dealer = await dealersService.findById(req.params.id);
+    const cityScope = await resolveCityScope(req.user!.userId, req.user!.role);
+    const dealer = await dealersService.findById(req.params.id, cityScope);
     res.json(dealer);
   } catch (err) {
     next(err);

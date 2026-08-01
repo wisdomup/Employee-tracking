@@ -71,20 +71,23 @@ async function main(): Promise<void> {
     { _id: adminId, userID: 'ADM-1', username: 'admin', fullName: 'System Admin', phone: '03000000000', password, role: 'admin' },
     { _id: managerNorthId, userID: 'SM-1', username: 'manager.north', fullName: 'Nadia North', phone: '03000000001', password, role: 'sales_manager' },
     { _id: managerSouthId, userID: 'SM-2', username: 'manager.south', fullName: 'Sami South', phone: '03000000002', password, role: 'sales_manager' },
-    { _id: aliId, userID: 'RID-1', username: 'rider.ali', fullName: 'Ali Raza', phone: '03000000003', password, role: 'order_taker', managerId: managerNorthId },
-    { _id: binaId, userID: 'RID-2', username: 'rider.bina', fullName: 'Bina Khan', phone: '03000000004', password, role: 'order_taker', managerId: managerNorthId },
-    { _id: chandId, userID: 'RID-3', username: 'rider.chand', fullName: 'Chand Bibi', phone: '03000000005', password, role: 'order_taker', managerId: managerSouthId },
+    // Cities drive both the rider client-filter and the region-sales dashboard.
+    // Ali and Bina share a city with deliberately different casing, to exercise the
+    // region grouping's normalisation.
+    { _id: aliId, userID: 'RID-1', username: 'rider.ali', fullName: 'Ali Raza', phone: '03000000003', password, role: 'order_taker', managerId: managerNorthId, address: { city: 'Lahore' } },
+    { _id: binaId, userID: 'RID-2', username: 'rider.bina', fullName: 'Bina Khan', phone: '03000000004', password, role: 'order_taker', managerId: managerNorthId, address: { city: 'lahore' } },
+    { _id: chandId, userID: 'RID-3', username: 'rider.chand', fullName: 'Chand Bibi', phone: '03000000005', password, role: 'order_taker', managerId: managerSouthId, address: { city: 'Karachi' } },
   ]);
 
   const route = await RouteModel.create({ name: 'North Beat', startingPoint: 'Depot', endingPoint: 'Clifton' });
 
-  // A handful of shops around Karachi.
+  // Shops, split across the two cities so the rider client-filter has something to hide.
   const shops = await DealerModel.create([
-    { name: 'Al-Madina Store', phone: '03111111101', latitude: 24.8607, longitude: 67.0011, route: route._id },
-    { name: 'Bismillah Mart', phone: '03111111102', latitude: 24.8650, longitude: 67.0100, route: route._id },
-    { name: 'City Kiryana', phone: '03111111103', latitude: 24.8700, longitude: 67.0200, route: route._id },
+    { name: 'Al-Madina Store', phone: '03111111101', latitude: 24.8607, longitude: 67.0011, route: route._id, address: { city: 'Lahore' } },
+    { name: 'Bismillah Mart', phone: '03111111102', latitude: 24.8650, longitude: 67.0100, route: route._id, address: { city: 'Lahore' } },
+    { name: 'City Kiryana', phone: '03111111103', latitude: 24.8700, longitude: 67.0200, route: route._id, address: { city: 'Karachi' } },
     // Registered in the field by Ali this month — shows up as a "new client".
-    { name: 'New Corner Shop', phone: '03111111104', latitude: 24.8720, longitude: 67.0250, createdBy: aliId, createdAt: daysAgo(4) },
+    { name: 'New Corner Shop', phone: '03111111104', latitude: 24.8720, longitude: 67.0250, createdBy: aliId, createdAt: daysAgo(4), address: { city: 'Karachi' } },
   ]);
 
   const riders = [

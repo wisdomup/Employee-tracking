@@ -89,6 +89,8 @@ const userSchema = new Schema<IUser>(
 userSchema.index({ role: 1 });
 // Resolving a sales manager's team for analytics scoping
 userSchema.index({ managerId: 1, isTrashed: 1 });
+// Grouping salesmen into regions for the region-wise sale dashboard
+userSchema.index({ 'address.city': 1, isTrashed: 1 });
 userSchema.index({ isTrashed: 1, createdAt: -1 });
 userSchema.index({ isTrashed: 1, trashedAt: -1 });
 

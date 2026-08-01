@@ -81,7 +81,7 @@ router.post('/', requireRoles('admin', 'employee', 'order_taker'), validate(crea
  *                 $ref: '#/components/schemas/Dealer'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get('/', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findAll);
 
 /**
  * @openapi
@@ -119,7 +119,7 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  *       400: { description: Missing or invalid lat/lng/radius parameters }
  *       401: { description: Unauthorized }
  */
-router.get('/nearby', requireRoles('admin', 'employee', 'order_taker'), controller.findNearby);
+router.get('/nearby', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findNearby);
 
 /**
  * @openapi
@@ -145,7 +145,7 @@ router.get('/nearby', requireRoles('admin', 'employee', 'order_taker'), controll
  *       401: { description: Unauthorized }
  *       404: { description: Dealer not found }
  */
-router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
+router.get('/:id', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findOne);
 
 /**
  * @openapi

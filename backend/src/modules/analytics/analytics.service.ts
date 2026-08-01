@@ -22,9 +22,9 @@ import {
 } from './analytics.rules';
 
 /** Order statuses that count as realised revenue. */
-const DELIVERED_STATUSES = ['delivered'];
+export const DELIVERED_STATUSES = ['delivered'];
 /** Order statuses that are committed but not yet delivered. */
-const BOOKED_STATUSES = ['pending', 'approved', 'packed', 'dispatched'];
+export const BOOKED_STATUSES = ['pending', 'approved', 'packed', 'dispatched'];
 
 export interface PerformanceFilters {
   /** `YYYY-MM`; defaults to the current month. */
