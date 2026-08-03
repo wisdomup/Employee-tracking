@@ -38,6 +38,8 @@ export const createUserSchema = Joi.object({
   lastExperience: Joi.string().optional(),
   /** Sales manager this user reports to; '' or null clears the assignment. */
   managerId: Joi.string().allow('', null).optional(),
+  /** Whether the nightly cron generates route visits for this user. */
+  autoAssignVisits: Joi.boolean().optional(),
 });
 
 export const updateUserSchema = Joi.object({
@@ -60,6 +62,8 @@ export const updateUserSchema = Joi.object({
   lastExperience: Joi.string().optional(),
   /** Sales manager this user reports to; '' or null clears the assignment. */
   managerId: Joi.string().allow('', null).optional(),
+  /** Whether the nightly cron generates route visits for this user. */
+  autoAssignVisits: Joi.boolean().optional(),
 });
 
 const profileAddressSchema = Joi.object({

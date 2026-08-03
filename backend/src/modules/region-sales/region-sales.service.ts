@@ -105,8 +105,29 @@ async function resolveRoster(viewerId: string, viewerRole: string) {
 
   return UserModel.find(query)
     .select('_id username fullName userID role address.city')
+    // Explicit sort: without it Mongo's natural order depends on which index the planner
+    // picks, which made the region display label non-deterministic (see pickRegionLabel).
+    .sort({ username: 1 })
     .lean()
     .exec();
+}
+
+/**
+ * Chooses which spelling of a city to display when its rows disagree on casing.
+ *
+ * City is free text, so one region can arrive as "Lahore", "lahore" and "LAHORE". They
+ * group into a single row, but the row still needs one label. A mixed-case spelling is
+ * preferred over an all-lower or all-upper one, so the region reads as "Lahore" rather
+ * than "LAHORE" regardless of which record the database returned first.
+ */
+function pickRegionLabel(current: string, candidate: string): string {
+  if (current === UNASSIGNED_REGION || candidate === UNASSIGNED_REGION) return current;
+
+  const looksProper = (s: string) => s !== s.toLowerCase() && s !== s.toUpperCase();
+  if (looksProper(current)) return current;
+  if (looksProper(candidate)) return candidate;
+  // Neither is mixed case — keep it stable rather than flip-flopping.
+  return current <= candidate ? current : candidate;
 }
 
 /**
@@ -160,6 +181,9 @@ export async function getRegionTotals(
         salesmenCount: 0,
       };
       byRegion.set(regionKey, row);
+    } else {
+      // Same region, possibly spelled differently — settle on the nicest spelling.
+      row.region = pickRegionLabel(row.region, regionLabel(rawCity));
     }
 
     row.salesmenCount += 1;
@@ -259,7 +283,11 @@ export async function getRegionSalesmen(
     date: day,
     timezone: REPORT_TIMEZONE,
     regionKey: wantedKey,
-    region: regionLabel(roster[0].address?.city),
+    // Same label rule as the region list, so the two levels agree on the spelling.
+    region: roster.reduce(
+      (label, member) => pickRegionLabel(label, regionLabel(member.address?.city)),
+      regionLabel(roster[0].address?.city),
+    ),
     totals: sumTotals(salesmen),
     salesmen,
   };

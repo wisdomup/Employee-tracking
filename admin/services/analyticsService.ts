@@ -40,6 +40,12 @@ export interface PerformanceRow {
   visitsCompleted: number;
   visitsAssigned: number;
   visitsSkipped: number;
+  /** Self-started extras — real work, deliberately outside the adherence rate. */
+  extraVisitsCompleted: number;
+  extraVisitsStarted: number;
+  /** Assigned + extras, i.e. everything the rider actually completed. */
+  totalVisitsCompleted: number;
+  /** Adherence to the assigned route only; comparable to the 75% pass mark. */
   visitCompletionRate: number;
   /** Below the 75% pass mark for the period. */
   belowVisitThreshold: boolean;
@@ -94,6 +100,8 @@ export interface PerformanceKpis {
   visitsCompleted: number;
   visitsAssigned: number;
   visitsSkipped: number;
+  extraVisitsCompleted: number;
+  totalVisitsCompleted: number;
   overstayCount: number;
   newClients: number;
   daysPresent: number;

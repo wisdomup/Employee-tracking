@@ -16,6 +16,13 @@ export interface IUser extends Document {
    * Drives analytics scoping: a manager sees only the users pointing at them.
    */
   managerId?: Types.ObjectId;
+  /**
+   * Whether the nightly cron generates route visits for this person.
+   * Defaults to true; missing means enabled, so existing users keep their behaviour.
+   * Turn off for someone on leave, in training, or working ad-hoc — they can still be
+   * given visits manually and can still start their own from the client list.
+   */
+  autoAssignVisits?: boolean;
   address?: {
     street?: string;
     city?: string;
@@ -58,6 +65,7 @@ const userSchema = new Schema<IUser>(
       enum: Object.values(ROLES),
     },
     managerId: { type: Schema.Types.ObjectId, ref: 'User' },
+    autoAssignVisits: { type: Boolean, default: true },
     address: {
       street: String,
       city: String,

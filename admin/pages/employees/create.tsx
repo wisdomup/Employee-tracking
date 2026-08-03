@@ -45,6 +45,7 @@ const CreateEmployeePage: React.FC = () => {
       country: '',
     },
     isActive: true,
+    autoAssignVisits: true,
   });
 
   // Sales managers are the only valid values for the "Reports to" picker.
@@ -131,6 +132,7 @@ const CreateEmployeePage: React.FC = () => {
         ...(formData.target        && { target: formData.target }),
         ...(formData.achivedTarget && { achivedTarget: formData.achivedTarget }),
         ...(canHaveManager && formData.managerId && { managerId: formData.managerId }),
+        ...(canHaveManager && { autoAssignVisits: formData.autoAssignVisits }),
       };
 
       const addressEntries = Object.entries(formData.address).filter(([, v]) => v);
@@ -435,6 +437,25 @@ const CreateEmployeePage: React.FC = () => {
               <span>Active</span>
             </label>
           </div>
+
+          {canHaveManager && (
+            <div className={styles.formGroup}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  name="autoAssignVisits"
+                  checked={formData.autoAssignVisits}
+                  onChange={handleChange}
+                />
+                <span>Auto-assign route visits</span>
+              </label>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                When on, the nightly job creates this rider&apos;s visits from their
+                assigned route. Turn off for someone on leave or working ad-hoc — you can
+                still assign visits manually, and they can still start their own.
+              </span>
+            </div>
+          )}
 
           <div className={styles.formActions}>
             <button

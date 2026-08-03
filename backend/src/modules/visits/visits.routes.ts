@@ -203,6 +203,42 @@ router.patch(
 
 /**
  * @openapi
+ * /api/visits/self:
+ *   post:
+ *     tags: [Visits]
+ *     summary: Start a visit for any client the rider can see, without a route assignment
+ *     description: >
+ *       Creates a visit assigned to the caller for the given client, marked as
+ *       self-initiated. The resulting visit behaves exactly like an assigned one —
+ *       same geofenced check-in, checkout requirements, duration tracking and gallery.
+ *       Idempotent per day: if a visit for this rider and client already exists today it
+ *       is returned (200) instead of creating a duplicate (201).
+ *       Clients outside the rider's own city are not found, matching the client list.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [dealerId]
+ *             properties:
+ *               dealerId: { type: string }
+ *     responses:
+ *       201: { description: "New visit created — { visit, created: true }" }
+ *       200: { description: "Today's existing visit returned — { visit, created: false }" }
+ *       400: { description: dealerId missing or malformed }
+ *       404: { description: Client not found or outside your city }
+ */
+router.post(
+  '/self',
+  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.startSelfVisit,
+);
+
+/**
+ * @openapi
  * /api/visits/{id}/skip-preview:
  *   get:
  *     tags: [Visits]

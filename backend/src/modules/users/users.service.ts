@@ -59,6 +59,7 @@ export async function createUser(data: {
   extraNotes?: string;
   lastExperience?: string;
   managerId?: string | null;
+  autoAssignVisits?: boolean;
 }, actorId?: string) {
   const existing = await UserModel.findOne({
     $or: [{ userID: data.userID }, { username: data.username }, { phone: data.phone }],
@@ -206,6 +207,7 @@ export async function updateUser(
     extraNotes?: string;
     lastExperience?: string;
     managerId?: string | null;
+    autoAssignVisits?: boolean;
   },
   actorId?: string,
 ) {

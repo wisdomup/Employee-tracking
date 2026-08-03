@@ -5,6 +5,8 @@ import { DealerModel } from '../../models/dealer.model';
 import { RouteAssignmentModel } from '../../models/route-assignment.model';
 import { UserModel } from '../../models/user.model';
 import * as routeAssignmentsService from '../route-assignments/route-assignments.service';
+import * as dealersService from '../dealers/dealers.service';
+import { resolveCityScope } from '../users/users.service';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
@@ -111,16 +113,16 @@ export async function findAll(filters?: {
   if (filters?.startDate || filters?.endDate) {
     query.visitDate = {} as Record<string, Date>;
     const q = query.visitDate as Record<string, Date>;
-    const startOnly = filters.startDate && !filters.endDate;
+    // Each bound means exactly what it says. This previously widened a start-only filter
+    // back by one day, so asking for a single date returned the day before as well —
+    // which is what made yesterday's visits look like they had carried over.
     if (filters.startDate) {
       const start = new Date(filters.startDate);
       start.setUTCHours(0, 0, 0, 0);
-      if (startOnly) start.setUTCDate(start.getUTCDate() - 1);
       q.$gte = start;
     }
-    const endDateToUse = filters.endDate ?? (startOnly ? filters.startDate : undefined);
-    if (endDateToUse) {
-      const end = new Date(endDateToUse);
+    if (filters.endDate) {
+      const end = new Date(filters.endDate);
       end.setUTCHours(23, 59, 59, 999);
       q.$lte = end;
     }
@@ -208,6 +210,57 @@ export async function deleteVisit(id: string, actorId?: string) {
   return { message: 'Visit moved to trash successfully' };
 }
 
+/** Open statuses — a visit in any of these was neither finished nor deliberately closed. */
+const OPEN_VISIT_STATUSES = ['todo', 'in_progress', 'checked_in'];
+
+/**
+ * Closes out every visit left open on a previous day, across the whole system.
+ *
+ * A visit belongs to the day it was scheduled for and must never appear on a later one.
+ * This used to be done per-route inside `createVisitsForRoute`, which left three holes:
+ *   - `checked_in` visits were not included, so a rider who checked in but never checked
+ *     out kept an open visit forever;
+ *   - visits with no `routeId` (admin-created or rider-started walk-ins) were never
+ *     matched at all;
+ *   - routes skipped by the cron (inactive employee, no dealers, trashed route) never
+ *     had their stale visits closed.
+ *
+ * Running it globally and route-agnostically fixes all three. Visits keep their original
+ * `visitDate`, so history stays accurate — they simply stop counting as open work.
+ */
+export async function rolloverStaleVisits(
+  now: Date = new Date(),
+): Promise<{ markedIncomplete: number }> {
+  const startOfToday = new Date(now);
+  startOfToday.setUTCHours(0, 0, 0, 0);
+
+  const result = await VisitModel.updateMany(
+    {
+      isTrashed: { $ne: true },
+      status: { $in: OPEN_VISIT_STATUSES },
+      $or: [
+        { visitDate: { $lt: startOfToday } },
+        // Fall back to createdAt when a visit has no scheduled date, so a brand-new
+        // dateless visit created today is never swept away by mistake.
+        { visitDate: null, createdAt: { $lt: startOfToday } },
+        { visitDate: { $exists: false }, createdAt: { $lt: startOfToday } },
+      ],
+    },
+    { $set: { status: 'incomplete' } },
+  ).exec();
+
+  const markedIncomplete = result.modifiedCount ?? 0;
+  if (markedIncomplete > 0) {
+    logActivityAsync({
+      module: 'visit',
+      entityId: 'system',
+      action: 'updated',
+      meta: { markedIncomplete, source: 'visit_rollover_global', toStatus: 'incomplete' },
+    });
+  }
+  return { markedIncomplete };
+}
+
 export async function createVisitsForRoute(
   routeId: string,
   userId?: string,
@@ -232,11 +285,17 @@ export async function createVisitsForRoute(
     _id: employeeObjectId,
     isTrashed: { $ne: true },
   })
-    .select('_id isActive')
+    .select('_id isActive autoAssignVisits')
     .lean()
     .exec();
 
-  if (!assignedEmployee || assignedEmployee.isActive !== true) {
+  // `autoAssignVisits === false` means an admin turned auto-assignment off for this
+  // rider; missing/true keeps the original behaviour.
+  if (
+    !assignedEmployee ||
+    assignedEmployee.isActive !== true ||
+    assignedEmployee.autoAssignVisits === false
+  ) {
     return { created: 0, skipped: 0, markedIncomplete: 0 };
   }
 
@@ -257,11 +316,13 @@ export async function createVisitsForRoute(
     {
       routeId: routeObjectId,
       isTrashed: { $ne: true },
-      status: { $in: ['todo', 'in_progress'] },
+      // Includes `checked_in`: a rider who checked in but never checked out has still
+      // not completed the visit, and it must not stay open into the following day.
+      status: { $in: OPEN_VISIT_STATUSES },
       $or: [
         { visitDate: { $lt: startOfDay } },
-        { visitDate: null },
-        { visitDate: { $exists: false } },
+        { visitDate: null, createdAt: { $lt: startOfDay } },
+        { visitDate: { $exists: false }, createdAt: { $lt: startOfDay } },
       ],
     },
     { $set: { status: 'incomplete' } },
@@ -338,6 +399,10 @@ export async function createVisitsForAllEligibleRoutes(): Promise<{
   totalSkippedDuplicates: number;
   totalMarkedIncomplete: number;
 }> {
+  // Runs first and unconditionally: closing out yesterday's open visits must not depend
+  // on any route being eligible today, or on the loop below being reached at all.
+  const globalRollover = (await rolloverStaleVisits()).markedIncomplete;
+
   const assignments = await RouteAssignmentModel.find({}).select('routeId employeeId').lean().exec();
   const employeeIdSet = new Set<string>();
   for (const assignment of assignments) {
@@ -347,6 +412,9 @@ export async function createVisitsForAllEligibleRoutes(): Promise<{
     _id: { $in: [...employeeIdSet].map((id) => new Types.ObjectId(id)) },
     isTrashed: { $ne: true },
     isActive: true,
+    // Riders with auto-assign switched off are skipped by the cron. `$ne: false` rather
+    // than `true` so users predating the field (where it is missing) stay enabled.
+    autoAssignVisits: { $ne: false },
   })
     .select('_id')
     .lean()
@@ -371,7 +439,7 @@ export async function createVisitsForAllEligibleRoutes(): Promise<{
       routesSkippedInactiveEmployee,
       totalCreated: 0,
       totalSkippedDuplicates: 0,
-      totalMarkedIncomplete: 0,
+      totalMarkedIncomplete: globalRollover,
     };
   }
 
@@ -401,7 +469,8 @@ export async function createVisitsForAllEligibleRoutes(): Promise<{
 
   let totalCreated = 0;
   let totalSkippedDuplicates = 0;
-  let totalMarkedIncomplete = 0;
+  // Already done globally above; the per-route pass below should find nothing left.
+  let totalMarkedIncomplete = globalRollover;
   let routesProcessed = 0;
   let routesSkippedNoDealers = 0;
 
@@ -612,32 +681,140 @@ function utcDayRange(date: Date): { start: Date; end: Date } {
 export async function getDayVisitTally(
   employeeId: Types.ObjectId,
   day: Date,
-): Promise<{ completed: number; assigned: number; stillOpen: number; skipped: number }> {
+): Promise<{
+  completed: number;
+  assigned: number;
+  stillOpen: number;
+  skipped: number;
+  /** Completed extras — reported for context, deliberately NOT part of the rate. */
+  extrasCompleted: number;
+}> {
   const { start, end } = utcDayRange(day);
 
-  const rows = await VisitModel.aggregate<{ _id: string; count: number }>([
+  const rows = await VisitModel.aggregate<{
+    _id: { status: string; self: boolean };
+    count: number;
+  }>([
     { $match: { employeeId, isTrashed: { $ne: true } } },
     { $addFields: { effectiveDate: { $ifNull: ['$visitDate', '$createdAt'] } } },
     { $match: { effectiveDate: { $gte: start, $lte: end } } },
-    { $group: { _id: '$status', count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: {
+          status: '$status',
+          // Missing means assigned — correct for every visit created before this feature.
+          self: { $ifNull: ['$isSelfInitiated', false] },
+        },
+        count: { $sum: 1 },
+      },
+    },
   ]);
 
-  const byStatus = new Map(rows.map((r) => [r._id, r.count]));
-  const get = (s: string) => byStatus.get(s) ?? 0;
+  // The 75% rule measures adherence to the assigned route, so self-started extras are
+  // excluded entirely from both sides of the ratio: they cannot pad away a skipped route
+  // visit, and abandoning one cannot drag the rider below the threshold.
+  const assignedRows = rows.filter((r) => !r._id.self);
+  const countOf = (status: string) =>
+    assignedRows.find((r) => r._id.status === status)?.count ?? 0;
 
-  const completed = get('completed');
-  const skipped = get('skipped');
-  const cancelled = get('cancelled');
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
+  const completed = countOf('completed');
+  const skipped = countOf('skipped');
+  const cancelled = countOf('cancelled');
+  const total = assignedRows.reduce((sum, r) => sum + r.count, 0);
+
+  const extrasCompleted = rows
+    .filter((r) => r._id.self && r._id.status === 'completed')
+    .reduce((sum, r) => sum + r.count, 0);
 
   return {
     completed,
     skipped,
+    extrasCompleted,
     assigned: total - cancelled,
     // todo + in_progress + checked_in + incomplete are all still theoretically openable,
     // but `incomplete` is a past-day rollover so it never appears for today.
     stillOpen: total - cancelled - completed - skipped,
   };
+}
+
+/**
+ * Starts a visit the rider chose themselves, for any client they are allowed to see.
+ *
+ * The resulting visit is identical to an assigned one — same check-in geofence, same
+ * checkout requirements, same duration/overstay tracking, same post-checkout gallery —
+ * it is only marked `isSelfInitiated` so the 75% route-adherence rule can ignore it.
+ *
+ * Idempotent for the day: if a visit for this rider+client already exists today (whether
+ * route-assigned or started earlier), that one is returned instead of a duplicate, so
+ * visit counts and the adherence denominator stay honest.
+ */
+export async function startSelfVisit(
+  dealerId: string,
+  userId: string,
+  userRole: string,
+) {
+  if (!Types.ObjectId.isValid(dealerId)) {
+    throw badRequest('A valid client must be selected');
+  }
+
+  const employeeId = new Types.ObjectId(userId);
+  const dealerObjectId = new Types.ObjectId(dealerId);
+
+  // Riders are limited to clients in their own city. Going through the dealers service
+  // reuses that scoping (and its tests) rather than re-implementing the city match here,
+  // so this endpoint cannot become a way around the restriction. It throws notFound for
+  // an out-of-city client, which is exactly the behaviour we want.
+  const cityScope = await resolveCityScope(userId, userRole);
+  const dealer = await dealersService.findById(dealerId, cityScope);
+
+  const now = new Date();
+  const { start, end } = utcDayRange(now);
+
+  // Reuse today's visit for this shop rather than stacking duplicates.
+  const existing = await VisitModel.findOne({
+    employeeId,
+    dealerId: dealerObjectId,
+    isTrashed: { $ne: true },
+    status: { $nin: ['cancelled'] },
+    $or: [
+      { visitDate: { $gte: start, $lte: end } },
+      { visitDate: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+    ],
+  }).exec();
+
+  if (existing) {
+    return { visit: existing, created: false };
+  }
+
+  // `route` arrives populated from the dealers service, so take its id when present.
+  const routeRef = dealer.route as { _id?: Types.ObjectId } | Types.ObjectId | undefined;
+  const routeId =
+    routeRef && typeof routeRef === 'object' && '_id' in routeRef ? routeRef._id : routeRef;
+
+  const visit = await VisitModel.create({
+    dealerId: dealerObjectId,
+    employeeId,
+    ...(routeId && { routeId }),
+    visitDate: now,
+    status: 'todo',
+    isSelfInitiated: true,
+    createdBy: employeeId,
+  });
+
+  logActivityAsync({
+    employeeId: userId,
+    module: 'visit',
+    entityId: String(visit._id),
+    action: 'created',
+    meta: {
+      source: 'self_initiated',
+      dealerId,
+      dealerName: dealer.name,
+      status: visit.status,
+    },
+  });
+
+  return { visit, created: true };
 }
 
 /**

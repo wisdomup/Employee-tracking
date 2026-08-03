@@ -452,6 +452,37 @@ async function main(): Promise<void> {
     assert.equal(b.belowVisitThreshold, true);
   });
 
+  await test('self-started extras count as completed work but NOT in the adherence rate', async () => {
+    const when = inThisMonth();
+    const before = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+    const beforeRow = rowFor(before, RIDER_A)!;
+
+    await VisitModel.create([
+      { dealerId, employeeId: RIDER_A, visitDate: when, status: 'completed', completedAt: when, isSelfInitiated: true },
+      { dealerId, employeeId: RIDER_A, visitDate: when, status: 'completed', completedAt: when, isSelfInitiated: true },
+    ]);
+
+    const after = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+    const a = rowFor(after, RIDER_A)!;
+
+    assert.equal(a.extraVisitsCompleted, 2);
+    assert.equal(
+      a.visitsAssigned,
+      beforeRow.visitsAssigned,
+      'extras must not enter the adherence denominator',
+    );
+    assert.equal(
+      a.visitCompletionRate,
+      beforeRow.visitCompletionRate,
+      'the adherence rate must be unchanged by extras',
+    );
+    assert.equal(
+      a.totalVisitsCompleted,
+      a.visitsCompleted + 2,
+      'total productivity does include them',
+    );
+  });
+
   await test('open performance flags are surfaced per employee', async () => {
     await PerformanceFlagModel.create({
       employeeId: RIDER_A,

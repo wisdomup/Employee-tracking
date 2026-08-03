@@ -8,6 +8,203 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-03 — Auto-assign toggle, and visits no longer leak across days
+
+### Added
+- **Per-rider auto-assign toggle.** `User.autoAssignVisits` (default true) with an
+  "Auto-assign route visits" checkbox on the employee create/edit forms, shown for field
+  roles. When off, the nightly cron generates nothing for that rider — useful for someone
+  on leave or working ad-hoc. They can still be assigned visits manually and can still
+  start their own walk-ins.
+- Treated as `$ne: false`, so users predating the field stay enabled — no migration.
+
+### Fixed
+- **Stale visits stayed open forever (the "visits carry over to the next day" bug).**
+  The rollover that closes yesterday's unfinished visits had three holes, all now closed
+  by a new global `rolloverStaleVisits()` that runs first and unconditionally:
+  1. It only covered `todo` / `in_progress` — a rider who checked in but never checked
+     out kept a **`checked_in`** visit open indefinitely.
+  2. It was **route-scoped**, so visits with no `routeId` (admin-created, or rider-started
+     walk-ins) were never matched.
+  3. It ran **inside the per-route loop**, so routes the cron skipped — inactive employee,
+     no dealers, trashed route — never had their stale visits closed. With *no* eligible
+     routes at all the function early-returned and swept nothing.
+  Verified live: a cron run reporting `routesProcessed: 0` now still reports
+  `totalMarkedIncomplete: 3`. Visits keep their original `visitDate`, so history is intact
+  — they simply stop counting as open work.
+- **A single-date visit filter returned two days.** `findAll` widened a start-only filter
+  back by one day (`start.setUTCDate(... - 1)`), so "From: 3 Aug" returned 2 Aug as well.
+  Each bound now means exactly what it says.
+- **Region label was non-deterministic.** The `{'address.city': 1}` index added in the
+  previous change altered the query plan, so the roster came back ordered by city and the
+  region's display name flipped to whichever casing sorted first — "Lahore" became
+  "lahore". Roster order is now explicitly sorted, and a mixed-case spelling is preferred
+  over all-lower/all-upper. Regression test pins it.
+- Rider dashboard fetched **every visit ever** to compute stats (no date filter). Now
+  scoped to today. Note those particular counts were computed but never rendered, so this
+  was wasted work rather than a visible wrong number.
+
+### Notes
+- 199 tests (14 new), covering: rollover across all three previously-missed shapes,
+  rollover idempotency, `visitDate` preservation, single-date filtering, and the
+  auto-assign toggle in both states plus the missing-field default.
+
+---
+
+## 2026-07-31 — Riders can start a visit at any client (walk-in visits)
+
+### Added
+- **`POST /api/visits/self`** — a rider picks any client they can see and starts a visit
+  there, with no route assignment needed and in any order. The visit is marked
+  `isSelfInitiated` but is otherwise **completely ordinary**: same 150 m geofenced
+  check-in, same "must check in before checkout", same shop photo + selfie requirement,
+  same duration/overstay tracking, same post-checkout gallery.
+- **Idempotent per day** — if a visit for that rider and client already exists today
+  (route-assigned or started earlier), it is returned (`200`, `created: false`) instead
+  of creating a duplicate, so visit counts stay honest.
+- **`StartVisitButton`** on the client detail page and as a per-row "Visit" action on the
+  clients list, dropping the rider straight into the normal check-in screen.
+- **"Extra" badge** on the visit detail page and the rider's day view, so an admin can
+  tell a self-chosen visit from an assigned one at a glance.
+- Analytics gains `extraVisitsCompleted`, `extraVisitsStarted` and
+  `totalVisitsCompleted`, shown as new KPI cards and a `+N extra` line under each rider's
+  visit column — for the rider themselves and for admins/managers alike.
+- 8 new tests. Suite total: **190**.
+
+### Notes / decisions
+- **Extras are excluded from the 75% adherence rule, on both sides of the ratio.** They
+  measure route adherence, so letting extras in would let a rider skip assigned visits
+  and pad the rate back up with easy walk-ins — and would equally punish someone who
+  started an extra and abandoned it. There is a test that specifically proves a rider
+  cannot mask a skip with five completed extras.
+- Consequently `visitCompletionRate` stays comparable to the 75% pass mark, while
+  `totalVisitsCompleted` and `visitsPerDayPresent` reflect all work done including extras.
+- **City scoping still applies** — a rider cannot start a visit at a client outside their
+  own city. This goes through `dealersService.findById` with the same city scope the
+  client list uses, so the endpoint can't become a way around that restriction.
+- A missing `isSelfInitiated` means "assigned", which is correct for every visit that
+  existed before this change — no migration needed.
+
+---
+
+## 2026-07-31 — Region-wise daily sale dashboard
+
+Full reference: [region-sales-dashboard.md](region-sales-dashboard.md)
+
+### Added
+- **`/region-sales` page** — three-level drill-down on one page with a breadcrumb:
+  regions → salesmen in a region → one salesman's day-wise report. The selected date
+  survives drilling in and back out. Admin and sales_manager only.
+- **`GET /api/region-sales/regions`**, **`/regions/:regionKey/salesmen`** and
+  **`/salesman/:employeeId`** — new `region-sales` module.
+- **Delivered and Booked shown side by side** at every level, never blended. Only
+  counting delivered would show ~Rs. 0 every morning, since orders rarely deliver
+  same-day. Status constants are now exported from `analytics.service.ts` and reused, so
+  the app doesn't gain a fourth definition of "sale".
+- **`REPORT_TIMEZONE` (default `Asia/Karachi`)** — day boundaries for this dashboard are
+  Pakistan-local, not UTC. Offset is derived via `Intl`, so it stays correct in a
+  DST-observing zone.
+- Region = the salesman's `address.city`, case/whitespace normalised so `"Lahore"`,
+  `"lahore"` and `" Lahore "` are one region. Salesmen with no city go to an
+  **`Unassigned`** bucket (sorted last) rather than being dropped.
+- Zero rows everywhere by design: regions with no sale, salesmen with no sale, and days
+  with no orders all render as Rs. 0 instead of disappearing.
+- Indexes: `Order { createdBy, status, createdAt }` and `User { 'address.city', isTrashed }`.
+- Sandbox seed now assigns cities to riders (`Lahore` / `lahore` / `Karachi`) so the
+  region grouping and the rider client-filter are both demonstrable.
+- 46 new tests (19 unit + 27 integration). Suite total: **182**.
+
+### Notes / decisions
+- **Day boundary:** existing `/analytics` and `/reports` still bucket in UTC, so their
+  figures can differ slightly from this dashboard for the same period. Deliberate —
+  changing them would move historical numbers.
+- **`orderDate` is dead** — no production path writes it, only the seed. `createdAt` is
+  the only reliable sale date, matching every other aggregation.
+- Region is the *salesman's* city, not the *shop's*. `Order → dealerId → Dealer.address.city`
+  is better-populated and answers "where the sale happened" if that's ever wanted instead.
+- No export or WhatsApp automation, per the requirement — the admin reads and copies.
+
+### Gotchas found while building
+- `Intl.formatToParts` has no millisecond field, so a naive offset calculation returned
+  299.98 minutes instead of 300 and shifted the end-of-day boundary. Offsets are always
+  whole minutes; the result is rounded.
+- **Mongoose makes `createdAt` immutable** — backdating a fixture via `updateOne` is
+  silently ignored and the doc keeps "now". Use `create([...], { timestamps: false })`.
+
+---
+
+## 2026-07-31 — Navigate buttons wherever location data is shown
+
+### Added
+- **`NavigateButton`** (`admin/components/Map/NavigateButton.tsx`) — opens Google Maps
+  driving directions, using the device's current location as the origin when the browser
+  allows it. Geolocation is best-effort: if it's denied, unavailable, or times out, Maps
+  still opens and falls back to the device location rather than blocking the user.
+  Two variants: `button` (full teal button) and `link` (compact inline).
+- **Every map marker popup now carries a Navigate link** — added once in `MapView`, so
+  all five maps in the app (dashboard, client, task, visit, attendance) get it without
+  per-page changes. Popups also now show the coordinates. Opt out with
+  `showNavigate={false}`.
+- Navigate buttons added to: client detail (Location), task detail (Client Information),
+  attendance detail (**both** check-in and check-out locations), visit detail (completion
+  point, alongside the existing client Navigate), the clients list (per row), and the
+  rider's day-view visit cards.
+
+### Fixed
+- **HTML injection in map popups.** `MapView` bound `marker.label` directly as popup
+  HTML, and those labels contain user-entered client names — so a client named with
+  markup would inject into the popup. Labels are now escaped. Found while adding the
+  Navigate link, since appending HTML safely required handling this first.
+
+### Changed
+- The visit detail page's hand-rolled geolocation/navigation block (~30 lines) was
+  replaced with `NavigateButton`, removing what would otherwise have been copy-pasted
+  into four more pages.
+
+### Notes
+- Popup links deliberately pass **no origin** — requesting geolocation from inside a map
+  popup would prompt awkwardly, and Maps already defaults to the device's location.
+  The standalone buttons do request an origin, since the click is a deliberate action.
+
+---
+
+## 2026-07-31 — City-scoped client visibility for riders
+
+### Added
+- **Riders only see clients in their own city.** A rider's `address.city` is matched
+  against each client's `address.city`, enforced server-side in
+  `dealers.service.findAll` / `findById` / `findByLocation` via a new
+  `resolveCityScope(viewerId, viewerRole)` helper in `users.service.ts`.
+- City matching is **case- and whitespace-insensitive** ("Lahore" / "lahore" /
+  " Lahore " all match), and the city name is regex-escaped so a name containing `.`
+  can't act as a wildcard.
+- Applies to `order_taker` and `delivery_man`. Admin, sales_manager, employee and
+  warehouse_manager stay unrestricted.
+- Blocks URL-guessing: `GET /api/dealers/:id` returns 404 for an out-of-city client
+  rather than serving it.
+- Banner on the rider's Clients page naming the city being filtered on, so a short list
+  reads as "filtered" rather than "clients missing".
+- Index `{ 'address.city': 1, isTrashed: 1 }` on Dealer.
+- 16 new integration tests (`npm run test:city-scope`). Suite total: **136**.
+
+### Fixed
+- **`sales_manager` was rejected by the dealers API.** They had the Clients page and the
+  `dealers:view` permission from the previous change, but were missing from the backend
+  `requireRoles` guard on `GET /api/dealers`, `/nearby` and `/:id` — so the page loaded
+  and every request failed with "Insufficient permissions". Caught during live
+  verification, not by the type checker or tests.
+
+### Notes / decisions
+- **A rider with no city set sees ALL clients**, not none. Most existing riders predate
+  this feature and have an empty `address.city`; failing closed would have emptied their
+  client list on deploy. Filtering activates per-rider once an admin fills in their city.
+- Clients with **no city** are hidden from city-scoped riders (they match nobody).
+- City is free text on both User and Dealer. A structured alternative already exists —
+  `RouteAssignment` (employee → route) plus `Dealer.route` — and would be more robust if
+  city data proves messy in practice.
+
+---
+
 ## 2026-07-29 — 75% visit rule, skipping, performance flags, deeper analytics
 
 Full reference: [visit-completion-and-flags.md](visit-completion-and-flags.md)

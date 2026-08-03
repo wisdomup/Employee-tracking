@@ -195,6 +195,22 @@ const VisitsDayView: React.FC<VisitsDayViewProps> = ({ employeeId }) => {
                         </span>
                       );
                     })()}
+                    {v.isSelfInitiated && (
+                      <span
+                        style={{
+                          padding: '0.0625rem 0.375rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          background: '#ede9fe',
+                          color: '#5b21b6',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title="Extra visit you started yourself — not counted in today's 75% target"
+                      >
+                        Extra
+                      </span>
+                    )}
                     {v.overstayFlagged && v.status === 'completed' && (
                       <span style={{ color: '#b91c1c', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         ⚠️ {v.durationMinutes} min — flagged

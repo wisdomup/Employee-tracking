@@ -70,6 +70,23 @@ export async function dealerGallery(req: Request, res: Response, next: NextFunct
   }
 }
 
+export async function startSelfVisit(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { dealerId } = req.body as { dealerId?: string };
+    if (!dealerId) return next(badRequest('dealerId is required'));
+
+    const result = await visitsService.startSelfVisit(
+      dealerId,
+      req.user!.userId,
+      req.user!.role,
+    );
+    // 201 only for a genuinely new visit; reusing today's existing one is a 200.
+    res.status(result.created ? 201 : 200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function previewSkip(req: Request, res: Response, next: NextFunction) {
   try {
     const preview = await visitsService.previewSkipVisit(

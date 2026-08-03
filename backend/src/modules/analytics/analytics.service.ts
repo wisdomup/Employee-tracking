@@ -48,6 +48,9 @@ export interface PerformanceRow {
   visitsCompleted: number;
   visitsAssigned: number;
   visitsSkipped: number;
+  extraVisitsCompleted: number;
+  extraVisitsStarted: number;
+  totalVisitsCompleted: number;
   visitCompletionRate: number;
   belowVisitThreshold: boolean;
   avgVisitMinutes: number | null;
@@ -229,13 +232,58 @@ export async function getPerformance(
       {
         $group: {
           _id: '$employeeId',
+          // `visitsAssigned` / `visitsCompleted` cover ROUTE-ASSIGNED work only, so the
+          // completion rate stays comparable to the 75% adherence threshold. Self-started
+          // extras are counted separately below — they are real work, but letting them
+          // into this ratio would let a rider pad away skipped route visits.
+          //
           // Cancelled visits are not work the rider failed to do, so they are excluded
-          // from the denominator of the completion rate.
+          // from the denominator.
           visitsAssigned: {
-            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 0, 1] },
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: [{ $ifNull: ['$isSelfInitiated', false] }, true] },
+                    { $ne: ['$status', 'cancelled'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           visitsCompleted: {
-            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: [{ $ifNull: ['$isSelfInitiated', false] }, true] },
+                    { $eq: ['$status', 'completed'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          // Extra visits the rider chose themselves and saw through to checkout.
+          extraVisitsCompleted: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: [{ $ifNull: ['$isSelfInitiated', false] }, true] },
+                    { $eq: ['$status', 'completed'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          extraVisitsStarted: {
+            $sum: { $cond: [{ $eq: [{ $ifNull: ['$isSelfInitiated', false] }, true] }, 1, 0] },
           },
           visitsSkipped: {
             $sum: { $cond: [{ $eq: ['$status', 'skipped'] }, 1, 0] },
@@ -408,6 +456,8 @@ export async function getPerformance(
           visitsAssigned?: number;
           visitsCompleted?: number;
           visitsSkipped?: number;
+          extraVisitsCompleted?: number;
+          extraVisitsStarted?: number;
           overstayCount?: number;
           totalMinutes?: number;
           timedVisits?: number;
@@ -464,6 +514,11 @@ export async function getPerformance(
       visitsCompleted,
       visitsAssigned,
       visitsSkipped: visits?.visitsSkipped ?? 0,
+      /** Self-started extras — real work, deliberately outside the adherence rate. */
+      extraVisitsCompleted: visits?.extraVisitsCompleted ?? 0,
+      extraVisitsStarted: visits?.extraVisitsStarted ?? 0,
+      /** Everything the rider actually completed, assigned plus extras. */
+      totalVisitsCompleted: visitsCompleted + (visits?.extraVisitsCompleted ?? 0),
       visitCompletionRate: visitRate,
       /** Below the 75% pass mark for the period. */
       belowVisitThreshold: visitsAssigned > 0 && visitRate < VISIT_COMPLETION_THRESHOLD_PERCENT,
@@ -502,8 +557,9 @@ export async function getPerformance(
       // Efficiency ratios
       avgOrderValue: orderCount ? Math.round((salesAmount / orderCount) * 100) / 100 : 0,
       salesPerDayPresent: daysPresent ? Math.round((salesAmount / daysPresent) * 100) / 100 : 0,
+      // Productivity, so this counts everything they completed — extras included.
       visitsPerDayPresent: daysPresent
-        ? Math.round((visitsCompleted / daysPresent) * 10) / 10
+        ? Math.round(((visitsCompleted + (visits?.extraVisitsCompleted ?? 0)) / daysPresent) * 10) / 10
         : 0,
       /** Share of completed visits that produced an order. */
       strikeRatePercent: safeRate(orderCount, visitsCompleted),
@@ -535,6 +591,8 @@ export async function getPerformance(
       acc.visitsCompleted += r.visitsCompleted;
       acc.visitsAssigned += r.visitsAssigned;
       acc.visitsSkipped += r.visitsSkipped;
+      acc.extraVisitsCompleted += r.extraVisitsCompleted;
+      acc.totalVisitsCompleted += r.totalVisitsCompleted;
       acc.overstayCount += r.overstayCount;
       acc.newClients += r.newClients;
       acc.daysPresent += r.daysPresent;
@@ -561,6 +619,8 @@ export async function getPerformance(
       visitsCompleted: 0,
       visitsAssigned: 0,
       visitsSkipped: 0,
+      extraVisitsCompleted: 0,
+      totalVisitsCompleted: 0,
       overstayCount: 0,
       newClients: 0,
       daysPresent: 0,
@@ -623,6 +683,8 @@ function emptyReport(periodMonth: string, start: Date, end: Date) {
       visitsCompleted: 0,
       visitsAssigned: 0,
       visitsSkipped: 0,
+      extraVisitsCompleted: 0,
+      totalVisitsCompleted: 0,
       overstayCount: 0,
       newClients: 0,
       daysPresent: 0,

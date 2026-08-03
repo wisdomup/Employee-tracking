@@ -178,6 +178,29 @@ const VisitDetailPage: React.FC = () => {
                 <span className={styles.value}>{visit.routeId?.name ?? '-'}</span>
               </div>
               <div className={styles.infoItem}>
+                <span className={styles.label}>Origin:</span>
+                <span className={styles.value}>
+                  {visit.isSelfInitiated ? (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.125rem 0.5rem',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        background: '#ede9fe',
+                        color: '#5b21b6',
+                      }}
+                      title="The rider chose this client themselves — it was not on their assigned route, so it is excluded from the 75% adherence rate."
+                    >
+                      Extra — rider chose this shop
+                    </span>
+                  ) : (
+                    'Assigned route visit'
+                  )}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
                 <span className={styles.label}>Visit Date:</span>
                 <span className={styles.value}>
                   {visit.visitDate

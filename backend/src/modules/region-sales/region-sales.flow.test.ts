@@ -135,6 +135,23 @@ async function main(): Promise<void> {
     assert.equal(lahore.totalAmount, 2050);
   });
 
+  await test('the region label is deterministic and prefers proper casing', async () => {
+    // Regression: the label used to be whichever spelling the database happened to
+    // return first, so adding an index on address.city silently flipped it to "lahore".
+    const first = await service.getRegionTotals(DAY, String(ADMIN), 'admin');
+    const second = await service.getRegionTotals(DAY, String(ADMIN), 'admin');
+    const labels = first.regions.map((r) => r.region);
+    assert.deepEqual(labels, second.regions.map((r) => r.region), 'stable across calls');
+    assert.ok(labels.includes('Lahore'), `expected "Lahore", got ${JSON.stringify(labels)}`);
+    assert.ok(!labels.includes('lahore') && !labels.includes('LAHORE'));
+  });
+
+  await test('the drill-down label agrees with the region list label', async () => {
+    const regions = await service.getRegionTotals(DAY, String(ADMIN), 'admin');
+    const drill = await service.getRegionSalesmen(DAY, 'lahore', String(ADMIN), 'admin');
+    assert.equal(drill.region, region(regions, 'Lahore')!.region);
+  });
+
   await test('case and whitespace variants of one city collapse into a single region', async () => {
     const r = await service.getRegionTotals(DAY, String(ADMIN), 'admin');
     const lahoreRows = r.regions.filter((x) => x.region.toLowerCase().trim() === 'lahore');

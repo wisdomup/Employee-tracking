@@ -48,6 +48,7 @@ const EditEmployeePage: React.FC = () => {
       country: '',
     },
     isActive: true,
+    autoAssignVisits: true,
   });
 
   useEffect(() => {
@@ -96,6 +97,8 @@ const EditEmployeePage: React.FC = () => {
           country: '',
         },
         isActive: data.isActive,
+        // Missing means enabled, matching the backend's `$ne: false` treatment.
+        autoAssignVisits: data.autoAssignVisits !== false,
       });
     } catch (error) {
       toast.error('Failed to fetch employee');
@@ -175,6 +178,9 @@ const EditEmployeePage: React.FC = () => {
         managerId: FIELD_STAFF_ROLES.includes(formData.role as never)
           ? formData.managerId || ''
           : '',
+        ...(FIELD_STAFF_ROLES.includes(formData.role as never) && {
+          autoAssignVisits: formData.autoAssignVisits,
+        }),
         ...(addressEntries.length > 0 && { address: Object.fromEntries(addressEntries) }),
       };
 
@@ -489,6 +495,25 @@ const EditEmployeePage: React.FC = () => {
               <span>Active</span>
             </label>
           </div>
+
+          {FIELD_STAFF_ROLES.includes(formData.role as never) && (
+            <div className={styles.formGroup}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  name="autoAssignVisits"
+                  checked={formData.autoAssignVisits}
+                  onChange={handleChange}
+                />
+                <span>Auto-assign route visits</span>
+              </label>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                When on, the nightly job creates this rider&apos;s visits from their
+                assigned route. Turn off for someone on leave or working ad-hoc — you can
+                still assign visits manually, and they can still start their own.
+              </span>
+            </div>
+          )}
 
           <div className={styles.formActions}>
             <button

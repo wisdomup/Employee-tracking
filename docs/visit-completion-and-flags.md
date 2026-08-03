@@ -45,6 +45,13 @@ rate      = completed / assigned * 100          (100% when assigned is 0)
 | `incomplete` (rolled over) | yes | no |
 | `cancelled` | **no** — called off, not the rider's failure | no |
 
+**Self-started ("extra") visits are excluded entirely** — from both sides of the ratio.
+A rider can walk into any client and start a visit (`isSelfInitiated: true`), but this
+rule measures adherence to the *assigned route*. If extras counted, a rider could skip
+assigned visits and pad the rate back up with easy walk-ins; and abandoning an extra
+would unfairly push them below the threshold. Extras are still counted as real work in
+analytics — see `extraVisitsCompleted` / `totalVisitsCompleted`.
+
 **An empty day is 100%, not 0%.** A rider with nothing assigned cannot be failing, and
 returning 0 there would flag every idle rider.
 
@@ -165,6 +172,8 @@ A skipped visit renders an amber "Skipped" badge with the reason.
 | Already checked in | Skip refused with a message telling them to complete instead. |
 | Someone else's visit | `This visit is not assigned to you`. |
 | Admin skipping for a rider | Allowed (ownership check passes for admin); the flag is raised against the **rider**, not the admin. |
+| Rider completes 5 self-started extras after skipping 2 assigned visits | Still warned and still flagged — extras cannot pad the adherence rate. |
+| Rider starts an extra and never finishes it | No effect on the rate; extras are outside the denominator. |
 
 ---
 

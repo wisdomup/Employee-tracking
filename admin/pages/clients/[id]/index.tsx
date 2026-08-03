@@ -6,6 +6,7 @@ import StatusBadge from '../../../components/UI/StatusBadge';
 import Table from '../../../components/UI/Table';
 import MapView from '../../../components/Map/MapView';
 import NavigateButton from '../../../components/Map/NavigateButton';
+import StartVisitButton from '../../../components/Visits/StartVisitButton';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import { clientService, Client } from '../../../services/clientService';
 import {
@@ -25,6 +26,12 @@ const ClientDetailPage: React.FC = () => {
   const { id } = router.query;
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  /**
+   * Field staff can walk into any client they can see and start a visit there, without
+   * waiting for it to appear on their route.
+   */
+  const canStartVisit =
+    !!user?.role && ['order_taker', 'delivery_man', 'employee'].includes(user.role);
   const [client, setClient] = useState<Client | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [visitFilterDate, setVisitFilterDate] = useState<string>(() => {
@@ -158,6 +165,13 @@ const ClientDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Client Details</h1>
           <div className={styles.headerActions}>
+            {canStartVisit && (
+              <StartVisitButton
+                dealerId={id as string}
+                clientName={client.name}
+                className={styles.navigateButton}
+              />
+            )}
             {isAdmin && (
               <button className={styles.editButton} onClick={handleEdit}>
                 Edit

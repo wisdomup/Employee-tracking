@@ -25,6 +25,8 @@ export interface Employee {
   lastExperience?: string;
   /** Sales manager this field-staff user reports to ('' or null clears it). */
   managerId?: string | null;
+  /** When false, the nightly cron does not generate route visits for this user. */
+  autoAssignVisits?: boolean;
   createdAt: string;
   updatedAt: string;
 }

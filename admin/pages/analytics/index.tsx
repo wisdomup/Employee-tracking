@@ -153,6 +153,14 @@ const AnalyticsPage: React.FC = () => {
               {row.visitCompletionRate}%
               {row.visitsSkipped > 0 && ` · ${row.visitsSkipped} skipped`}
             </span>
+            {row.extraVisitsCompleted > 0 && (
+              <span
+                style={{ display: 'block', fontSize: '0.75rem', color: '#5b21b6' }}
+                title="Extra visits the rider started themselves — not part of the rate above"
+              >
+                +{row.extraVisitsCompleted} extra
+              </span>
+            )}
           </span>
         ),
       },
@@ -417,6 +425,21 @@ const AnalyticsPage: React.FC = () => {
             <span>Visits Skipped</span>
             <strong style={{ color: kpis.visitsSkipped > 0 ? '#92400e' : undefined }}>
               {kpis.visitsSkipped}
+            </strong>
+          </div>
+          <div className={styles.kpiCard}>
+            <span>Extra Visits</span>
+            <strong
+              style={{ color: kpis.extraVisitsCompleted > 0 ? '#5b21b6' : undefined }}
+              title="Visits riders started themselves, outside their assigned route. Counted as work done, but not in the completion rate."
+            >
+              {kpis.extraVisitsCompleted}
+            </strong>
+          </div>
+          <div className={styles.kpiCard}>
+            <span>Total Visits Done</span>
+            <strong title="Assigned visits completed plus self-started extras">
+              {kpis.totalVisitsCompleted}
             </strong>
           </div>
           <div className={styles.kpiCard}>

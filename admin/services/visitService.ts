@@ -76,6 +76,8 @@ export interface Visit {
   status: 'todo' | 'in_progress' | 'checked_in' | 'completed' | 'skipped' | 'incomplete' | 'cancelled';
   skippedAt?: string;
   skipReason?: string;
+  /** True when the rider started this visit themselves rather than it being assigned. */
+  isSelfInitiated?: boolean;
   checkedInAt?: string;
   checkedInLatitude?: number;
   checkedInLongitude?: number;
@@ -166,6 +168,16 @@ export const visitService = {
     data: { latitude: number; longitude: number },
   ) {
     const response = await api.patch(`/visits/${visitId}/check-in`, data);
+    return response.data;
+  },
+
+  /**
+   * Start a visit for any client the rider can see, without a route assignment.
+   * If a visit for this client already exists today it is returned instead of a
+   * duplicate (`created: false`).
+   */
+  async startSelfVisit(dealerId: string): Promise<{ visit: Visit; created: boolean }> {
+    const response = await api.post('/visits/self', { dealerId });
     return response.data;
   },
 

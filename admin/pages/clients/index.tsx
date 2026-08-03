@@ -6,6 +6,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import SearchableSelect from '../../components/UI/SearchableSelect';
 import NavigateButton from '../../components/Map/NavigateButton';
+import StartVisitButton from '../../components/Visits/StartVisitButton';
 import { clientService, Client, RouteRef } from '../../services/clientService';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
@@ -26,6 +27,10 @@ const ClientsPage: React.FC = () => {
    * Riders only receive their own city's clients from the API. Surface that so a short
    * list reads as "filtered", not "clients are missing". Empty when unrestricted.
    */
+  /** Field staff can start a visit at any client in their list, in any order. */
+  const canStartVisit =
+    !!user?.role && ['order_taker', 'delivery_man', 'employee'].includes(user.role);
+
   const riderCity = useMemo(() => {
     const cityScopedRoles = ['order_taker', 'delivery_man'];
     if (!user?.role || !cityScopedRoles.includes(user.role)) return '';
@@ -215,6 +220,9 @@ const ClientsPage: React.FC = () => {
           >
             View
           </button>
+          {canStartVisit && (
+            <StartVisitButton dealerId={row._id} clientName={row.name} variant="link" label="Visit" />
+          )}
           {row.latitude != null && row.longitude != null && (
             <NavigateButton
               destination={{ lat: row.latitude, lng: row.longitude }}

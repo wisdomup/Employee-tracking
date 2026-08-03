@@ -256,8 +256,13 @@ const Dashboard: React.FC = () => {
 
   const fetchOrderTakerStats = async (userId: string) => {
     try {
+      // Scope to TODAY. Without a date filter this counted every open visit the rider
+      // had ever been given, so an unfinished visit from a previous day kept showing up
+      // in "Visits To Do" indefinitely.
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       const [visits, tasks] = await Promise.all([
-        visitService.getVisits({ employeeId: userId }),
+        visitService.getVisits({ employeeId: userId, startDate: todayStr, endDate: todayStr }),
         taskService.getTasks({ assignedTo: userId }),
       ]);
       setOrderTakerStats({

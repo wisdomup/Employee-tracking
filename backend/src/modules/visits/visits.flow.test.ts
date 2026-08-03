@@ -14,6 +14,8 @@ import { VisitModel } from '../../models/visit.model';
 import { DealerModel } from '../../models/dealer.model';
 import { UserModel } from '../../models/user.model';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
+import { RouteModel } from '../../models/route.model';
+import { RouteAssignmentModel } from '../../models/route-assignment.model';
 import * as visitsService from './visits.service';
 import { VISIT_DURATION_LIMIT_MINUTES, VISIT_COMPLETION_THRESHOLD_PERCENT } from './visits.rules';
 
@@ -548,6 +550,341 @@ async function main(): Promise<void> {
     assert.equal(flags.length, 1);
     assert.equal(flags[0].threshold, VISIT_DURATION_LIMIT_MINUTES);
     assert.ok((flags[0].value ?? 0) >= 50);
+  });
+
+  // -------------------------------------------------------------------------
+  console.log('\nSelf-started visits (rider picks any client, no route assignment)');
+  // -------------------------------------------------------------------------
+  // A shop no other test touches, so the per-day dedupe starts from a clean slate.
+  const walkInShop = await DealerModel.create({
+    name: 'Walk-in Shop',
+    phone: '03007654321',
+    latitude: SHOP.lat,
+    longitude: SHOP.lng,
+  });
+  const walkInId = walkInShop._id as Types.ObjectId;
+
+  await test('a rider can start a visit for a client with no route assignment', async () => {
+    const result = await visitsService.startSelfVisit(
+      String(walkInId),
+      String(RIDER_ID),
+      'order_taker',
+    );
+    assert.equal(result.created, true);
+    assert.equal(result.visit.isSelfInitiated, true);
+    assert.equal(result.visit.status, 'todo');
+    assert.equal(String(result.visit.employeeId), String(RIDER_ID));
+    assert.equal(String(result.visit.dealerId), String(walkInId));
+  });
+
+  await test('starting the same client again the same day reuses the visit, no duplicate', async () => {
+    const first = await visitsService.startSelfVisit(String(walkInId), String(RIDER_ID), 'order_taker');
+    const second = await visitsService.startSelfVisit(String(walkInId), String(RIDER_ID), 'order_taker');
+    assert.equal(second.created, false);
+    assert.equal(String(second.visit._id), String(first.visit._id));
+  });
+
+  await test('a self-started visit follows the SAME check-in and checkout flow', async () => {
+    // Clear today's walk-in visit so a genuinely fresh one is created.
+    await VisitModel.deleteMany({ employeeId: RIDER_ID, dealerId: walkInId });
+    const { visit } = await visitsService.startSelfVisit(
+      String(walkInId),
+      String(RIDER_ID),
+      'order_taker',
+    );
+
+    // Geofence still applies — far away is refused.
+    await rejectsWith(
+      visitsService.checkInVisit(String(visit._id), { latitude: FAR_AWAY.lat, longitude: FAR_AWAY.lng }, String(RIDER_ID), 'order_taker'),
+      /too far|metres/i,
+    );
+
+    // Checkout still requires a prior check-in.
+    await rejectsWith(
+      visitsService.completeVisit(
+        String(visit._id),
+        { latitude: NEARBY.lat, longitude: NEARBY.lng, completionImages: IMAGES },
+        String(RIDER_ID),
+        'order_taker',
+      ),
+      /check in/i,
+    );
+
+    // Happy path: check in at the shop, then check out with both photos.
+    await visitsService.checkInVisit(
+      String(visit._id),
+      { latitude: NEARBY.lat, longitude: NEARBY.lng },
+      String(RIDER_ID),
+      'order_taker',
+    );
+    const done = await visitsService.completeVisit(
+      String(visit._id),
+      { latitude: NEARBY.lat, longitude: NEARBY.lng, completionImages: IMAGES },
+      String(RIDER_ID),
+      'order_taker',
+    );
+    assert.equal(done.status, 'completed');
+    assert.ok(done.durationMinutes != null, 'duration is tracked just like an assigned visit');
+    assert.equal(done.isSelfInitiated, true, 'still marked as an extra after checkout');
+  });
+
+  await test('extras do NOT count toward the 75% adherence rule', async () => {
+    const day = new Date(Date.UTC(2026, 5, 3, 9, 0, 0));
+    await VisitModel.deleteMany({ employeeId: RIDER_ID, visitDate: day });
+
+    // 4 assigned visits, none done yet.
+    await VisitModel.create(
+      Array.from({ length: 4 }, () => ({
+        dealerId,
+        employeeId: RIDER_ID,
+        visitDate: day,
+        status: 'todo',
+      })),
+    );
+    // Plus 3 completed extras on the same day.
+    await VisitModel.create(
+      Array.from({ length: 3 }, () => ({
+        dealerId,
+        employeeId: RIDER_ID,
+        visitDate: day,
+        status: 'completed',
+        completedAt: day,
+        isSelfInitiated: true,
+      })),
+    );
+
+    const tally = await visitsService.getDayVisitTally(RIDER_ID, day);
+    assert.equal(tally.assigned, 4, 'extras must not inflate the denominator');
+    assert.equal(tally.completed, 0, 'completed extras are not adherence credit');
+    assert.equal(tally.stillOpen, 4);
+    assert.equal(tally.extrasCompleted, 3, 'but they are still reported');
+  });
+
+  await test('completing extras cannot pad away skipped route visits', async () => {
+    const day = new Date(Date.UTC(2026, 5, 4, 9, 0, 0));
+    await VisitModel.deleteMany({ employeeId: RIDER_ID, visitDate: day });
+    await PerformanceFlagModel.deleteMany({ employeeId: RIDER_ID });
+
+    // 4 assigned, 1 already skipped; plus 5 completed extras.
+    const assigned = await VisitModel.create([
+      { dealerId, employeeId: RIDER_ID, visitDate: day, status: 'skipped', skippedAt: day },
+      { dealerId, employeeId: RIDER_ID, visitDate: day, status: 'todo' },
+      { dealerId, employeeId: RIDER_ID, visitDate: day, status: 'todo' },
+      { dealerId, employeeId: RIDER_ID, visitDate: day, status: 'todo' },
+    ]);
+    await VisitModel.create(
+      Array.from({ length: 5 }, () => ({
+        dealerId,
+        employeeId: RIDER_ID,
+        visitDate: day,
+        status: 'completed',
+        completedAt: day,
+        isSelfInitiated: true,
+      })),
+    );
+
+    // Skipping a second assigned visit must still trip the warning despite the 5 extras.
+    const result = await visitsService.skipVisit(
+      String(assigned[1]._id),
+      {},
+      String(RIDER_ID),
+      'order_taker',
+    );
+    assert.equal(result.requiresConfirmation, true, 'extras must not mask the breach');
+    assert.equal(result.projectedRate, 50);
+  });
+
+  await test('a rider cannot start a visit for a client outside their city', async () => {
+    // Give the rider a city, and put the dealer in a different one.
+    await UserModel.updateOne({ _id: RIDER_ID }, { $set: { 'address.city': 'Lahore' } });
+    await DealerModel.updateOne({ _id: dealerId }, { $set: { 'address.city': 'Karachi' } });
+
+    await rejectsWith(
+      visitsService.startSelfVisit(String(dealerId), String(RIDER_ID), 'order_taker'),
+      /not found/i,
+    );
+
+    // Same city works again.
+    await DealerModel.updateOne({ _id: dealerId }, { $set: { 'address.city': 'lahore' } });
+    const ok = await visitsService.startSelfVisit(String(dealerId), String(RIDER_ID), 'order_taker');
+    assert.ok(ok.visit);
+
+    // Reset so later assertions are unaffected.
+    await UserModel.updateOne({ _id: RIDER_ID }, { $unset: { 'address.city': 1 } });
+    await DealerModel.updateOne({ _id: dealerId }, { $unset: { 'address.city': 1 } });
+  });
+
+  await test('an unknown client id is rejected', async () => {
+    await rejectsWith(
+      visitsService.startSelfVisit(String(new Types.ObjectId()), String(RIDER_ID), 'order_taker'),
+      /not found/i,
+    );
+    await rejectsWith(
+      visitsService.startSelfVisit('not-an-id', String(RIDER_ID), 'order_taker'),
+      /valid client/i,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  console.log("\nDay isolation — yesterday's visits must not appear today");
+  // -------------------------------------------------------------------------
+  const yesterday = new Date(Date.now() - 24 * 3600_000);
+  const dayStr = (d: Date) => d.toISOString().slice(0, 10);
+
+  await test('a single-date filter returns ONLY that date, not the day before', async () => {
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    await VisitModel.create([
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'todo' },
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: new Date(), status: 'todo' },
+    ]);
+
+    // Passing only startDate used to widen the window back a day, pulling in yesterday.
+    const startOnly = await visitsService.findAll({
+      employeeId: String(OTHER_RIDER_ID),
+      startDate: dayStr(new Date()),
+    });
+    assert.equal(startOnly.length, 1, 'a start-only filter must not include yesterday');
+
+    const bothBounds = await visitsService.findAll({
+      employeeId: String(OTHER_RIDER_ID),
+      startDate: dayStr(new Date()),
+      endDate: dayStr(new Date()),
+    });
+    assert.equal(bothBounds.length, 1);
+  });
+
+  await test("rollover closes yesterday's open visits, including checked_in", async () => {
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    // The rollover is global by design, so clear out anything earlier tests left open
+    // first — otherwise the count below would include their leftovers.
+    await visitsService.rolloverStaleVisits();
+
+    const stale = await VisitModel.create([
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'todo' },
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'in_progress' },
+      // Checked in but never checked out — previously left open forever.
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'checked_in', checkedInAt: yesterday },
+      // Already-finished ones must be left alone.
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'completed', completedAt: yesterday },
+      { dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'skipped', skippedAt: yesterday },
+    ]);
+    const today = await VisitModel.create({
+      dealerId,
+      employeeId: OTHER_RIDER_ID,
+      visitDate: new Date(),
+      status: 'todo',
+    });
+
+    const { markedIncomplete } = await visitsService.rolloverStaleVisits();
+    assert.equal(markedIncomplete, 3, 'todo + in_progress + checked_in');
+
+    const after = await VisitModel.find({ _id: { $in: stale.map((v) => v._id) } }).sort({ _id: 1 });
+    const statuses = after.map((v) => v.status);
+    assert.ok(statuses.filter((s) => s === 'incomplete').length === 3);
+    assert.ok(statuses.includes('completed'), 'completed is untouched');
+    assert.ok(statuses.includes('skipped'), 'skipped is untouched');
+
+    const todayAfter = await VisitModel.findById(today._id);
+    assert.equal(todayAfter!.status, 'todo', "today's visit must NOT be rolled over");
+  });
+
+  await test('rollover reaches visits with no route at all (walk-ins included)', async () => {
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    const routeless = await VisitModel.create({
+      dealerId,
+      employeeId: OTHER_RIDER_ID,
+      visitDate: yesterday,
+      status: 'todo',
+      isSelfInitiated: true,
+      // deliberately no routeId
+    });
+    await visitsService.rolloverStaleVisits();
+    const after = await VisitModel.findById(routeless._id);
+    assert.equal(after!.status, 'incomplete', 'route-less visits were previously missed');
+  });
+
+  await test('rollover keeps the original visitDate so history stays accurate', async () => {
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    const v = await VisitModel.create({
+      dealerId,
+      employeeId: OTHER_RIDER_ID,
+      visitDate: yesterday,
+      status: 'todo',
+    });
+    await visitsService.rolloverStaleVisits();
+    const after = await VisitModel.findById(v._id);
+    assert.equal(dayStr(after!.visitDate as Date), dayStr(yesterday), 'date is not moved forward');
+
+    // ...and it therefore does not show up in today's list.
+    const todayList = await visitsService.findAll({
+      employeeId: String(OTHER_RIDER_ID),
+      startDate: dayStr(new Date()),
+      endDate: dayStr(new Date()),
+    });
+    assert.equal(todayList.length, 0, "yesterday's visit must not appear under today");
+  });
+
+  await test('rollover is idempotent — running it twice changes nothing more', async () => {
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    await VisitModel.create({ dealerId, employeeId: OTHER_RIDER_ID, visitDate: yesterday, status: 'todo' });
+    const first = await visitsService.rolloverStaleVisits();
+    const second = await visitsService.rolloverStaleVisits();
+    assert.equal(first.markedIncomplete, 1);
+    assert.equal(second.markedIncomplete, 0);
+  });
+
+  // -------------------------------------------------------------------------
+  console.log('\nAuto-assign toggle');
+  // -------------------------------------------------------------------------
+  await test('a rider with auto-assign OFF gets no generated visits', async () => {
+    const route = await RouteModel.create({ name: 'Toggle Beat', startingPoint: 'A', endingPoint: 'B' });
+    const shop = await DealerModel.create({
+      name: 'Toggle Shop',
+      phone: '03005550001',
+      route: route._id,
+      latitude: SHOP.lat,
+      longitude: SHOP.lng,
+    });
+    await RouteAssignmentModel.create({ routeId: route._id, employeeId: OTHER_RIDER_ID, assignedAt: new Date() });
+    await UserModel.updateOne({ _id: OTHER_RIDER_ID }, { $set: { isActive: true, autoAssignVisits: false } });
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+
+    const off = await visitsService.createVisitsForRoute(String(route._id));
+    assert.equal(off.created, 0, 'auto-assign is off, so nothing should be generated');
+
+    // Flip it back on and the same call now generates the route's visits.
+    await UserModel.updateOne({ _id: OTHER_RIDER_ID }, { $set: { autoAssignVisits: true } });
+    const on = await visitsService.createVisitsForRoute(String(route._id));
+    assert.equal(on.created, 1);
+
+    // Cleanup so later assertions are unaffected.
+    await RouteAssignmentModel.deleteMany({ routeId: route._id });
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    await DealerModel.deleteOne({ _id: shop._id });
+  });
+
+  await test('a rider with the field missing is treated as auto-assign ON', async () => {
+    await UserModel.updateOne({ _id: OTHER_RIDER_ID }, { $unset: { autoAssignVisits: 1 } });
+    const user = await UserModel.findById(OTHER_RIDER_ID).lean();
+    assert.equal(user!.autoAssignVisits, undefined, 'field really is absent');
+
+    const route = await RouteModel.create({ name: 'Default Beat', startingPoint: 'A', endingPoint: 'B' });
+    const shop = await DealerModel.create({
+      name: 'Default Shop',
+      phone: '03005550002',
+      route: route._id,
+      latitude: SHOP.lat,
+      longitude: SHOP.lng,
+    });
+    await RouteAssignmentModel.create({ routeId: route._id, employeeId: OTHER_RIDER_ID, assignedAt: new Date() });
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+
+    const result = await visitsService.createVisitsForRoute(String(route._id));
+    assert.equal(result.created, 1, 'existing users keep generating visits — no migration needed');
+
+    await RouteAssignmentModel.deleteMany({ routeId: route._id });
+    await VisitModel.deleteMany({ employeeId: OTHER_RIDER_ID });
+    await DealerModel.deleteOne({ _id: shop._id });
   });
 
   // -------------------------------------------------------------------------
