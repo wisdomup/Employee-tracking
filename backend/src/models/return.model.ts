@@ -15,6 +15,11 @@ export interface IReturn extends Document {
   amount?: number;
   status: 'pending' | 'approved' | 'picked' | 'completed';
   returnReason?: string;
+  /**
+   * Warehouse the goods come back into. Stamped at create time so the credit lands where the
+   * goods physically went, not wherever the creator happens to be assigned months later.
+   */
+  warehouseId?: Types.ObjectId;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -45,6 +50,7 @@ const returnSchema = new Schema<IReturn>(
       default: 'pending',
     },
     returnReason: { type: String },
+    warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },

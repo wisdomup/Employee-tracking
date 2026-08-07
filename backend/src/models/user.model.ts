@@ -17,6 +17,12 @@ export interface IUser extends Document {
    */
   managerId?: Types.ObjectId;
   /**
+   * The warehouse this person works at. Required in practice for `warehouse_staff` — a staff
+   * account without one is locked out of the warehouse module rather than handed every
+   * warehouse. For `warehouse_manager` it narrows an otherwise company-wide scope.
+   */
+  warehouseId?: Types.ObjectId;
+  /**
    * Whether the nightly cron generates route visits for this person.
    * Defaults to true; missing means enabled, so existing users keep their behaviour.
    * Turn off for someone on leave, in training, or working ad-hoc — they can still be
@@ -65,6 +71,7 @@ const userSchema = new Schema<IUser>(
       enum: Object.values(ROLES),
     },
     managerId: { type: Schema.Types.ObjectId, ref: 'User' },
+    warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
     autoAssignVisits: { type: Boolean, default: true },
     address: {
       street: String,
@@ -99,6 +106,8 @@ userSchema.index({ role: 1 });
 userSchema.index({ managerId: 1, isTrashed: 1 });
 // Grouping salesmen into regions for the region-wise sale dashboard
 userSchema.index({ 'address.city': 1, isTrashed: 1 });
+// Listing the staff attached to a warehouse
+userSchema.index({ warehouseId: 1, isTrashed: 1 });
 userSchema.index({ isTrashed: 1, createdAt: -1 });
 userSchema.index({ isTrashed: 1, trashedAt: -1 });
 

@@ -23,6 +23,7 @@ import {
   TrendUp,
   UserCircle,
   Users,
+  Warehouse,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -63,6 +64,9 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: '/categories', label: 'Categories', Icon: Tag, adminOnly: true },
   { path: '/catalogs', label: 'Catalogs', Icon: BookOpen, permission: 'catalogs:view' },
   { path: '/products', label: 'Products', Icon: Package, permission: 'products:view' },
+  // One entry for the whole warehouse module; `isActive` uses startsWith, so every nested
+  // /warehouse/** page keeps it lit. Adding a sibling /warehouse* entry would break that.
+  { path: '/warehouse', label: 'Warehouse', Icon: Warehouse, permission: 'warehouse:view' },
   { path: '/orders', label: 'Orders', Icon: ShoppingCart, permission: 'orders:view' },
   { path: '/approvals', label: 'Approvals', Icon: CalendarCheck, permission: 'approvals:view' },
   { path: '/attendance', label: 'Attendance', Icon: Fingerprint },

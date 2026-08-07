@@ -296,7 +296,11 @@ export async function getProfitLossReport(filters: StockReportFilters = {}) {
             $sum: {
               $multiply: [
                 '$products.quantity',
-                { $ifNull: ['$product.purchasePrice', 0] },
+                // Prefer the cost SNAPSHOT taken when the stock moved. `Product.purchasePrice` is
+                // now a weighted average that shifts on every goods receipt, so falling back to it
+                // for a closed period would restate that period's profit. Legacy order lines have
+                // no snapshot, so they still read the live figure.
+                { $ifNull: ['$products.unitCost', { $ifNull: ['$product.purchasePrice', 0] }] },
               ],
             },
           },

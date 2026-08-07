@@ -52,6 +52,13 @@ const EditBroadcastNotificationPage: React.FC = () => {
       const data: BroadcastNotification = await broadcastNotificationService.getNotification(
         id as string,
       );
+      // System notifications are raised by the app and the API refuses to update them, so bounce
+      // out rather than presenting a form that cannot be saved.
+      if (data.source === 'system') {
+        toast.error('System notifications are raised automatically and cannot be edited');
+        router.push('/broadcast-notifications');
+        return;
+      }
       const at = audienceTypeFromApi(data);
       const targets = (data.targetUserIds || []).map(String);
       setFormData({

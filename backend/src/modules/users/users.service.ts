@@ -59,6 +59,8 @@ export async function createUser(data: {
   extraNotes?: string;
   lastExperience?: string;
   managerId?: string | null;
+  /** Warehouse this person works at. Required in practice for `warehouse_staff`. */
+  warehouseId?: string | null;
   autoAssignVisits?: boolean;
 }, actorId?: string) {
   const existing = await UserModel.findOne({
@@ -69,13 +71,14 @@ export async function createUser(data: {
     throw conflict('User ID, username or phone already exists');
   }
 
-  const { managerId, ...rest } = data;
+  const { managerId, warehouseId, ...rest } = data;
   const hashedPassword = await bcrypt.hash(data.password, 10);
   const user = await UserModel.create({
     ...rest,
     password: hashedPassword,
     // '' / null mean "no manager"; only a real id becomes an ObjectId ref.
     ...(managerId ? { managerId: new Types.ObjectId(managerId) } : {}),
+    ...(warehouseId ? { warehouseId: new Types.ObjectId(warehouseId) } : {}),
   });
 
   const userObject: any = user.toObject();
@@ -207,6 +210,7 @@ export async function updateUser(
     extraNotes?: string;
     lastExperience?: string;
     managerId?: string | null;
+    warehouseId?: string | null;
     autoAssignVisits?: boolean;
   },
   actorId?: string,
@@ -236,7 +240,7 @@ export async function updateUser(
     data.password = await bcrypt.hash(data.password, 10);
   }
 
-  const { managerId, ...assignable } = data;
+  const { managerId, warehouseId, ...assignable } = data;
   Object.assign(user, assignable);
   if (Object.prototype.hasOwnProperty.call(data, 'fullName')) {
     const f = data.fullName;
@@ -246,6 +250,11 @@ export async function updateUser(
   if (Object.prototype.hasOwnProperty.call(data, 'managerId')) {
     // '' / null clear the assignment; a real id links the user to that manager.
     user.managerId = managerId ? new Types.ObjectId(managerId) : undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'warehouseId')) {
+    // Clearing this on a `warehouse_staff` account locks them out of the warehouse module by
+    // design — the scope helper fails closed rather than granting every warehouse.
+    user.warehouseId = warehouseId ? new Types.ObjectId(warehouseId) : undefined;
   }
   await user.save();
 

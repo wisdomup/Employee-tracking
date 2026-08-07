@@ -1,8 +1,15 @@
 import { Types } from 'mongoose';
-import { ReturnModel } from '../../models/return.model';
-import { ProductModel } from '../../models/product.model';
+import { ReturnModel, IReturn } from '../../models/return.model';
+import { DealerModel } from '../../models/dealer.model';
+import { DamageClaimModel } from '../../models/damage-claim.model';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import {
+  applyStockMovements,
+  StockMovementLine,
+} from '../warehouse/stock-ledger.service';
+import { resolveWarehouseForUser } from '../warehouse/warehouse-resolver';
+import { allocateNextDocumentNo } from '../warehouse/warehouse-counters';
 
 interface ReturnProductInput {
   productId: string;
@@ -10,15 +17,117 @@ interface ReturnProductInput {
   price: number;
 }
 
-async function applyReturnedStock(products: ReturnProductInput[] | { productId: Types.ObjectId; quantity: number; price: number }[]) {
-  if (!products.length) return;
-  const ops = products.map((p) => ({
-    updateOne: {
-      filter: { _id: new Types.ObjectId(String(p.productId)), isTrashed: { $ne: true } },
-      update: { $inc: { quantity: p.quantity || 0 } },
-    },
+/**
+ * Which warehouse do returned goods come back into?
+ *
+ * Stamped on the document at create time so the credit lands where the goods physically went, not
+ * wherever the person who raised it happens to be assigned months later.
+ */
+async function warehouseOfReturn(returnDoc: {
+  warehouseId?: Types.ObjectId;
+  createdBy: Types.ObjectId;
+}): Promise<string> {
+  if (returnDoc.warehouseId) return String(returnDoc.warehouseId);
+  const resolved = await resolveWarehouseForUser(String(returnDoc.createdBy));
+  return String(resolved.warehouseId);
+}
+
+/**
+ * Credit a completed return back to warehouse stock.
+ *
+ * A plain `return` (nothing wrong with the goods) goes straight back to SELLABLE — spec §5. A
+ * `damage` return credits the DAMAGED bucket instead, with no sellable leg, because the goods came
+ * back from the client and were never in our sellable stock to begin with.
+ *
+ * Replaces a bare `bulkWrite($inc)` that had no guard, no audit trail and no idempotency: completing
+ * a return twice used to credit the stock twice.
+ */
+async function creditReturnedStock(returnDoc: IReturn, actorId?: string) {
+  if (!returnDoc.products.length) return;
+
+  const warehouseId = await warehouseOfReturn(returnDoc);
+  const isDamage = returnDoc.returnType === 'damage';
+
+  const lines: StockMovementLine[] = returnDoc.products.map((p, index) => ({
+    warehouseId,
+    productId: String(p.productId),
+    bucket: isDamage ? 'damaged' : 'sellable',
+    delta: p.quantity || 0,
+    type: isDamage ? 'damage_marked' : 'customer_return_in',
+    refLine: index,
   }));
-  await ProductModel.bulkWrite(ops);
+
+  await applyStockMovements(lines, {
+    refType: 'return',
+    refId: String(returnDoc._id),
+    actorId,
+    reason: returnDoc.returnReason,
+    // Idempotent by document: `updateReturn` can pass through the completed branch more than once.
+    idempotencyScope: 'complete',
+  });
+
+  if (isDamage) {
+    await createLinkedDamageClaim(returnDoc, warehouseId, actorId);
+  }
+}
+
+/**
+ * A completed damage-type return is a client claim in everything but name, so it also creates an
+ * already-approved `DamageClaim`. That is what makes the warehouse damage report complete — without
+ * it, client damage would only ever appear in the returns module and never in the damage/claim
+ * report the spec asks for (§14 report 4).
+ */
+async function createLinkedDamageClaim(
+  returnDoc: IReturn,
+  warehouseId: string,
+  actorId?: string,
+) {
+  const existing = await DamageClaimModel.findOne({ linkedReturnId: returnDoc._id })
+    .select('_id')
+    .lean();
+  if (existing) return;
+
+  const dealer = await DealerModel.findById(returnDoc.dealerId).select('name shopName').lean();
+
+  try {
+    const claim = await DamageClaimModel.create({
+      documentNo: await allocateNextDocumentNo('damageClaimNo'),
+      warehouseId: new Types.ObjectId(warehouseId),
+      products: returnDoc.products.map((p) => ({
+        productId: p.productId,
+        quantity: p.quantity,
+      })),
+      source: 'client_claim',
+      clientName: dealer?.shopName || dealer?.name || 'Unknown client',
+      dealerId: returnDoc.dealerId,
+      linkedReturnId: returnDoc._id,
+      reason: returnDoc.returnReason || 'Damaged goods returned by the client',
+      // Already approved: the stock movement has just been applied by `creditReturnedStock`, so
+      // leaving it pending would invite a second write-off of the same pieces.
+      status: 'approved',
+      ...(actorId
+        ? { approvedBy: new Types.ObjectId(actorId), approvedAt: new Date() }
+        : { approvedAt: new Date() }),
+      createdBy: returnDoc.createdBy,
+    });
+
+    logActivityAsync({
+      employeeId: actorId,
+      module: 'damage_claim',
+      entityId: String(claim._id),
+      action: 'created',
+      meta: {
+        documentNo: claim.documentNo,
+        source: 'client_claim',
+        linkedReturnId: String(returnDoc._id),
+        autoCreated: true,
+      },
+    });
+  } catch (err) {
+    // The stock has already moved and is recorded in the ledger; a missing claim document is a
+    // reporting gap, not a stock error, so do not fail the return over it.
+    console.error('Failed to create the damage claim linked to a return', err);
+  }
 }
 
 export async function createReturn(
@@ -34,6 +143,10 @@ export async function createReturn(
 ) {
   const { dealerId, products, ...rest } = data;
 
+  // Stamped now so the credit lands where the goods actually go back in, even if the person who
+  // raised it moves warehouse later.
+  const resolved = await resolveWarehouseForUser(userId);
+
   const returnDoc = await ReturnModel.create({
     ...rest,
     dealerId: new Types.ObjectId(dealerId),
@@ -42,11 +155,12 @@ export async function createReturn(
       quantity: p.quantity,
       price: p.price,
     })),
+    warehouseId: resolved.warehouseId,
     createdBy: new Types.ObjectId(userId),
   });
 
-  if (returnDoc.status === 'completed' && returnDoc.returnType === 'return') {
-    await applyReturnedStock(returnDoc.products as any);
+  if (returnDoc.status === 'completed') {
+    await creditReturnedStock(returnDoc, userId);
   }
 
   logActivityAsync({
@@ -122,9 +236,10 @@ export async function updateReturn(id: string, data: Record<string, unknown>, ac
   Object.assign(returnDoc, data);
   await returnDoc.save();
 
-  const movedToCompleted = nextStatus === 'completed';
-  if (movedToCompleted && returnDoc.returnType === 'return') {
-    await applyReturnedStock(returnDoc.products as any);
+  // A `damage` return now credits the DAMAGED bucket and mints a linked client-claim entry, where
+  // before it changed no stock at all and only showed up in reports.
+  if (nextStatus === 'completed') {
+    await creditReturnedStock(returnDoc, actorId);
   }
 
   const statusChanged = nextStatus !== undefined && previousStatus !== nextStatus;

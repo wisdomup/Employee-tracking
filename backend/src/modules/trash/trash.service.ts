@@ -7,6 +7,11 @@ import { RouteModel } from '../../models/route.model';
 import { OrderModel } from '../../models/order.model';
 import { ReturnModel } from '../../models/return.model';
 import { VisitModel } from '../../models/visit.model';
+import { WarehouseModel } from '../../models/warehouse.model';
+import { StockReceiptModel } from '../../models/stock-receipt.model';
+import { StockTransferModel } from '../../models/stock-transfer.model';
+import { DamageClaimModel } from '../../models/damage-claim.model';
+import { StockCountModel } from '../../models/stock-count.model';
 import { badRequest } from '../../utils/app-error';
 
 type TrashModule =
@@ -17,7 +22,12 @@ type TrashModule =
   | 'route'
   | 'order'
   | 'return'
-  | 'visit';
+  | 'visit'
+  | 'warehouse'
+  | 'stock_receipt'
+  | 'stock_transfer'
+  | 'damage_claim'
+  | 'stock_count';
 
 const MODULE_MODEL_MAP: Record<TrashModule, Model<any>> = {
   employee: UserModel,
@@ -28,6 +38,13 @@ const MODULE_MODEL_MAP: Record<TrashModule, Model<any>> = {
   order: OrderModel,
   return: ReturnModel,
   visit: VisitModel,
+  // Warehouse documents also carry the trash quartet, but the user-facing undo for them is
+  // `cancel` with a reason — trashing is an admin cleanup step after cancellation.
+  warehouse: WarehouseModel,
+  stock_receipt: StockReceiptModel,
+  stock_transfer: StockTransferModel,
+  damage_claim: DamageClaimModel,
+  stock_count: StockCountModel,
 };
 
 function getEntityLabel(module: TrashModule, doc: any): string {
@@ -48,6 +65,16 @@ function getEntityLabel(module: TrashModule, doc: any): string {
       return `Return ${String(doc._id).slice(-8).toUpperCase()}`;
     case 'visit':
       return `Visit ${String(doc._id).slice(-8).toUpperCase()}`;
+    case 'warehouse':
+      return `${doc.name ?? 'Warehouse'}${doc.city ? ` - ${doc.city}` : ''}`;
+    case 'stock_receipt':
+      return `Stock In #${doc.documentNo ?? String(doc._id).slice(-8).toUpperCase()}`;
+    case 'stock_transfer':
+      return `Transfer #${doc.documentNo ?? String(doc._id).slice(-8).toUpperCase()}`;
+    case 'damage_claim':
+      return `Damage / Claim #${doc.documentNo ?? String(doc._id).slice(-8).toUpperCase()}`;
+    case 'stock_count':
+      return `Stock Count #${doc.documentNo ?? String(doc._id).slice(-8).toUpperCase()}${doc.periodMonth ? ` (${doc.periodMonth})` : ''}`;
     default:
       return String(doc._id);
   }

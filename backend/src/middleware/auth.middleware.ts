@@ -7,6 +7,8 @@ export interface AuthUser {
   userId: string;
   username: string;
   role: string;
+  /** Warehouse the caller is attached to, if any. Drives warehouse-module row-level scoping. */
+  warehouseId?: string;
 }
 
 declare global {
@@ -46,7 +48,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
       _id: userId,
       isTrashed: { $ne: true },
     })
-      .select('_id username role isActive')
+      .select('_id username role isActive warehouseId')
       .lean()
       .exec();
 
@@ -58,6 +60,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
       userId: String(currentUser._id),
       username: currentUser.username,
       role: currentUser.role,
+      ...(currentUser.warehouseId ? { warehouseId: String(currentUser.warehouseId) } : {}),
     };
 
     next();

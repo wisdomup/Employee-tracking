@@ -167,6 +167,12 @@ const OrdersPage: React.FC = () => {
       render: (value: string) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : '-'),
     },
     {
+      key: 'warehouseId',
+      title: 'Source Warehouse',
+      render: (value: any) => value?.name ?? '-',
+      exportValue: (row: Order) => row.warehouseId?.name ?? '',
+    },
+    {
       key: 'status',
       title: 'Status',
       render: (value: string) => <StatusBadge status={value} />,

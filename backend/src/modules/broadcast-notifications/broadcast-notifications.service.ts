@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import { BroadcastNotificationModel, BroadcastAudienceType } from '../../models/broadcast-notification.model';
 import { BroadcastNotificationReadModel } from '../../models/broadcast-notification-read.model';
 import { UserModel } from '../../models/user.model';
-import { notFound, badRequest } from '../../utils/app-error';
+import { notFound, badRequest, forbidden } from '../../utils/app-error';
 
 const INBOX_FETCH_LIMIT = 120;
 const INBOX_RESULT_LIMIT = 50;
@@ -107,9 +107,10 @@ export async function createNotification(
   });
 }
 
-export async function findAll(filters?: { audienceType?: string }) {
+export async function findAll(filters?: { audienceType?: string; source?: string }) {
   const query: Record<string, unknown> = {};
   if (filters?.audienceType) query.audienceType = filters.audienceType;
+  if (filters?.source) query.source = filters.source;
 
   return BroadcastNotificationModel.find(query)
     .populate('createdBy', '-password')
@@ -227,6 +228,12 @@ export async function updateNotification(
     throw notFound('Broadcast notification not found');
   }
 
+  // System notifications are a record of what the app did, not a message someone wrote. Editing one
+  // would rewrite history — and its recipients were resolved from the event, not chosen.
+  if (notification.source === 'system') {
+    throw forbidden('System notifications cannot be edited');
+  }
+
   let targetUserIds: Types.ObjectId[] = notification.targetUserIds || [];
   if (data.audienceType === 'specific_users') {
     if (!data.targetUserIds?.length) {
@@ -256,6 +263,10 @@ export async function deleteNotification(id: string) {
 
   if (!notification) {
     throw notFound('Broadcast notification not found');
+  }
+
+  if (notification.source === 'system') {
+    throw forbidden('System notifications cannot be deleted');
   }
 
   await BroadcastNotificationReadModel.deleteMany({ notificationId: new Types.ObjectId(id) });

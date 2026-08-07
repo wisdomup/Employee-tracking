@@ -3,8 +3,13 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { employeeService, Employee } from '../../../services/employeeService';
-import { FIELD_STAFF_ROLES } from '../../../utils/permissions';
+import { FIELD_STAFF_ROLES, WAREHOUSE_ROLES } from '../../../utils/permissions';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
+import {
+  warehouseService,
+  Warehouse,
+  warehouseSelectOptions,
+} from '../../../services/warehouseService';
 import { PasswordInput } from '../../../components/UI/PasswordInput';
 import { ImageUpload } from '../../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
@@ -16,6 +21,7 @@ const EMPLOYEE_ROLES = [
   // { value: 'admin', label: 'Admin' },
   // { value: 'employee', label: 'Employee' },
   { value: 'warehouse_manager', label: 'Warehouse Manager' },
+  { value: 'warehouse_staff', label: 'Warehouse Staff' },
   { value: 'sales_manager', label: 'Sales Manager' },
   { value: 'order_taker', label: 'Order Taker' },
   { value: 'delivery_man', label: 'Delivery Man' },
@@ -27,8 +33,10 @@ const EditEmployeePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [salesManagers, setSalesManagers] = useState<Employee[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [formData, setFormData] = useState({
     managerId: '',
+    warehouseId: '',
     userID: '',
     username: '',
     fullName: '',
@@ -63,6 +71,11 @@ const EditEmployeePage: React.FC = () => {
       .getEmployees({ role: 'sales_manager', isActive: true })
       .then((data) => setSalesManagers(Array.isArray(data) ? data : []))
       .catch(() => setSalesManagers([]));
+
+    warehouseService
+      .getWarehouses({ isActive: true })
+      .then(setWarehouses)
+      .catch(() => setWarehouses([]));
   }, []);
 
   const fetchEmployee = async () => {
@@ -74,6 +87,11 @@ const EditEmployeePage: React.FC = () => {
           typeof data.managerId === 'string'
             ? data.managerId
             : (data.managerId as { _id?: string } | null)?._id ?? '',
+        // Same shape: a raw id or a populated warehouse.
+        warehouseId:
+          typeof data.warehouseId === 'string'
+            ? data.warehouseId
+            : (data.warehouseId as { _id?: string } | null)?._id ?? '',
         userID: data.userID || '',
         username: data.username,
         fullName: data.fullName || '',
@@ -177,6 +195,11 @@ const EditEmployeePage: React.FC = () => {
         // Non-field roles (e.g. sales_manager itself) never carry a manager.
         managerId: FIELD_STAFF_ROLES.includes(formData.role as never)
           ? formData.managerId || ''
+          : '',
+        // Always send it for warehouse roles so clearing the picker unassigns the warehouse, and
+        // send '' for every other role so switching away from a warehouse role clears it too.
+        warehouseId: WAREHOUSE_ROLES.includes(formData.role as never)
+          ? formData.warehouseId || ''
           : '',
         ...(FIELD_STAFF_ROLES.includes(formData.role as never) && {
           autoAssignVisits: formData.autoAssignVisits,
@@ -345,6 +368,29 @@ const EditEmployeePage: React.FC = () => {
               />
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                 Determines whose analytics dashboard this employee appears in.
+              </span>
+            </div>
+          )}
+
+          {WAREHOUSE_ROLES.includes(formData.role as never) && (
+            <div className={styles.formGroup}>
+              <label htmlFor="warehouseId">Warehouse</label>
+              <SearchableSelect
+                id="warehouseId"
+                name="warehouseId"
+                value={formData.warehouseId}
+                onChange={handleChange}
+                className={styles.select}
+                placeholder="Select warehouse"
+                options={[
+                  { value: '', label: 'No warehouse' },
+                  ...warehouseSelectOptions(warehouses),
+                ]}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                {formData.role === 'warehouse_staff'
+                  ? 'Required for warehouse staff — clearing it locks them out of the warehouse module.'
+                  : 'Optional for a manager. Leave blank for company-wide access to every warehouse.'}
               </span>
             </div>
           )}

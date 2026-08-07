@@ -40,20 +40,34 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
         return styles.completed;
       case 'active':
       case 'approved':
+      case 'confirmed':
+      case 'packed':
+      // Warehouse: a posted receipt is committed, sellable stock is good stock.
+      case 'posted':
+      case 'sellable':
         return styles.active;
       case 'inactive':
       case 'rejected':
       case 'cancelled':
+      // Warehouse: damaged/claim stock is set aside and not for sale.
+      case 'damaged':
         return styles.inactive;
-      case 'approved':
-      case 'confirmed':
-      case 'packed':
-        return styles.active;
       case 'dispatched':
+      // Warehouse: an approved transfer is in flight until the destination confirms.
+      case 'in_transit':
         return styles.inProgress;
       case 'delivered':
+      case 'received':
         return styles.completed;
+      // A quantity mismatch needs an admin to look at it — it is not a failure.
+      case 'mismatch':
+      case 'internal_damage':
+        return styles.skipped;
+      case 'client_claim':
+        return styles.checkedIn;
       case 'incomplete':
+      // System-generated notifications, as opposed to admin-authored ones.
+      case 'system':
         return styles.notAssigned;
       default:
         return '';
@@ -76,6 +90,14 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
         return 'Skipped';
       case 'pending':
         return 'Pending';
+      case 'in_transit':
+        return 'In Transit';
+      case 'mismatch':
+        return 'Qty Mismatch';
+      case 'internal_damage':
+        return 'Internal Damage';
+      case 'client_claim':
+        return 'Client Claim';
       default:
         return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }

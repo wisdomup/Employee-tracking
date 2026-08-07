@@ -12,8 +12,8 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
-    const { audienceType } = req.query as Record<string, string>;
-    const notifications = await notificationsService.findAll({ audienceType });
+    const { audienceType, source } = req.query as Record<string, string>;
+    const notifications = await notificationsService.findAll({ audienceType, source });
     res.json(notifications);
   } catch (err) {
     next(err);

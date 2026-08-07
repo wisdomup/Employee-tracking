@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { connectDatabase } from './config/database';
 import { ensureUploadDirectories } from './services/file-upload.service';
 import { startVisitGenerationCron } from './jobs/visit-generation.cron';
+import { startLowStockCron } from './jobs/low-stock.cron';
 import app from './app';
 
 const PORT = process.env.PORT || 8001;
@@ -10,6 +11,7 @@ async function bootstrap() {
   await connectDatabase();
   ensureUploadDirectories();
   startVisitGenerationCron();
+  startLowStockCron();
 
   app.listen(PORT, () => {
     console.log(`Server for Tracking App running on http://localhost:${PORT}`);

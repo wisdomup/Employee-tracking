@@ -64,13 +64,11 @@ export interface SalesmanDailyReport {
   days: DayRow[];
 }
 
-/** Rupee formatting for figures the admin will read out or copy into a message. */
-export function formatRs(value: number): string {
-  return `Rs. ${value.toLocaleString('en-PK', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
+/**
+ * Rupee formatting for figures the admin will read out or copy into a message.
+ * Re-exported from the shared util so existing imports keep working.
+ */
+export { formatRs } from '../utils/formatCurrency';
 
 /** Today as `YYYY-MM-DD` in the browser's local calendar — matches DatePickerFilter. */
 export function todayKey(): string {

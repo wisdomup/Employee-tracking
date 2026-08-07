@@ -9,8 +9,16 @@ export interface Product {
   salePrice?: number;
   purchasePrice?: number;
   onlinePrice?: number;
+  /**
+   * Read-only. Total SELLABLE stock across every warehouse, derived from the warehouse ledger.
+   * Sending it is ignored by the API — starting stock goes through Warehouse → Opening Stock, and
+   * everything after that through Stock In, transfers, sales and counts.
+   */
   quantity?: number;
+  /** Admin-set low-stock level, compared against the all-warehouse total. */
   survivalQuantity?: number;
+  /** Read-only. Rate on the most recent Stock In — shown as a reference when entering a new one. */
+  lastPurchaseRate?: number;
   categoryId: any;
   createdBy?: any;
   extras?: Record<string, string>;

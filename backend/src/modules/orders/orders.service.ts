@@ -2,10 +2,18 @@ import { Types } from 'mongoose';
 import { OrderModel } from '../../models/order.model';
 import { ProductModel } from '../../models/product.model';
 import { DealerModel } from '../../models/dealer.model';
+import { UserModel } from '../../models/user.model';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextOrderInvoiceNumber } from './order-invoice-counter';
 import { sanitizeOrderTermsHtml } from './order-terms-sanitize';
+import {
+  applyStockMovements,
+  StockMovementLine,
+  getStockBalance,
+} from '../warehouse/stock-ledger.service';
+import { resolveWarehouseForUser } from '../warehouse/warehouse-resolver';
+import { notifyInsufficientStock } from '../warehouse/warehouse-notifications';
 
 function aggregateQuantityByProduct(
   products: { productId: string; quantity: number; price: number }[],
@@ -29,9 +37,148 @@ function aggregateExistingOrderQuantityByProduct(
   return map;
 }
 
-async function restoreStockForOrderProducts(order: { products: { productId: Types.ObjectId; quantity: number }[] }) {
-  for (const item of order.products) {
-    await ProductModel.findByIdAndUpdate(item.productId, { $inc: { quantity: item.quantity } });
+/**
+ * Statuses where the stock consequence of an order is already settled: `delivered` goods
+ * have physically left, `cancelled` stock was already given back. Restoring stock again
+ * for either of these invents inventory. `deleteOrder` and the cancel path share this list.
+ */
+const STOCK_SETTLED_STATUSES = ['delivered', 'cancelled'];
+
+/**
+ * Which warehouse does this order draw from?
+ *
+ * Every order created after the warehouse cutover carries a `warehouseId`, and the bootstrap
+ * migration stamps the Main warehouse onto the ones that pre-date it. The resolver fallback covers
+ * the gap in between.
+ */
+async function warehouseOf(order: {
+  warehouseId?: Types.ObjectId;
+  createdBy: Types.ObjectId;
+}): Promise<string> {
+  if (order.warehouseId) return String(order.warehouseId);
+  const resolved = await resolveWarehouseForUser(String(order.createdBy));
+  return String(resolved.warehouseId);
+}
+
+/**
+ * Discriminator for an operation an order can perform more than once in its life.
+ *
+ * Trash and restore alternate, so a fixed scope makes the SECOND trash collide with the first on
+ * the ledger's unique idempotency key — the movement is compensated away and reported as
+ * `alreadyApplied`, leaving a trashed order still holding its stock. `updatedAt` moves on every
+ * save, so it separates the cycles while a genuine retry (where the save never landed) still
+ * reuses the same key and stays idempotent. Same idiom as the edit path below.
+ *
+ * It has to come from persisted state — a fresh timestamp would make a retry look like a new
+ * operation and apply the movement twice. The residual gap is two successful saves inside the same
+ * millisecond, which needs a whole read-apply-save round trip to fit in under 1ms.
+ */
+function cycleScope(action: string, order: { updatedAt?: Date }): string {
+  return `${action}:${order.updatedAt?.toISOString() ?? ''}`;
+}
+
+/**
+ * Give an order's stock back to the warehouse it came out of.
+ *
+ * Used by cancel and by trash. Routed through the ledger so the reversal is auditable and shows up
+ * in the product's movement history — the old version was a bare `$inc` with no trail.
+ */
+async function reverseOrderStock(
+  order: {
+    _id: Types.ObjectId;
+    products: { productId: Types.ObjectId; quantity: number }[];
+    warehouseId?: Types.ObjectId;
+    createdBy: Types.ObjectId;
+  },
+  actorId: string | undefined,
+  scope: string,
+) {
+  const warehouseId = await warehouseOf(order);
+  const byProduct = aggregateExistingOrderQuantityByProduct(order.products as never);
+
+  const lines: StockMovementLine[] = [...byProduct].map(([productId, qty], index) => ({
+    warehouseId,
+    productId,
+    bucket: 'sellable',
+    delta: qty,
+    type: 'sale_return_in',
+    refLine: index,
+  }));
+
+  if (lines.length === 0) return;
+
+  await applyStockMovements(lines, {
+    refType: 'order',
+    refId: String(order._id),
+    actorId,
+    idempotencyScope: scope,
+  });
+}
+
+/**
+ * Reserve stock out of one warehouse for a set of order lines.
+ *
+ * All-or-nothing: the ledger applies every line or none, so a shortfall on the last product can
+ * never leave the first one consumed. Returns the unit cost per product at the moment stock moved,
+ * which the caller snapshots onto the order lines so the P&L stops restating itself.
+ */
+async function reserveWarehouseStock(
+  warehouseId: string,
+  byProduct: Map<string, number>,
+  refId: string,
+  actorId: string | undefined,
+  scope?: string,
+): Promise<Map<string, number>> {
+  const lines: StockMovementLine[] = [...byProduct].map(([productId, qty], index) => ({
+    warehouseId,
+    productId,
+    bucket: 'sellable',
+    delta: -qty,
+    type: 'sale_out',
+    refLine: index,
+  }));
+
+  await applyStockMovements(lines, {
+    refType: 'order',
+    refId,
+    actorId,
+    ...(scope ? { idempotencyScope: scope } : {}),
+  });
+
+  const costs = await ProductModel.find({ _id: { $in: [...byProduct.keys()] } })
+    .select('_id purchasePrice')
+    .lean();
+  return new Map(costs.map((p) => [String(p._id), p.purchasePrice ?? 0]));
+}
+
+/**
+ * Pre-flight check with a helpful message, plus the admin notification the spec asks for: "if that
+ * warehouse doesn't have enough stock, Admin gets notified" (§9). The authoritative guard is still
+ * the ledger's own `$gte` predicate.
+ */
+async function assertWarehouseHasStock(
+  warehouseId: string,
+  byProduct: Map<string, number>,
+  salesmanId: string,
+) {
+  for (const [productId, qty] of byProduct) {
+    const balance = await getStockBalance(warehouseId, productId);
+    if (qty > balance.sellable) {
+      const [product, salesman] = await Promise.all([
+        ProductModel.findById(productId).select('name').lean(),
+        UserModel.findById(salesmanId).select('fullName username').lean(),
+      ]);
+      notifyInsufficientStock({
+        warehouseId,
+        productName: product?.name ?? String(productId),
+        available: balance.sellable,
+        requested: qty,
+        salesmanName: salesman?.fullName || salesman?.username || 'A salesman',
+      });
+      throw badRequest(
+        `Insufficient stock for "${product?.name ?? productId}" at the assigned warehouse. Available: ${balance.sellable}, requested: ${qty}.`,
+      );
+    }
   }
 }
 
@@ -65,10 +212,12 @@ export async function createOrder(
     deliveryDate?: Date;
     dealerId: string;
     routeId?: string;
+    /** Admin-only override of the auto-resolved source warehouse. */
+    warehouseId?: string;
   },
   userId: string,
 ) {
-  const { products, dealerId, routeId, discount, termsAndConditions, ...rest } = data;
+  const { products, dealerId, routeId, discount, termsAndConditions, warehouseId, ...rest } = data;
   const terms = sanitizeOrderTermsHtml(termsAndConditions);
   const routeIdProvided = Object.prototype.hasOwnProperty.call(data, 'routeId');
   const resolvedRouteId = await resolveOrderRouteId(dealerId, routeId, routeIdProvided);
@@ -77,48 +226,64 @@ export async function createOrder(
   const grandTotal = totalPrice - (discount ?? 0);
 
   const byProduct = aggregateQuantityByProduct(products);
-  for (const [productId, totalQty] of byProduct) {
-    const product = await ProductModel.findOne({ _id: productId, isTrashed: { $ne: true } }).select('name quantity').lean();
-    const stock = product?.quantity ?? 0;
-    if (totalQty > stock) {
-      throw badRequest(
-        `Insufficient stock for "${product?.name ?? productId}". Available: ${stock}, requested: ${totalQty}.`,
-      );
-    }
-  }
 
-  const invoiceNumber = await allocateNextOrderInvoiceNumber();
+  // Spec §9: the warehouse follows the salesman's city, unless an admin has overridden it.
+  const resolution = warehouseId
+    ? { warehouseId: new Types.ObjectId(warehouseId), source: 'manual' as const }
+    : await resolveWarehouseForUser(userId);
+  const sourceWarehouseId = String(resolution.warehouseId);
 
-  const order = await OrderModel.create({
-    ...rest,
-    ...(terms ? { termsAndConditions: terms } : {}),
-    invoiceNumber,
-    discount: discount ?? 0,
-    totalPrice,
-    grandTotal,
-    products: products.map((p) => ({
-      productId: new Types.ObjectId(p.productId),
-      quantity: p.quantity,
-      price: p.price,
-    })),
-    dealerId: new Types.ObjectId(dealerId),
-    ...(resolvedRouteId && { routeId: resolvedRouteId }),
-    createdBy: new Types.ObjectId(userId),
-  });
+  await assertWarehouseHasStock(sourceWarehouseId, byProduct, userId);
 
+  // The order's id is minted up front so the stock movements can reference it. That lets the
+  // reservation happen BEFORE the invoice number is allocated — the invoice series is monotonic and
+  // gap-free, so a stock conflict must never consume a number.
+  const orderId = new Types.ObjectId();
+  const unitCosts = await reserveWarehouseStock(sourceWarehouseId, byProduct, String(orderId), userId);
+
+  let order;
   try {
-    for (const [productId, totalQty] of byProduct) {
-      const result = await ProductModel.findOneAndUpdate(
-        { _id: productId, quantity: { $gte: totalQty }, isTrashed: { $ne: true } },
-        { $inc: { quantity: -totalQty } },
-      );
-      if (!result) {
-        await OrderModel.findByIdAndDelete(order._id);
-        throw badRequest('Insufficient stock (conflict with another order). Please try again.');
-      }
-    }
+    const invoiceNumber = await allocateNextOrderInvoiceNumber();
+
+    order = await OrderModel.create({
+      ...rest,
+      _id: orderId,
+      ...(terms ? { termsAndConditions: terms } : {}),
+      invoiceNumber,
+      discount: discount ?? 0,
+      totalPrice,
+      grandTotal,
+      products: products.map((p) => ({
+        productId: new Types.ObjectId(p.productId),
+        quantity: p.quantity,
+        price: p.price,
+        // Cost SNAPSHOT at the moment stock moved. Without it the P&L multiplies by the live
+        // weighted-average cost, which now shifts on every goods receipt — so a closed period would
+        // silently restate itself.
+        unitCost: unitCosts.get(p.productId) ?? 0,
+      })),
+      dealerId: new Types.ObjectId(dealerId),
+      ...(resolvedRouteId && { routeId: resolvedRouteId }),
+      warehouseId: resolution.warehouseId,
+      createdBy: new Types.ObjectId(userId),
+    });
   } catch (err) {
-    await OrderModel.findByIdAndDelete(order._id);
+    // Put the reserved stock back; the order does not exist.
+    await reverseOrderStock(
+      {
+        _id: orderId,
+        products: products.map((p) => ({
+          productId: new Types.ObjectId(p.productId),
+          quantity: p.quantity,
+        })),
+        warehouseId: resolution.warehouseId,
+        createdBy: new Types.ObjectId(userId),
+      },
+      userId,
+      'create-failed',
+    ).catch((reverseErr) =>
+      console.error('Failed to release stock after a failed order create', reverseErr),
+    );
     throw err;
   }
 
@@ -128,6 +293,9 @@ export async function createOrder(
     entityId: String(order._id),
     action: 'created',
     meta: {
+      warehouseId: sourceWarehouseId,
+      // Worth recording: a `main` fallback means the salesman's city matched no warehouse.
+      warehouseResolution: resolution.source,
       status: order.status,
       dealerId: String(order.dealerId),
       grandTotal: order.grandTotal,
@@ -221,8 +389,66 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
     price: p.price,
   }));
 
-  if (data.status === 'cancelled' && order.status !== 'cancelled') {
-    await restoreStockForOrderProducts(order);
+  // A cancelled order has already handed its stock back. Re-opening it would leave the order
+  // holding quantities it never reserved, so the transition is refused outright.
+  if (previousStatus === 'cancelled' && nextStatus && nextStatus !== 'cancelled') {
+    throw badRequest('A cancelled order cannot be re-opened. Create a new order instead.');
+  }
+
+  // `delivered` goods have physically left the building — cancelling afterwards must not
+  // credit the stock back. Mirrors the `completedStatuses` check in `deleteOrder`.
+  if (nextStatus === 'cancelled' && !STOCK_SETTLED_STATUSES.includes(previousStatus)) {
+    await reverseOrderStock(order, actorId, 'cancel');
+  }
+
+  // Admin moving the order to a different warehouse: reverse at the old one and take from the new
+  // one in a single ledger call, so total stock never changes even if the second leg is short.
+  const hasWarehouseId = Object.prototype.hasOwnProperty.call(data, 'warehouseId');
+  const nextWarehouseId = hasWarehouseId && data.warehouseId ? String(data.warehouseId) : undefined;
+  const previousWarehouseId = order.warehouseId ? String(order.warehouseId) : undefined;
+  delete data.warehouseId;
+
+  if (
+    nextWarehouseId &&
+    nextWarehouseId !== previousWarehouseId &&
+    !STOCK_SETTLED_STATUSES.includes(previousStatus) &&
+    nextStatus !== 'cancelled'
+  ) {
+    const fromWarehouseId = await warehouseOf(order);
+    const byProduct = aggregateExistingOrderQuantityByProduct(previousProducts);
+
+    const moveLines: StockMovementLine[] = [];
+    let line = 0;
+    for (const [productId, qty] of byProduct) {
+      moveLines.push({
+        warehouseId: fromWarehouseId,
+        productId,
+        bucket: 'sellable',
+        delta: qty,
+        type: 'sale_return_in',
+        refLine: line,
+      });
+      moveLines.push({
+        warehouseId: nextWarehouseId,
+        productId,
+        bucket: 'sellable',
+        delta: -qty,
+        type: 'sale_out',
+        refLine: line,
+      });
+      line += 1;
+    }
+
+    if (moveLines.length > 0) {
+      await applyStockMovements(moveLines, {
+        refType: 'order',
+        refId: id,
+        actorId,
+        reason: 'Source warehouse changed by an admin',
+        idempotencyScope: `rewarehouse:${nextWarehouseId}`,
+      });
+    }
+    order.warehouseId = new Types.ObjectId(nextWarehouseId);
   }
 
   const hasRouteId = Object.prototype.hasOwnProperty.call(data, 'routeId');
@@ -244,10 +470,18 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   delete data.routeId;
 
   if (data.products) {
+    // Keep the existing cost snapshot per product; a line added by this edit gets its snapshot
+    // below, once the stock for it has actually moved.
+    const existingCosts = new Map(
+      previousProducts.map((p) => [String(p.productId), (p as { unitCost?: number }).unitCost]),
+    );
     data.products = (data.products as any[]).map((p) => ({
       productId: new Types.ObjectId(p.productId),
       quantity: p.quantity,
       price: p.price,
+      ...(existingCosts.get(String(p.productId)) !== undefined
+        ? { unitCost: existingCosts.get(String(p.productId)) }
+        : {}),
     }));
   }
 
@@ -287,31 +521,43 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
       if (delta !== 0) deltas.push({ productId, delta });
     }
 
-    for (const { productId, delta } of deltas.filter((d) => d.delta > 0)) {
-      const product = await ProductModel.findOne({
-        _id: productId,
-        isTrashed: { $ne: true },
-      }).select('name quantity').lean();
-      const stock = product?.quantity ?? 0;
-      if (delta > stock) {
-        throw badRequest(
-          `Insufficient stock for "${product?.name ?? productId}". Available: ${stock}, additional required: ${delta}.`,
-        );
-      }
-    }
+    // One ledger call for the whole edit: increases as `sale_out`, decreases as `sale_return_in`.
+    // All-or-nothing, so a shortfall on one line can never leave another line consumed by an edit
+    // that was then rejected — and the order document is still unsaved, so nothing diverges.
+    const editWarehouseId = order.warehouseId ? String(order.warehouseId) : await warehouseOf(order);
 
-    for (const { productId, delta } of deltas.filter((d) => d.delta > 0)) {
-      const result = await ProductModel.findOneAndUpdate(
-        { _id: productId, quantity: { $gte: delta }, isTrashed: { $ne: true } },
-        { $inc: { quantity: -delta } },
-      );
-      if (!result) {
-        throw badRequest('Insufficient stock (conflict with another order). Please try again.');
-      }
-    }
+    if (deltas.length > 0) {
+      const lines: StockMovementLine[] = deltas.map(({ productId, delta }, index) => ({
+        warehouseId: editWarehouseId,
+        productId,
+        bucket: 'sellable',
+        delta: -delta,
+        type: delta > 0 ? 'sale_out' : 'sale_return_in',
+        refLine: index,
+      }));
 
-    for (const { productId, delta } of deltas.filter((d) => d.delta < 0)) {
-      await ProductModel.findByIdAndUpdate(productId, { $inc: { quantity: -delta } });
+      await applyStockMovements(lines, {
+        refType: 'order',
+        refId: id,
+        actorId,
+        // A retried identical request is idempotent; a genuinely new edit is not blocked, because
+        // `updatedAt` has moved on.
+        idempotencyScope: `update:${order.updatedAt?.toISOString() ?? ''}`,
+      });
+
+      // Snapshot the cost for products added by this edit.
+      const addedIds = deltas.filter((d) => d.delta > 0).map((d) => d.productId);
+      if (addedIds.length > 0) {
+        const costs = await ProductModel.find({ _id: { $in: addedIds } })
+          .select('_id purchasePrice')
+          .lean();
+        const costById = new Map(costs.map((p) => [String(p._id), p.purchasePrice ?? 0]));
+        order.products = order.products.map((line) => {
+          if (line.unitCost !== undefined) return line;
+          const cost = costById.get(String(line.productId));
+          return cost === undefined ? line : { ...line, unitCost: cost };
+        }) as typeof order.products;
+      }
     }
   }
 
@@ -384,9 +630,8 @@ export async function deleteOrder(id: string, actorId?: string) {
     throw notFound('Order not found');
   }
 
-  const completedStatuses = ['delivered', 'cancelled'];
-  if (!completedStatuses.includes(order.status)) {
-    await restoreStockForOrderProducts(order);
+  if (!STOCK_SETTLED_STATUSES.includes(order.status)) {
+    await reverseOrderStock(order, actorId, cycleScope('trash', order));
   }
 
   order.isTrashed = true;
@@ -409,6 +654,20 @@ export async function deleteOrder(id: string, actorId?: string) {
 export async function restoreOrder(id: string, actorId?: string) {
   const order = await OrderModel.findOne({ _id: id, isTrashed: true });
   if (!order) throw notFound('Order not found in trash');
+
+  // `deleteOrder` gave this order's stock back when it was trashed, so restoring has to take
+  // it again — otherwise a trash round-trip permanently inflates stock. If the stock is no
+  // longer there the restore is refused rather than silently leaving the books wrong.
+  if (!STOCK_SETTLED_STATUSES.includes(order.status)) {
+    await reserveWarehouseStock(
+      await warehouseOf(order),
+      aggregateExistingOrderQuantityByProduct(order.products as never),
+      id,
+      actorId,
+      cycleScope('restore', order),
+    );
+  }
+
   order.isTrashed = false;
   order.trashedAt = undefined;
   order.trashedBy = undefined;

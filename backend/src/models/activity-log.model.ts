@@ -1,5 +1,10 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
+/**
+ * NOTE: this union and the `enum:` array in the schema below must stay in step. A value
+ * present in one but not the other throws a ValidationError at write time, and
+ * `logActivityAsync` swallows that error — so the action would silently log nothing.
+ */
 export type ActivityModule =
   | 'task'
   | 'order'
@@ -10,7 +15,14 @@ export type ActivityModule =
   | 'return'
   | 'visit'
   | 'employee'
-  | 'attendance';
+  | 'attendance'
+  | 'warehouse'
+  | 'stock'
+  | 'stock_receipt'
+  | 'stock_transfer'
+  | 'damage_claim'
+  | 'stock_count'
+  | 'opening_stock';
 
 export type ActivityAction =
   | 'created'
@@ -19,7 +31,26 @@ export type ActivityAction =
   | 'status_changed'
   | 'started_task'
   | 'completed_task'
-  | 'flagged';
+  | 'flagged'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'received'
+  | 'submitted'
+  | 'stock_moved'
+  | 'reversed';
+
+const ACTIVITY_MODULES: ActivityModule[] = [
+  'task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee',
+  'attendance', 'warehouse', 'stock', 'stock_receipt', 'stock_transfer', 'damage_claim',
+  'stock_count', 'opening_stock',
+];
+
+const ACTIVITY_ACTIONS: ActivityAction[] = [
+  'created', 'updated', 'deleted', 'status_changed', 'started_task', 'completed_task',
+  'flagged', 'approved', 'rejected', 'cancelled', 'received', 'submitted', 'stock_moved',
+  'reversed',
+];
 
 export interface IActivityLog extends Document {
   _id: Types.ObjectId;
@@ -38,17 +69,9 @@ export interface IActivityLog extends Document {
 const activityLogSchema = new Schema<IActivityLog>(
   {
     employeeId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
-    module: {
-      type: String,
-      enum: ['task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee', 'attendance'],
-      required: true,
-    },
+    module: { type: String, enum: ACTIVITY_MODULES, required: true },
     entityId: { type: String, required: true },
-    action: {
-      type: String,
-      enum: ['created', 'updated', 'deleted', 'status_changed', 'started_task', 'completed_task', 'flagged'],
-      required: true,
-    },
+    action: { type: String, enum: ACTIVITY_ACTIONS, required: true },
     taskId: { type: Schema.Types.ObjectId, ref: 'Task', required: false },
     changes: { type: Schema.Types.Mixed, required: false },
     meta: { type: Schema.Types.Mixed, required: false },

@@ -27,6 +27,14 @@ export interface BroadcastNotification {
   broadcastTo?: string;
   startAt?: string;
   endAt?: string;
+  /**
+   * `admin` entries were composed by a person; `system` entries were raised by the app (a transfer
+   * awaiting approval, a quantity mismatch, low stock) and are a log rather than a message — the API
+   * refuses to edit or delete them.
+   */
+  source?: 'admin' | 'system';
+  /** Deep link into the app for a system notification, e.g. `/warehouse/transfers/<id>`. */
+  link?: string;
   createdBy?: unknown;
   createdAt: string;
   updatedAt: string;

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { format } from 'date-fns';
 import { InboxBroadcastItem } from '../../services/broadcastNotificationService';
 import styles from '../../styles/Dashboard.module.scss';
@@ -23,6 +24,8 @@ const BroadcastMessageModal: React.FC<BroadcastMessageModalProps> = ({
   onMarkRead,
   marking,
 }) => {
+  const router = useRouter();
+
   useEffect(() => {
     if (!item) return;
     const onKey = (e: KeyboardEvent) => {
@@ -55,6 +58,20 @@ const BroadcastMessageModal: React.FC<BroadcastMessageModalProps> = ({
           <p className={styles.inboxModalBodyMuted}>No additional details.</p>
         )}
         <div className={styles.inboxModalActions}>
+          {/* System notifications carry a deep link to the document they are about — a transfer
+              waiting for approval is only useful if you can get to it in one click. */}
+          {item.link && (
+            <button
+              type="button"
+              className={styles.inboxPrimaryBtn}
+              onClick={() => {
+                onClose();
+                router.push(item.link as string);
+              }}
+            >
+              Open
+            </button>
+          )}
           {!item.read && (
             <button
               type="button"

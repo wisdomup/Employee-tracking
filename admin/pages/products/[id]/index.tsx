@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
@@ -94,7 +95,8 @@ const ProductDetailPage: React.FC = () => {
                 </span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.label}>Stock Quantity:</span>
+                {/* Derived from the warehouse ledger — the sum of sellable stock everywhere. */}
+                <span className={styles.label}>Sellable stock (all warehouses):</span>
                 <span className={styles.value}>
                   {product.quantity !== undefined ? product.quantity : '-'}
                   {product.survivalQuantity !== undefined &&
@@ -116,6 +118,20 @@ const ProductDetailPage: React.FC = () => {
                         {product.quantity === 0 ? 'Out of stock' : 'Low stock'}
                       </span>
                     )}
+                  <Link
+                    href={`/warehouse/reports?productId=${product._id}`}
+                    style={{ marginLeft: '0.5rem', fontSize: '0.8125rem' }}
+                  >
+                    view per warehouse
+                  </Link>
+                </span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Last Purchase Rate:</span>
+                <span className={styles.value}>
+                  {product.lastPurchaseRate !== undefined
+                    ? `Rs. ${product.lastPurchaseRate.toFixed(2)}`
+                    : '-'}
                 </span>
               </div>
               <div className={styles.infoItem}>

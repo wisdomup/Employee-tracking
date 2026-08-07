@@ -4,8 +4,10 @@ const termsAndConditionsField = Joi.string().allow('').max(50_000).optional();
 
 const orderProductSchema = Joi.object({
   productId: Joi.string().required(),
-  quantity: Joi.number().required(),
-  price: Joi.number().required(),
+  // Stock is counted in whole pieces. Without `.integer().min(1)` a negative quantity
+  // passes the stock pre-check and then *increments* stock on the guarded update.
+  quantity: Joi.number().integer().min(1).required(),
+  price: Joi.number().min(0).required(),
 });
 
 export const createOrderSchema = Joi.object({
@@ -24,6 +26,11 @@ export const createOrderSchema = Joi.object({
   deliveryDate: Joi.date().optional(),
   dealerId: Joi.string().required(),
   routeId: Joi.string().optional().allow(null, ''),
+  /**
+   * Source warehouse. Normally resolved from the salesman's city; only an admin may override it, and
+   * the controller strips it for every other role.
+   */
+  warehouseId: Joi.string().hex().length(24).optional(),
 });
 
 export const updateOrderSchema = Joi.object({
@@ -42,6 +49,8 @@ export const updateOrderSchema = Joi.object({
   deliveryDate: Joi.date().optional(),
   dealerId: Joi.string().optional(),
   routeId: Joi.string().optional().allow(null, ''),
+  /** Admin-only source-warehouse change; the move is applied as a compensating pair of movements. */
+  warehouseId: Joi.string().hex().length(24).optional(),
 });
 
 export const approveOrderSchema = Joi.object({

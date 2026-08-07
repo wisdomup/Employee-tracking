@@ -31,7 +31,7 @@ router.use(authMiddleware);
  *               image: { type: string }
  *               salePrice: { type: number }
  *               purchasePrice: { type: number }
- *               quantity: { type: number }
+ *               # `quantity` is derived from warehouse stock and is read-only here.
  *               categoryId: { type: string }
  *     responses:
  *       201: { description: Product created }
@@ -107,7 +107,7 @@ router.get('/:id', controller.findOne);
  *               image: { type: string }
  *               salePrice: { type: number }
  *               purchasePrice: { type: number }
- *               quantity: { type: number }
+ *               # `quantity` is derived from warehouse stock and is read-only here.
  *               categoryId: { type: string }
  *     responses:
  *       200: { description: Product updated }

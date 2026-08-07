@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { productService, Product } from '../../../services/productService';
@@ -30,10 +31,12 @@ const EditProductPage: React.FC = () => {
     salePrice: '',
     purchasePrice: '',
     onlinePrice: '',
-    quantity: '',
     survivalQuantity: '',
     categoryId: '',
   });
+  // Read-only, straight from the API. Not part of `formData`, so it can never be sent back.
+  const [currentStock, setCurrentStock] = useState<number | null>(null);
+  const [lastPurchaseRate, setLastPurchaseRate] = useState<number | null>(null);
 
   useEffect(() => {
     categoryService.getCategories().then(setCategories).catch(() => {});
@@ -51,10 +54,11 @@ const EditProductPage: React.FC = () => {
         salePrice: data.salePrice !== undefined ? data.salePrice.toString() : '',
         purchasePrice: data.purchasePrice !== undefined ? data.purchasePrice.toString() : '',
         onlinePrice: data.onlinePrice !== undefined ? data.onlinePrice.toString() : '',
-        quantity: data.quantity !== undefined ? data.quantity.toString() : '',
         survivalQuantity: data.survivalQuantity !== undefined ? data.survivalQuantity.toString() : '',
         categoryId: data.categoryId?._id || data.categoryId || '',
       });
+      setCurrentStock(data.quantity ?? 0);
+      setLastPurchaseRate(data.lastPurchaseRate ?? null);
       setExtrasRows(
         data.extras && typeof data.extras === 'object'
           ? Object.entries(data.extras).map(([name, value]) => ({ name, value: String(value) }))
@@ -126,7 +130,6 @@ const EditProductPage: React.FC = () => {
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
         onlinePrice: formData.onlinePrice ? parseFloat(formData.onlinePrice) : undefined,
-        quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
         survivalQuantity: formData.survivalQuantity ? parseInt(formData.survivalQuantity) : undefined,
         categoryId: formData.categoryId,
         extras: extras !== undefined ? extras : {},
@@ -233,17 +236,26 @@ const EditProductPage: React.FC = () => {
             </div>
           </div>
           <div className={styles.formRow}>
+            {/* Stock on hand is derived from the warehouse ledger and is read-only here. The old
+                editable field was the worst drift path in the app: it re-sent the figure read at
+                page load, so saving an unrelated change minutes later reset stock to a stale
+                number. */}
             <div className={styles.formGroup}>
-              <label htmlFor="quantity">Quantity</label>
-              <input
-                type="number"
-                id="quantity"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleChange}
-                className={styles.input}
-                min={0}
-              />
+              <label>Sellable stock (all warehouses)</label>
+              <p style={{ margin: '0.25rem 0 0', fontWeight: 600, color: '#111827' }}>
+                {currentStock !== null ? currentStock : '—'}{' '}
+                <Link
+                  href={`/warehouse/reports?productId=${id}`}
+                  style={{ fontWeight: 400, fontSize: '0.8125rem' }}
+                >
+                  view per warehouse
+                </Link>
+              </p>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                Changed by Stock In, transfers, sales, damage entries and stock counts — never edited
+                directly.
+                {lastPurchaseRate !== null && ` Last purchase rate: Rs. ${lastPurchaseRate.toFixed(2)}.`}
+              </p>
             </div>
             <div className={styles.formGroup}>
               <label htmlFor="survivalQuantity">Survival Qty</label>

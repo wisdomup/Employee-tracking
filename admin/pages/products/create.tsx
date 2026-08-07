@@ -27,7 +27,6 @@ const CreateProductPage: React.FC = () => {
     salePrice: '',
     purchasePrice: '',
     onlinePrice: '',
-    quantity: '',
     survivalQuantity: '',
     categoryId: '',
   });
@@ -95,7 +94,6 @@ const CreateProductPage: React.FC = () => {
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : undefined,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : undefined,
         onlinePrice: formData.onlinePrice ? parseFloat(formData.onlinePrice) : undefined,
-        quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
         survivalQuantity: formData.survivalQuantity ? parseInt(formData.survivalQuantity) : undefined,
         categoryId: formData.categoryId,
         extras,
@@ -205,19 +203,9 @@ const CreateProductPage: React.FC = () => {
             </div>
           </div>
           <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label htmlFor="quantity">Quantity</label>
-              <input
-                type="number"
-                id="quantity"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleChange}
-                className={styles.input}
-                min={0}
-                placeholder="Stock quantity"
-              />
-            </div>
+            {/* No stock quantity here on purpose: stock lives per warehouse now, so a figure typed
+                on the product form would be overwritten by the ledger. Enter starting stock via
+                Warehouse → Opening Stock, and everything after that via Stock In. */}
             <div className={styles.formGroup}>
               <label htmlFor="survivalQuantity">Survival Qty</label>
               <input

@@ -10,6 +10,11 @@ const OrderTermsEditor = dynamic(() => import('../../components/OrderTermsEditor
 import { clientService, Client, formatClientSelectLabel, getClientAssignedRouteId } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
 import { productService, Product } from '../../services/productService';
+import {
+  warehouseService,
+  Warehouse,
+  warehouseSelectOptions,
+} from '../../services/warehouseService';
 import { toast } from 'react-toastify';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../components/UI/SearchableSelect';
@@ -31,6 +36,10 @@ const CreateOrderPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  /** '' means "let the server resolve it from the salesman's city" (the normal case). */
+  const [sourceWarehouseId, setSourceWarehouseId] = useState('');
+  const [warehouseStock, setWarehouseStock] = useState<Record<string, number>>({});
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { productId: '', quantity: 1, price: 0 },
   ]);
@@ -48,7 +57,28 @@ const CreateOrderPage: React.FC = () => {
     clientService.getClients().then(setClients).catch(() => {});
     routeService.getRoutes().then(setRoutes).catch(() => {});
     productService.getProducts().then(setProducts).catch(() => {});
-  }, []);
+    // Only an admin may override the source warehouse, so only they need the list.
+    if (isAdmin) {
+      warehouseService.getWarehouses({ isActive: true }).then(setWarehouses).catch(() => {});
+    }
+  }, [isAdmin]);
+
+  // Per-warehouse availability, so the form validates against the warehouse the order will actually
+  // draw from rather than the all-warehouse total.
+  useEffect(() => {
+    if (!sourceWarehouseId) {
+      setWarehouseStock({});
+      return;
+    }
+    warehouseService
+      .getStock({ warehouseId: sourceWarehouseId })
+      .then((rows) => {
+        const map: Record<string, number> = {};
+        for (const row of rows) map[row.productId] = row.sellable;
+        setWarehouseStock(map);
+      })
+      .catch(() => setWarehouseStock({}));
+  }, [sourceWarehouseId]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -97,7 +127,16 @@ const CreateOrderPage: React.FC = () => {
   const discount = parseFloat(formData.discount) || 0;
   const grandTotal = totalPrice - discount;
 
+  /**
+   * Stock available to this order.
+   *
+   * When an admin has picked a source warehouse we validate against THAT warehouse's sellable stock.
+   * Otherwise the warehouse is resolved server-side from the salesman's city, so the best the form can
+   * do is the all-warehouse total from `Product.quantity` — the label says which, and the server is
+   * the authority either way.
+   */
   const getStockForProduct = (productId: string) => {
+    if (sourceWarehouseId) return warehouseStock[productId] ?? 0;
     const p = products.find((x) => x._id === productId);
     return p?.quantity ?? 0;
   };
@@ -168,6 +207,9 @@ const CreateOrderPage: React.FC = () => {
         description: formData.description || undefined,
         deliveryDate: formData.deliveryDate || undefined,
         ...(isAdmin && termsHtml.trim() ? { termsAndConditions: termsHtml } : {}),
+        // Omitted for everyone else, and stripped server-side too: the warehouse follows the
+        // salesman's city unless an admin deliberately overrides it.
+        ...(isAdmin && sourceWarehouseId ? { warehouseId: sourceWarehouseId } : {}),
       });
       toast.success('Order created successfully');
       router.push('/orders');
@@ -244,7 +286,7 @@ const CreateOrderPage: React.FC = () => {
                       Product
                     </th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 180 }}>
-                      Stock / Remaining
+                      {sourceWarehouseId ? 'Stock at warehouse / Remaining' : 'Stock (all warehouses) / Remaining'}
                     </th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 100 }}>
                       Qty
@@ -473,6 +515,29 @@ const CreateOrderPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {isAdmin && (
+            <div className={styles.formGroup}>
+              <label htmlFor="sourceWarehouseId">Source Warehouse</label>
+              <SearchableSelect
+                id="sourceWarehouseId"
+                name="sourceWarehouseId"
+                value={sourceWarehouseId}
+                onChange={(e) => setSourceWarehouseId(e.target.value)}
+                className={styles.select}
+                placeholder="Automatic (from the salesman's city)"
+                options={[
+                  { value: '', label: "Automatic — from the salesman's city" },
+                  ...warehouseSelectOptions(warehouses),
+                ]}
+              />
+              <span className={styles.hint}>
+                {sourceWarehouseId
+                  ? 'Stock will be taken from this warehouse, and availability below is checked against it.'
+                  : 'Leave on automatic unless you need to draw from a different warehouse. On automatic, the stock figures below are the total across all warehouses and the server checks the real one.'}
+              </span>
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="paymentType">Payment Type</label>

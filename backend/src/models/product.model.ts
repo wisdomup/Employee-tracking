@@ -7,10 +7,24 @@ export interface IProduct extends Document {
   description?: string;
   image?: string;
   salePrice?: number;
+  /**
+   * Running WEIGHTED-AVERAGE cost per piece across all warehouses, maintained by Stock In
+   * (`recomputeProductCost`). Still the cost basis for the P&L report, and still admin-only in
+   * API responses. An admin may override it to correct a bad average; the next receipt wins.
+   */
   purchasePrice?: number;
   onlinePrice?: number;
+  /**
+   * DERIVED MIRROR of total sellable stock = Σ `WarehouseStock.sellable` across all warehouses.
+   * Never write this directly — only `stock-ledger.service.ts#syncProductQuantityMirror` may.
+   * It exists so every pre-warehouse reader (order stock checks, stock-reports, the products
+   * list, the dashboard) keeps working unchanged.
+   */
   quantity?: number;
+  /** Admin-set low-stock threshold, compared against the all-warehouse total. */
   survivalQuantity?: number;
+  /** Rate on the most recent live Stock In. Shown as a reference when entering a new rate. */
+  lastPurchaseRate?: number;
   categoryId: Types.ObjectId;
   createdBy: Types.ObjectId;
   extras?: Record<string, string>;
@@ -32,6 +46,7 @@ const productSchema = new Schema<IProduct>(
     onlinePrice: { type: Number, min: 0 },
     quantity: { type: Number, min: 0 },
     survivalQuantity: { type: Number, min: 0 },
+    lastPurchaseRate: { type: Number, min: 0 },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     extras: { type: Schema.Types.Mixed },

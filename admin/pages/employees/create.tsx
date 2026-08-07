@@ -8,13 +8,15 @@ import { ImageUpload } from '../../components/UI/ImageUpload';
 import { toast } from 'react-toastify';
 import styles from '../../styles/FormPage.module.scss';
 import SearchableSelect from '../../components/UI/SearchableSelect';
-import { FIELD_STAFF_ROLES } from '../../utils/permissions';
+import { FIELD_STAFF_ROLES, WAREHOUSE_ROLES } from '../../utils/permissions';
 import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
+import { warehouseService, Warehouse, warehouseSelectOptions } from '../../services/warehouseService';
 
 const EMPLOYEE_ROLES = [
   // { value: 'admin', label: 'Admin' },
   // { value: 'employee', label: 'Employee' },
   { value: 'warehouse_manager', label: 'Warehouse Manager' },
+  { value: 'warehouse_staff', label: 'Warehouse Staff' },
   { value: 'sales_manager', label: 'Sales Manager' },
   { value: 'order_taker', label: 'Order Taker' },
   { value: 'delivery_man', label: 'Delivery Man' },
@@ -24,8 +26,10 @@ const CreateEmployeePage: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [salesManagers, setSalesManagers] = useState<Employee[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [formData, setFormData] = useState({
     managerId: '',
+    warehouseId: '',
     userID: '',
     username: '',
     fullName: '',
@@ -54,9 +58,15 @@ const CreateEmployeePage: React.FC = () => {
       .getEmployees({ role: 'sales_manager', isActive: true })
       .then((data) => setSalesManagers(Array.isArray(data) ? data : []))
       .catch(() => setSalesManagers([]));
+
+    warehouseService
+      .getWarehouses({ isActive: true })
+      .then(setWarehouses)
+      .catch(() => setWarehouses([]));
   }, []);
 
   const canHaveManager = FIELD_STAFF_ROLES.includes(formData.role as never);
+  const isWarehouseRole = WAREHOUSE_ROLES.includes(formData.role as never);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -115,6 +125,12 @@ const CreateEmployeePage: React.FC = () => {
       toast.error('Please select a Role');
       return;
     }
+    // Warehouse staff are locked to one warehouse, and the API fails closed without it — so an
+    // account created without one simply cannot use the module. Catch it here instead.
+    if (formData.role === 'warehouse_staff' && !formData.warehouseId) {
+      toast.error('Pick a warehouse — warehouse staff cannot use the module without one');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -132,6 +148,7 @@ const CreateEmployeePage: React.FC = () => {
         ...(formData.target        && { target: formData.target }),
         ...(formData.achivedTarget && { achivedTarget: formData.achivedTarget }),
         ...(canHaveManager && formData.managerId && { managerId: formData.managerId }),
+        ...(isWarehouseRole && formData.warehouseId && { warehouseId: formData.warehouseId }),
         ...(canHaveManager && { autoAssignVisits: formData.autoAssignVisits }),
       };
 
@@ -287,6 +304,29 @@ const CreateEmployeePage: React.FC = () => {
               />
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                 Determines whose analytics dashboard this employee appears in.
+              </span>
+            </div>
+          )}
+
+          {isWarehouseRole && (
+            <div className={styles.formGroup}>
+              <label htmlFor="warehouseId">Warehouse</label>
+              <SearchableSelect
+                id="warehouseId"
+                name="warehouseId"
+                value={formData.warehouseId}
+                onChange={handleChange}
+                className={styles.select}
+                placeholder="Select warehouse"
+                options={[
+                  { value: '', label: 'No warehouse' },
+                  ...warehouseSelectOptions(warehouses),
+                ]}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                {formData.role === 'warehouse_staff'
+                  ? 'Required for warehouse staff — without it they cannot open the warehouse module at all.'
+                  : 'Optional for a manager. Leave blank for company-wide access to every warehouse.'}
               </span>
             </div>
           )}

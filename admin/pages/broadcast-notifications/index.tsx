@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
+import StatusBadge from '../../components/UI/StatusBadge';
 import {
   broadcastNotificationService,
   BroadcastNotification,
@@ -119,6 +120,17 @@ const BroadcastNotificationsPage: React.FC = () => {
       ),
     },
     {
+      key: 'source',
+      title: 'Source',
+      render: (value: string) =>
+        value === 'system' ? (
+          <StatusBadge status="system" />
+        ) : (
+          <span style={{ color: '#6b7280' }}>Admin</span>
+        ),
+      exportValue: (row: BroadcastNotification) => (row.source === 'system' ? 'System' : 'Admin'),
+    },
+    {
       key: 'startAt',
       title: 'Start',
       render: (value: string) => (value ? format(new Date(value), 'MMM dd, yyyy') : '-'),
@@ -133,26 +145,35 @@ const BroadcastNotificationsPage: React.FC = () => {
       title: 'Actions',
       render: (_: string, row: BroadcastNotification) => (
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/broadcast-notifications/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {/* System notifications are a record of what the app did, not a message someone wrote —
+              the API refuses to edit or delete them, so the buttons are hidden rather than left to
+              fail. */}
+          {row.source === 'system' ? (
+            <span style={{ color: '#9ca3af', fontSize: '0.8125rem' }}>Raised automatically</span>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={styles.editButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/broadcast-notifications/${row._id}/edit`);
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className={styles.deleteButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(row._id);
+                }}
+              >
+                Delete
+              </button>
+            </>
+          )}
         </div>
       ),
     },

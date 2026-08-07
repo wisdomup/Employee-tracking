@@ -8,6 +8,82 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-06 — Warehouse & stock management
+
+Full detail in [warehouse-and-stock.md](./warehouse-and-stock.md). Stock used to be a single
+number per product with no purchases module at all — the only way it went up was an admin typing a
+figure into the product form. It is now per-warehouse, split into buckets, behind an append-only
+ledger.
+
+### Added
+- **Warehouses** (`/warehouse`). Admin can add one at any time — name, city, address, manager. One is
+  flagged **Main** (enforced by a unique partial index, not by convention) and all Stock In lands
+  there. Stock is counted in **pieces**, never cartons.
+- **Three buckets per warehouse+product**: `sellable`, `damaged`, and `inTransit` for goods that have
+  left an origin on an approved transfer but not yet arrived.
+- **One choke point.** `stock-ledger.service.ts#applyStockMovements` is the only code allowed to touch
+  a stock balance. It guarantees stock can never go negative (a guarded `$inc`, not a read-then-write
+  check), applies multi-line movements all-or-nothing, is replay-safe via a unique `idempotencyKey`,
+  and writes an audit row per bucket change with actor, reason and business date.
+- **Stock In** — lightweight receipt (date, free-text supplier, pieces and rate per line), always into
+  Main, with the last purchase rate shown as a reference next to each rate input. Printable slip.
+- **One-time opening stock** per warehouse and product, split sellable/damaged with a rate, enforced
+  as one-time by a unique partial index. Cancelling frees the slot for a correction.
+- **Transfers** — create → admin approves → destination confirms what actually arrived. Stock leaves
+  the source at **approval**, into its `inTransit` bucket: in between the goods are on a truck and
+  must not be sellable anywhere. A shortfall credits only what arrived and parks the difference in
+  `inTransit` until an admin writes it off or returns it. Over-receipt is rejected outright.
+- **Damage / Claim** — `internal_damage` or `client_claim` (client name required). Creating an entry
+  moves no stock; only an admin approval moves pieces from sellable to damaged.
+- **Monthly stock count** — one warehouse at a time, sellable and damaged counted separately, prefilled
+  with the system figures so an untouched sheet means everything matches.
+- **Reports** — stock on hand, movement history, transfer history with mismatches, damage/claim with
+  approver and client, monthly count variance, and sales/valuation over a date range with best sellers.
+- **Sales draw from a warehouse** resolved from the salesman's city (`normalizeCityKey`, the same
+  normalisation the region-sales dashboard uses). Precedence: `User.warehouseId` → city match → Main.
+  Admin can override per order, applied as a compensating pair of movements so total stock is unchanged.
+- **New role `warehouse_staff`** plus `User.warehouseId`. Staff raise documents at their own warehouse
+  and never approve them; `warehouse_manager` is company-wide when no warehouse is set.
+- **System notifications** through the existing broadcast inbox (`source: 'system'` plus a deep link):
+  transfer awaiting approval, transfer approved, quantity mismatch, damage awaiting approval, count
+  submitted, low stock, insufficient stock on a sale. A daily cron also logs any stock-integrity drift.
+- `npm run migrate:warehouse-bootstrap` (dry run by default) and `npm run reconcile:stock`.
+
+### Changed
+- **`Product.quantity` is now a derived mirror** of total sellable stock across all warehouses,
+  recomputed after every movement. Every pre-existing reader — the order stock check, all five
+  stock-reports, the products list, the dashboard — keeps working untouched. The products create/edit
+  forms no longer accept it, and the service strips it: the edit form used to re-send the figure it
+  read at page load, so saving a description twenty minutes later reset stock to a stale number.
+- **`Product.purchasePrice` is now a running weighted average**, maintained by Stock In, with a new
+  read-only `lastPurchaseRate` alongside it. Only receipt movements may carry a cost, which is what
+  structurally guarantees transfers, sales, damage and count adjustments can never shift it.
+- **Order lines snapshot `unitCost`** when the stock moves, and the P&L prefers the snapshot. Without
+  it, an average cost that changes on every goods receipt would silently restate last month's profit.
+- **A completed `damage`-type return now credits the damaged bucket** and mints a linked approved
+  client-claim entry. It previously changed no stock at all and only appeared in reports.
+- `/stock-reports` relabelled where the new module made it ambiguous: "Available Qty" → "Total Sellable
+  (all warehouses)", the "Damage Stock" tab → "Return Damage" (it is dealer return damage, a different
+  thing from warehouse damage entries).
+
+### Fixed
+Four live bugs in the existing order stock logic, each of which would have corrupted per-warehouse
+stock from day one:
+- **A negative order line minted stock.** `orders.schemas.ts` had a bare `Joi.number()` on line
+  quantity, so `POST /api/orders` with `quantity: -5` passed the stock check (`-5 > stock` is false)
+  and then ran `$inc: { quantity: +5 }`. Now `.integer().min(1)`, matching the returns schema.
+- **A partial decrement was never restored.** On a multi-line order, if line 2's guarded decrement
+  failed, line 1's was orphaned and the order was hard-deleted — permanently burning an invoice number
+  in a series that is supposed to be gap-free. Lines are now compensated, and the invoice number is
+  allocated only after the stock has actually moved.
+- **Cancelling a delivered order invented stock.** The cancel path had no `delivered` exclusion, unlike
+  `deleteOrder` which did. Also: `cancelled → pending` never re-decremented (free oversell), and a
+  trash round-trip gave stock back on delete without taking it on restore.
+- **Cancelling was open to non-admins.** `PUT /orders/:id` allowed `employee` and `order_taker`, so a
+  rider could cancel a delivered order and mint stock.
+
+---
+
 ## 2026-08-03 — Auto-assign toggle, and visits no longer leak across days
 
 ### Added

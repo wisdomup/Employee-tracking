@@ -22,7 +22,9 @@ type TabId = 'current' | 'hold' | 'damage' | 'pl' | 'lowstock';
 const TABS: { id: TabId; label: string }[] = [
   { id: 'current', label: 'Current Stock' },
   { id: 'hold', label: 'Hold Stock' },
-  { id: 'damage', label: 'Damage Stock' },
+  // Dealer RETURN damage — a different concept from warehouse damage/claim entries, which live on
+  // Warehouse → Reports. Renamed so the two are not mistaken for each other.
+  { id: 'damage', label: 'Return Damage' },
   { id: 'pl', label: 'Profit & Loss' },
   { id: 'lowstock', label: 'Low Stock Alerts' },
 ];
@@ -30,7 +32,7 @@ const TABS: { id: TabId; label: string }[] = [
 const TAB_EXPORT_LABEL: Record<TabId, string> = {
   current: 'Current Stock Report',
   hold: 'Hold Stock Report',
-  damage: 'Damage Stock Report',
+  damage: 'Return Damage Report',
   pl: 'Profit & Loss Report',
   lowstock: 'Low Stock Alerts',
 };
@@ -163,7 +165,9 @@ const StockReportsPage: React.FC = () => {
     { key: 'categoryName', title: 'Category' },
     {
       key: 'availableQty',
-      title: 'Available Qty',
+      // Now the sum of sellable stock across every warehouse. The per-warehouse split lives on
+      // Warehouse → Reports → Stock on Hand.
+      title: 'Total Sellable (all warehouses)',
       render: (v) => <strong>{v}</strong>,
     },
     { key: 'onHoldQty', title: 'On Hold Qty' },
@@ -498,9 +502,11 @@ const StockReportsPage: React.FC = () => {
           <>
             {!loading && lowStock.length === 0 ? (
               <div className={styles.lowStockCallout}>
-                <strong>No low stock alerts.</strong>
-                Either all products are above their survival quantity, or survival quantities have not been
-                set. Go to{' '}
+                <strong>No company-wide low stock alerts.</strong>
+                The level is compared against total sellable stock across every warehouse, so a
+                product can be fine overall while one warehouse is empty — check Warehouse →
+                Reports → Stock on Hand for the per-warehouse picture. Either all products are above
+                their survival quantity, or survival quantities have not been set. Go to{' '}
                 <a href="/products" style={{ color: '#b45309', fontWeight: 600 }}>
                   Products
                 </a>{' '}

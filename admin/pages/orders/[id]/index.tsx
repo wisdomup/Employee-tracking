@@ -11,7 +11,15 @@ import { format } from 'date-fns';
 import { printOrderInvoice } from '../../../utils/orderInvoicePdf';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import ApproveOrderTermsModal from '../../../components/ApproveOrderTermsModal';
+import SearchableSelect from '../../../components/UI/SearchableSelect';
+import {
+  warehouseService,
+  Warehouse,
+  warehouseSelectOptions,
+} from '../../../services/warehouseService';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import styles from '../../../styles/DetailPage.module.scss';
+import modalStyles from '../../../styles/Modal.module.scss';
 import { withDefaultInvoiceTerms } from '../../../utils/defaultInvoiceTerms';
 
 const OrderDetailPage: React.FC = () => {
@@ -23,9 +31,16 @@ const OrderDetailPage: React.FC = () => {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [approveTermsDraft, setApproveTermsDraft] = useState('');
   const [approveBusy, setApproveBusy] = useState(false);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouseModalOpen, setWarehouseModalOpen] = useState(false);
+  const [warehouseDraft, setWarehouseDraft] = useState('');
+  const [warehouseBusy, setWarehouseBusy] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
+
+  // Once the goods have shipped or the order is cancelled there is no live reservation to move.
+  const canChangeWarehouse = order ? !['delivered', 'cancelled'].includes(order.status) : false;
 
   useEffect(() => {
     if (id) {
@@ -36,6 +51,27 @@ const OrderDetailPage: React.FC = () => {
         .finally(() => setLoading(false));
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    warehouseService.getWarehouses({ isActive: true }).then(setWarehouses).catch(() => {});
+  }, [isAdmin]);
+
+  const handleChangeWarehouse = async () => {
+    if (!order || !warehouseDraft) return;
+    setWarehouseBusy(true);
+    try {
+      const updated = await orderService.setSourceWarehouse(order._id, warehouseDraft);
+      setOrder(updated);
+      toast.success('Source warehouse changed — the reservation moved with it');
+      setWarehouseModalOpen(false);
+    } catch (err) {
+      // The API refuses when the new warehouse is short, so the stock never goes negative.
+      toast.error(getApiErrorMessage(err, 'Failed to change the source warehouse'));
+    } finally {
+      setWarehouseBusy(false);
+    }
+  };
 
   const formatInvoiceLabel = (n?: number) => {
     if (n == null || !Number.isFinite(n)) return '—';
@@ -162,6 +198,24 @@ const OrderDetailPage: React.FC = () => {
                   <span className={styles.value}>{order.routeId?.name || '-'}</span>
                 </div>
               )}
+              <div className={styles.infoItem}>
+                <span className={styles.label}>Source Warehouse:</span>
+                <span className={styles.value}>
+                  {order.warehouseId?.name || '-'}
+                  {/* Changing it moves the reservation between warehouses, so it is admin-only and
+                      only while the stock consequence is still live. */}
+                  {isAdmin && canChangeWarehouse && (
+                    <button
+                      type="button"
+                      className={styles.editButton}
+                      style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
+                      onClick={() => setWarehouseModalOpen(true)}
+                    >
+                      Change
+                    </button>
+                  )}
+                </span>
+              </div>
               {order.paymentType && (
                 <div className={styles.infoItem}>
                   <span className={styles.label}>Payment Type:</span>
@@ -311,6 +365,70 @@ const OrderDetailPage: React.FC = () => {
         onApprove={handleApproveConfirm}
         busy={approveBusy}
       />
+
+      {warehouseModalOpen && order && (
+        <div
+          className={modalStyles.modalOverlay}
+          role="presentation"
+          onClick={() => {
+            if (!warehouseBusy) setWarehouseModalOpen(false);
+          }}
+        >
+          <div
+            className={modalStyles.modalContent}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Change source warehouse"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={modalStyles.modalHeader}>
+              <h2>Change source warehouse</h2>
+            </div>
+            <p style={{ margin: '0 0 16px', color: '#4b5563', fontSize: 14, lineHeight: 1.5 }}>
+              The stock reserved for this order goes back to{' '}
+              <strong>{order.warehouseId?.name ?? 'the current warehouse'}</strong> and is taken from
+              the one you pick instead. Total stock does not change. If the new warehouse does not
+              have enough, the change is refused.
+            </p>
+
+            <div className={modalStyles.formGroup}>
+              <label htmlFor="warehouseDraft">New source warehouse</label>
+              <SearchableSelect
+                id="warehouseDraft"
+                name="warehouseDraft"
+                value={warehouseDraft}
+                onChange={(e) => setWarehouseDraft(e.target.value)}
+                placeholder="Select warehouse"
+                options={[
+                  { value: '', label: 'Select warehouse' },
+                  ...warehouseSelectOptions(
+                    warehouses.filter((w) => w._id !== String(order.warehouseId?._id ?? '')),
+                  ),
+                ]}
+              />
+            </div>
+
+            <div className={modalStyles.modalActions}>
+              <button
+                type="button"
+                className={modalStyles.cancelButton}
+                onClick={() => setWarehouseModalOpen(false)}
+                disabled={warehouseBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={modalStyles.submitButton}
+                onClick={handleChangeWarehouse}
+                disabled={warehouseBusy || !warehouseDraft}
+              >
+                {warehouseBusy ? 'Moving…' : 'Change warehouse'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

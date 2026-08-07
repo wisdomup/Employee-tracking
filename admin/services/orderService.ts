@@ -24,6 +24,11 @@ export interface Order {
   deliveryDate?: string;
   dealerId: any;
   routeId?: any;
+  /**
+   * Warehouse the stock came out of. Resolved from the salesman's city on create; only an admin can
+   * change it, and doing so moves the reservation between warehouses.
+   */
+  warehouseId?: any;
   createdBy?: any;
   /** Populated user who approved (set when status becomes approved from pending). */
   approvedBy?: any;
@@ -33,6 +38,15 @@ export interface Order {
 }
 
 export const orderService = {
+  /**
+   * Change which warehouse an order draws its stock from. Applied as a compensating pair of
+   * movements, so total stock is unchanged; refused if the new warehouse is short.
+   */
+  async setSourceWarehouse(id: string, warehouseId: string) {
+    const response = await api.put(`/orders/${id}`, { warehouseId });
+    return response.data;
+  },
+
   async getOrders(filters?: {
     clientId?: string;
     routeId?: string;

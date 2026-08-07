@@ -65,6 +65,9 @@ export async function login(data: { username: string; password: string }) {
       role: user.role,
       phone: user.phone,
       email: user.email,
+      // The admin panel needs this to pre-select and lock the warehouse pickers for warehouse
+      // roles. It is a UX convenience only — every endpoint still scopes server-side.
+      warehouseId: user.warehouseId ?? null,
     },
   };
 }

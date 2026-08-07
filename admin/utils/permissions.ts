@@ -4,6 +4,7 @@ export type Role =
   | 'order_taker'
   | 'employee'
   | 'warehouse_manager'
+  | 'warehouse_staff'
   | 'delivery_man';
 
 /**
@@ -65,15 +66,65 @@ const SALES_MANAGER_PERMISSIONS = new Set([
 ]);
 
 /**
+ * Warehouse staff: day-to-day stock work at their own warehouse. They may raise transfers, damage
+ * entries and counts, but never approve them — approval is the only control on write-offs.
+ *
+ * Note which keys are deliberately ABSENT: `transfers:approve`, `damage:approve`,
+ * `stock-count:approve`, `warehouses:manage`, `opening-stock:manage`, `stock:set-low-level` and
+ * `orders:set-source-warehouse` appear in no Set at all. `can()` returns true for 'admin' before
+ * consulting any Set, so `can(role, 'transfers:approve')` is an exact admin test — which lets pages
+ * express "admin only" through `can()` instead of hardcoding a role comparison.
+ */
+const WAREHOUSE_STAFF_PERMISSIONS = new Set([
+  'products:view',
+  'warehouse:view',
+  'warehouses:view',
+  'stock-in:view',
+  'stock-in:create',
+  'transfers:view',
+  'transfers:create',
+  'transfers:receive',
+  'damage:view',
+  'damage:create',
+  'stock-count:view',
+  'stock-count:create',
+  'warehouse-reports:view',
+  'tasks:view',
+  'tasks:update-status',
+  'attendance:view',
+  'attendance:create',
+]);
+
+/**
+ * Warehouse manager: everything staff can do, plus cancelling documents and a wider read view.
+ * Scoped to one warehouse when `User.warehouseId` is set, company-wide when it is not.
+ */
+const WAREHOUSE_MANAGER_PERMISSIONS = new Set([
+  ...WAREHOUSE_STAFF_PERMISSIONS,
+  'stock-in:cancel',
+  'transfers:cancel',
+  'damage:cancel',
+  'employees:view',
+  'visits:view',
+  'analytics:view-own',
+  'orders:view',
+  'catalogs:view',
+]);
+
+/**
  * Check whether the given role has permission to perform an action.
  * Usage: can(user?.role, 'orders:create')
  */
-const TASKS_FIELD_ROLES: Role[] = ['employee', 'warehouse_manager', 'delivery_man'];
+const TASKS_FIELD_ROLES: Role[] = ['employee', 'delivery_man'];
 
 export function can(role: Role | string | undefined, permission: string): boolean {
   if (role === 'admin') return true;
   if (role === 'sales_manager') return SALES_MANAGER_PERMISSIONS.has(permission);
   if (role === 'order_taker') return ORDER_TAKER_PERMISSIONS.has(permission);
+  // These two return early, so their Sets must carry the task/visit keys that
+  // `TASKS_FIELD_ROLES` used to grant `warehouse_manager` — they do, above.
+  if (role === 'warehouse_manager') return WAREHOUSE_MANAGER_PERMISSIONS.has(permission);
+  if (role === 'warehouse_staff') return WAREHOUSE_STAFF_PERMISSIONS.has(permission);
   if (
     role &&
     TASKS_FIELD_ROLES.includes(role as Role) &&
@@ -93,8 +144,12 @@ export const EMPLOYEE_ROLES: Role[] = [
   'order_taker',
   'employee',
   'warehouse_manager',
+  'warehouse_staff',
   'delivery_man',
 ];
+
+/** Roles that work in the warehouse module and can be tied to a warehouse. */
+export const WAREHOUSE_ROLES: Role[] = ['warehouse_manager', 'warehouse_staff'];
 
 /** Field roles that carry sales targets and can be assigned to a sales manager. */
 export const FIELD_STAFF_ROLES: Role[] = ['order_taker', 'delivery_man', 'employee'];

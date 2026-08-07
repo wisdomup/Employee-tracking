@@ -2,11 +2,11 @@ import type { Order } from '../services/orderService';
 import { format } from 'date-fns';
 import { employeeDisplayLabel } from './employeeDisplayLabel';
 
-const PAGE_W = 210;
-const M = 14;
-const INNER_W = PAGE_W - M * 2; // 182 mm
+export const PAGE_W = 210;
+export const M = 14;
+export const INNER_W = PAGE_W - M * 2; // 182 mm
 /** Light gray strokes for invoice boxes / tables (RGB). */
-const PDF_BORDER_GRAY: [number, number, number] = [180, 180, 180];
+export const PDF_BORDER_GRAY: [number, number, number] = [180, 180, 180];
 
 /** Header band fill (logos blend to this); BILL TO / INVOICE boxes stay explicit white below. */
 const INVOICE_HEADER_FILL: [number, number, number] = [255, 255, 255];
@@ -38,8 +38,8 @@ const TERMS_BOTTOM_INNER_MM = 4.5;
  */
 const TERMS_GAP_BELOW_TITLE_MM = 2.2;
 
-const COMPANY_NAME = 'Lightspeed International Private Limited';
-const COMPANY_CONTACT = '+92-327-9800153  |  www.wisdomup.pk';
+export const COMPANY_NAME = 'Lightspeed International Private Limited';
+export const COMPANY_CONTACT = '+92-327-9800153  |  www.wisdomup.pk';
 const BRAND_LINE1 = 'LIGHTSPEED';
 const BRAND_LINE2 = 'INTERNATIONAL';
 const INVOICE_TITLE = 'SALE INVOICE';

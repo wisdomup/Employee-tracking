@@ -16,6 +16,8 @@ export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     if (req.user?.role !== 'admin') {
       delete req.body.termsAndConditions;
+      // The source warehouse follows the salesman's city; only an admin may override it.
+      delete req.body.warehouseId;
     }
     const order = await ordersService.createOrder(req.body, req.user!.userId);
     res.status(201).json(serializeOrderForRole(order, req.user?.role));
@@ -63,6 +65,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     if (req.user?.role !== 'admin') {
       delete req.body.termsAndConditions;
+      delete req.body.warehouseId;
     }
     if (req.user?.role === 'order_taker') {
       const existing = await ordersService.findById(req.params.id);
@@ -73,6 +76,11 @@ export async function update(req: Request, res: Response, next: NextFunction) {
         return next(forbidden('Order takers can only edit orders that are still pending'));
       }
       delete req.body.status;
+    }
+    // Cancelling credits stock back, so it is an admin-only transition. `employee` otherwise
+    // reaches it through this route and can cancel any order.
+    if (req.body?.status === 'cancelled' && req.user?.role !== 'admin') {
+      return next(forbidden('Only an admin can cancel an order'));
     }
     const order = await ordersService.updateOrder(req.params.id, req.body, req.user?.userId);
     res.json(serializeOrderForRole(order, req.user?.role));

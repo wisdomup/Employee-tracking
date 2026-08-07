@@ -4,6 +4,12 @@ export interface IOrderProduct {
   productId: Types.ObjectId;
   quantity: number;
   price: number;
+  /**
+   * Cost per piece SNAPSHOT, taken when the stock actually moved. Without it the P&L report
+   * multiplies by the live `Product.purchasePrice`, which now shifts on every goods receipt —
+   * so a closed period would silently restate itself every time stock came in.
+   */
+  unitCost?: number;
 }
 
 export interface IOrder extends Document {
@@ -22,6 +28,8 @@ export interface IOrder extends Document {
   deliveryDate?: Date;
   dealerId: Types.ObjectId;
   routeId?: Types.ObjectId;
+  /** Warehouse the stock was taken from. Resolved from the salesman's city; admin-overridable. */
+  warehouseId?: Types.ObjectId;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -40,6 +48,7 @@ const orderProductSchema = new Schema<IOrderProduct>(
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
     quantity: { type: Number, required: true },
     price: { type: Number, required: true },
+    unitCost: { type: Number, min: 0 },
   },
   { _id: false },
 );
@@ -63,6 +72,7 @@ const orderSchema = new Schema<IOrder>(
     deliveryDate: { type: Date },
     dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
     routeId: { type: Schema.Types.ObjectId, ref: 'Route' },
+    warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
