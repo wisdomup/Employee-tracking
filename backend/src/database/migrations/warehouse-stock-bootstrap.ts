@@ -31,9 +31,21 @@ import { syncProductQuantityMirror } from '../../modules/warehouse/stock-ledger.
 import { normalizeCityKey } from '../../modules/region-sales/region-sales.rules';
 import { ROLES } from '../../constants/global';
 
-const APPLY = process.argv.includes('--apply');
-const ASSIGN_USERS = process.argv.includes('--assign-users');
-const FORCE = process.argv.includes('--force');
+export interface BootstrapOptions {
+  /** Write. Without it the run is a reporting dry run. */
+  apply?: boolean;
+  /** Attach existing warehouse managers to Main. Off unless asked. */
+  assignUsers?: boolean;
+  /** Acknowledge that the bootstrap has already run and go again to fill gaps. */
+  force?: boolean;
+  /**
+   * Return immediately when the bootstrap has already run, without printing the census.
+   * Used by the server startup hook so a normal restart stays quiet and cheap.
+   */
+  skipIfDone?: boolean;
+}
+
+export type BootstrapStatus = 'already-bootstrapped' | 'dry-run' | 'needs-force' | 'applied';
 
 const MAIN_NAME = process.env.MAIN_WAREHOUSE_NAME || 'Main Warehouse';
 const MAIN_CITY = process.env.MAIN_WAREHOUSE_CITY || '';
@@ -162,27 +174,35 @@ async function verify() {
   return mirrorDrift.length === 0 && ledgerDrift.length === 0;
 }
 
-async function migrate() {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/gps_task_tracking';
-  await mongoose.connect(uri);
-  log(`Connected to MongoDB${APPLY ? '' : ' (DRY RUN — nothing will be written)'}`);
+/**
+ * The migration itself. The caller owns the mongoose connection, so this runs equally well from the
+ * CLI and from the server's own startup — see `runWarehouseBootstrapOnStart` in
+ * `src/database/warehouse-bootstrap-on-start.ts`.
+ */
+export async function runWarehouseBootstrap(
+  options: BootstrapOptions = {},
+): Promise<BootstrapStatus> {
+  const { apply = false, assignUsers = false, force = false, skipIfDone = false } = options;
 
-  const { negativeQty } = await census();
-
-  if (!APPLY) {
-    log('Dry run complete. Re-run with --apply to write these changes.');
-    return;
-  }
-
+  // Cheap first: a normal restart must not pay for the whole census on every boot.
   const alreadyBootstrapped = await StockMovementModel.countDocuments({
     idempotencyKey: { $regex: '^bootstrap:' },
   });
-  if (alreadyBootstrapped > 0 && !FORCE) {
+  if (alreadyBootstrapped > 0 && skipIfDone) return 'already-bootstrapped';
+
+  const { negativeQty } = await census();
+
+  if (!apply) {
+    log('Dry run complete. Re-run with --apply to write these changes.');
+    return 'dry-run';
+  }
+
+  if (alreadyBootstrapped > 0 && !force) {
     log(
       `Bootstrap has already run (${alreadyBootstrapped} opening movements found). Re-running is\n` +
         'safe and will only fill gaps. Pass --force to acknowledge and continue.',
     );
-    return;
+    return 'needs-force';
   }
 
   // 1. Indexes FIRST. The unique guards (one Main, one balance row per warehouse+product, one
@@ -339,7 +359,7 @@ async function migrate() {
 
   // 7. Optional: attach existing warehouse managers to Main. OFF by default — silently rewriting
   //    user records is not something a stock migration should do without being asked.
-  if (ASSIGN_USERS) {
+  if (assignUsers) {
     const assigned = await UserModel.updateMany(
       { role: ROLES.WAREHOUSE_MANAGER, warehouseId: { $exists: false }, isTrashed: { $ne: true } },
       { $set: { warehouseId: main._id } },
@@ -361,16 +381,36 @@ async function migrate() {
         'adjustments in the movement history with an admin before trusting the figures.',
     );
   }
+
+  return 'applied';
 }
 
-migrate()
-  .then(async () => {
-    await mongoose.disconnect();
-    process.exit(0);
-  })
-  .catch(async (err) => {
-    // eslint-disable-next-line no-console
-    console.error(err);
-    await mongoose.disconnect().catch(() => undefined);
-    process.exit(1);
-  });
+/**
+ * CLI entry point. Guarded so that importing this module — which the server startup hook does —
+ * never connects, never reads argv and never calls `process.exit`.
+ */
+if (require.main === module) {
+  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/gps_task_tracking';
+  const apply = process.argv.includes('--apply');
+
+  mongoose
+    .connect(uri)
+    .then(() => {
+      log(`Connected to MongoDB${apply ? '' : ' (DRY RUN — nothing will be written)'}`);
+      return runWarehouseBootstrap({
+        apply,
+        assignUsers: process.argv.includes('--assign-users'),
+        force: process.argv.includes('--force'),
+      });
+    })
+    .then(async () => {
+      await mongoose.disconnect();
+      process.exit(0);
+    })
+    .catch(async (err) => {
+      // eslint-disable-next-line no-console
+      console.error(err);
+      await mongoose.disconnect().catch(() => undefined);
+      process.exit(1);
+    });
+}
