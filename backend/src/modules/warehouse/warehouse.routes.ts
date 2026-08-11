@@ -18,6 +18,7 @@ import {
   createDamageClaimSchema,
   openStockCountSchema,
   saveStockCountSchema,
+  adjustStockSchema,
 } from './dto/warehouse.schemas';
 
 /**
@@ -178,6 +179,50 @@ router.get(
   '/products/:productId/last-purchase-rate',
   requireRoles(...WAREHOUSE_VIEWERS),
   controller.getLastPurchaseRate,
+);
+
+// ------------------------------------------------------------------ stock adjustment
+
+/**
+ * @openapi
+ * /api/warehouse/stock/adjust:
+ *   post:
+ *     tags: [Warehouse]
+ *     summary: Correct stock figures in place [Admin]
+ *     description: >
+ *       Sets the Sellable / Damaged figures at one warehouse to the values given — these are
+ *       absolute quantities, not deltas. Posts `manual_adjustment` movements through the stock
+ *       ledger with the mandatory reason attached, so the change is fully audited. Admin-only,
+ *       matching who may approve a stock count. `in_transit` cannot be adjusted: it is owned by the
+ *       transfer documents.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [warehouseId, reason, lines]
+ *             properties:
+ *               warehouseId: { type: string }
+ *               reason: { type: string, minLength: 3 }
+ *               lines:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     productId: { type: string }
+ *                     sellable: { type: integer, minimum: 0, description: New absolute figure }
+ *                     damaged: { type: integer, minimum: 0, description: New absolute figure }
+ *     responses:
+ *       200: { description: '{ adjustedProducts, movements, changes }' }
+ *       400: { description: Nothing changed, or the correction would drive a bucket negative }
+ */
+router.post(
+  '/stock/adjust',
+  requireRoles('admin'),
+  validate(adjustStockSchema),
+  controller.adjustStock,
 );
 
 // ------------------------------------------------------------------ opening stock

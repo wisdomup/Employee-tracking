@@ -1,5 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import * as dashboardService from './dashboard.service';
+import {
+  getReportDetail,
+  REPORT_DETAIL_METRICS,
+  ReportDetailMetric,
+} from './report-detail.service';
 
 export async function getStats(_req: Request, res: Response, next: NextFunction) {
   try {
@@ -30,6 +35,26 @@ export async function getReports(req: Request, res: Response, next: NextFunction
       viewBy: viewBy as 'item' | 'category' | undefined,
     });
     res.json(reports);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getReportsDetail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { metric, startDate, endDate } = req.query as Record<string, string>;
+    if (!REPORT_DETAIL_METRICS.includes(metric as ReportDetailMetric)) {
+      res.status(400).json({
+        message: `Unknown metric. Expected one of: ${REPORT_DETAIL_METRICS.join(', ')}`,
+      });
+      return;
+    }
+    const detail = await getReportDetail({
+      metric: metric as ReportDetailMetric,
+      startDate,
+      endDate,
+    });
+    res.json(detail);
   } catch (err) {
     next(err);
   }

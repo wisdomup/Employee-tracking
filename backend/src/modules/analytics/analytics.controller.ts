@@ -1,5 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import * as analyticsService from './analytics.service';
+import {
+  getPerformanceDetail,
+  PERFORMANCE_DETAIL_METRICS,
+  PerformanceDetailMetric,
+} from './performance-detail.service';
 
 export async function performance(req: Request, res: Response, next: NextFunction) {
   try {
@@ -10,6 +15,26 @@ export async function performance(req: Request, res: Response, next: NextFunctio
       req.user!.role,
     );
     res.json(report);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function performanceDetail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { metric, periodMonth, employeeId } = req.query as Record<string, string>;
+    if (!PERFORMANCE_DETAIL_METRICS.includes(metric as PerformanceDetailMetric)) {
+      res.status(400).json({
+        message: `Unknown metric. Expected one of: ${PERFORMANCE_DETAIL_METRICS.join(', ')}`,
+      });
+      return;
+    }
+    const detail = await getPerformanceDetail(
+      { metric: metric as PerformanceDetailMetric, periodMonth, employeeId },
+      req.user!.userId,
+      req.user!.role,
+    );
+    res.json(detail);
   } catch (err) {
     next(err);
   }

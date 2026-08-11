@@ -173,6 +173,29 @@ export const saveStockCountSchema = Joi.object({
     .required(),
 });
 
+/**
+ * Inline stock correction from the warehouse detail page. Quantities are the NEW absolute figures
+ * for the bucket, not deltas — the service works out the difference, which is what makes the form
+ * "type what it should be" rather than "type what changed".
+ *
+ * `in_transit` is deliberately absent: that bucket is owned by the transfer documents, and moving
+ * it by hand would leave a transfer that can no longer be received.
+ */
+export const adjustStockSchema = Joi.object({
+  warehouseId: objectId.required(),
+  reason: reason.required(),
+  lines: Joi.array()
+    .items(
+      Joi.object({
+        productId: objectId.required(),
+        sellable: piecesOrZero.optional(),
+        damaged: piecesOrZero.optional(),
+      }).or('sellable', 'damaged'),
+    )
+    .min(1)
+    .required(),
+});
+
 export const resyncMirrorSchema = Joi.object({
   productIds: Joi.array().items(objectId).optional(),
 });

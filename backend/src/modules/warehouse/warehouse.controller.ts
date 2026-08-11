@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as warehousesService from './warehouses.service';
 import * as stockService from './stock.service';
+import * as stockAdjustmentsService from './stock-adjustments.service';
 import * as openingStockService from './opening-stock.service';
 import * as stockReceiptsService from './stock-receipts.service';
 import * as ledger from './stock-ledger.service';
@@ -128,6 +129,19 @@ export async function getMovements(req: Request, res: Response, next: NextFuncti
 export async function getLastPurchaseRate(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await stockService.getLastPurchaseRate(req.params.productId, req.user!.role));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------------- stock adjustment
+
+export async function adjustStock(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Admin-only at the route, so the scope is always unrestricted — kept anyway so widening the
+    // route gate later cannot silently hand a scoped user someone else's warehouse.
+    await assertWarehouseAccess(req.user!.userId, req.user!.role, req.body.warehouseId);
+    res.json(await stockAdjustmentsService.adjustStock(req.body, req.user!.userId));
   } catch (err) {
     next(err);
   }

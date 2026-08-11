@@ -45,6 +45,36 @@ router.get('/performance', requireRoles(...ANY_STAFF), controller.performance);
 
 /**
  * @openapi
+ * /api/analytics/performance/detail:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Drill-down rows behind a single performance KPI
+ *     description: >
+ *       Returns the records a KPI tile summed, plus column metadata to render them. Scope is the
+ *       same as `/performance` — a rider sees only their own records. Capped at 5000 rows.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: metric
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [sales, target, achievement, booked, orders, visits-completed, overstays, new-clients, visit-completion, visits-skipped, extra-visits, total-visits-done, open-flags, days-present, collected, outstanding, collection-rate, returns, avg-order-value, strike-rate, tasks-done, achieved-target, behind-pace, below-visits]
+ *       - in: query
+ *         name: periodMonth
+ *         schema: { type: string, example: "2026-07" }
+ *       - in: query
+ *         name: employeeId
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Detail payload with columns, summary and rows }
+ *       400: { description: Unknown metric }
+ */
+router.get('/performance/detail', requireRoles(...ANY_STAFF), controller.performanceDetail);
+
+/**
+ * @openapi
  * /api/analytics/trend:
  *   get:
  *     tags: [Analytics]

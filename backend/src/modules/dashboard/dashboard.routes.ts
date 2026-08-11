@@ -137,4 +137,67 @@ router.get(
  */
 router.get('/reports', requireRoles('admin'), controller.getReports);
 
+/**
+ * @openapi
+ * /api/dashboard/reports/detail:
+ *   get:
+ *     tags: [Dashboard]
+ *     summary: Drill-down rows behind a single Reports KPI [Admin]
+ *     description: >
+ *       Returns the underlying records for one KPI tile, plus the column metadata to render them.
+ *       Stock and return metrics ignore the date range (they are all-time snapshots, matching their
+ *       KPI); sales metrics honour it. Capped at 5000 rows — `truncated` flags the cap.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: metric
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [current-stock, stock-hold, returned-qty, damaged-qty, sold-qty, earned, paid-back, net-after-returns, booked-sales]
+ *       - in: query
+ *         name: startDate
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: endDate
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: Detail payload
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 metric: { type: string }
+ *                 title: { type: string }
+ *                 description: { type: string }
+ *                 dateFiltered: { type: boolean }
+ *                 truncated: { type: boolean }
+ *                 columns:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       key: { type: string }
+ *                       title: { type: string }
+ *                       type: { type: string, enum: [text, number, currency, date] }
+ *                 summary:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       label: { type: string }
+ *                       value: { type: number }
+ *                       type: { type: string }
+ *                 rows:
+ *                   type: array
+ *                   items: { type: object }
+ *       400: { description: Unknown metric }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden — admin role required }
+ */
+router.get('/reports/detail', requireRoles('admin'), controller.getReportsDetail);
+
 export default router;

@@ -117,6 +117,67 @@ async function resolveScope(
   return [self, ...team.map((m) => m._id as Types.ObjectId)];
 }
 
+export interface PerformanceScope {
+  periodMonth: string;
+  start: Date;
+  end: Date;
+  employees: Array<{
+    _id: Types.ObjectId;
+    username: string;
+    fullName?: string;
+    userID?: string;
+    role: string;
+    managerId?: Types.ObjectId;
+  }>;
+  employeeIds: Types.ObjectId[];
+}
+
+/**
+ * Resolves the month and the employee set a performance query covers, honouring the viewer's
+ * visibility. Shared with the KPI drill-downs so a rider can never widen their view by hitting the
+ * detail endpoint directly — an out-of-scope `employeeId` resolves to an empty set, not an error.
+ */
+export async function resolvePerformanceScope(
+  filters: PerformanceFilters,
+  viewerId: string,
+  viewerRole: string,
+): Promise<PerformanceScope> {
+  const now = new Date();
+  const periodMonth =
+    filters.periodMonth && isValidPeriodMonth(filters.periodMonth)
+      ? filters.periodMonth
+      : toPeriodMonth(now);
+  const { start, end } = periodMonthToRange(periodMonth);
+
+  const scopeIds = await resolveScope(viewerId, viewerRole);
+
+  const employeeQuery: Record<string, unknown> = {
+    isTrashed: { $ne: true },
+    role: { $in: FIELD_STAFF_ROLES },
+  };
+  if (scopeIds) employeeQuery._id = { $in: scopeIds };
+  if (filters.employeeId) {
+    const requested = new Types.ObjectId(filters.employeeId);
+    if (scopeIds && !scopeIds.some((id) => id.equals(requested))) {
+      return { periodMonth, start, end, employees: [], employeeIds: [] };
+    }
+    employeeQuery._id = requested;
+  }
+
+  const employees = (await UserModel.find(employeeQuery)
+    .select('_id username fullName userID role managerId')
+    .lean()
+    .exec()) as unknown as PerformanceScope['employees'];
+
+  return {
+    periodMonth,
+    start,
+    end,
+    employees,
+    employeeIds: employees.map((e) => e._id),
+  };
+}
+
 /**
  * Per-employee performance for one month, with targets and achievement.
  *
@@ -130,39 +191,16 @@ export async function getPerformance(
   viewerRole: string,
 ) {
   const now = new Date();
-  const periodMonth =
-    filters.periodMonth && isValidPeriodMonth(filters.periodMonth)
-      ? filters.periodMonth
-      : toPeriodMonth(now);
-  const { start, end } = periodMonthToRange(periodMonth);
-
-  const scopeIds = await resolveScope(viewerId, viewerRole);
-
-  // Build the employee set this report covers.
-  const employeeQuery: Record<string, unknown> = {
-    isTrashed: { $ne: true },
-    role: { $in: FIELD_STAFF_ROLES },
-  };
-  if (scopeIds) employeeQuery._id = { $in: scopeIds };
-  if (filters.employeeId) {
-    const requested = new Types.ObjectId(filters.employeeId);
-    // Asking for someone outside your scope yields an empty report, not a leak.
-    if (scopeIds && !scopeIds.some((id) => id.equals(requested))) {
-      return emptyReport(periodMonth, start, end);
-    }
-    employeeQuery._id = requested;
-  }
-
-  const employees = await UserModel.find(employeeQuery)
-    .select('_id username fullName userID role managerId')
-    .lean()
-    .exec();
+  const { periodMonth, start, end, employees, employeeIds } = await resolvePerformanceScope(
+    filters,
+    viewerId,
+    viewerRole,
+  );
 
   if (employees.length === 0) {
     return emptyReport(periodMonth, start, end);
   }
 
-  const employeeIds = employees.map((e) => e._id as Types.ObjectId);
   const dateRange = { $gte: start, $lte: end };
 
   const [
