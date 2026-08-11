@@ -10,7 +10,22 @@ export interface RecentActivityEntry {
   timestamp: string;
 }
 
+export interface CompletedTaskMapEntry {
+  taskName?: string;
+  employeeName?: string;
+  /** The shop's own coordinates. `dealerLocation` is the same object under the older name. */
+  clientLocation: { latitude: number; longitude: number; name?: string } | null;
+  dealerLocation: { latitude: number; longitude: number; name?: string } | null;
+  completionLocation: { latitude?: number; longitude?: number } | null;
+  completedAt?: string;
+}
+
 export interface DashboardStats {
+  /**
+   * The `YYYY-MM-DD` the visit figures cover, from the server. Cards build their links from
+   * this rather than the browser's own clock, so the number and the list it opens agree.
+   */
+  today: string;
   stats: {
     activeEmployees: number;
     inactiveEmployees: number;
@@ -23,9 +38,41 @@ export interface DashboardStats {
     totalOrders: number;
     totalPendingOrders: number;
     totalRoutes: number;
+    /** Visits are the unit of field work; the task counts above are the legacy module. */
+    visitsToday: number;
+    visitsCompletedToday: number;
+    visitsOpenToday: number;
+    ordersToday: number;
+    deliveredSalesToday: number;
+    bookedSalesToday: number;
   };
   recentActivity: RecentActivityEntry[];
-  completedTasksForMap: any[];
+  completedTasksForMap: CompletedTaskMapEntry[];
+}
+
+/** The signed-in user's own figures for one day — backs the salesman dashboard cards. */
+export interface MyDashboardStats {
+  date: string;
+  visits: {
+    total: number;
+    todo: number;
+    inProgress: number;
+    completed: number;
+    skipped: number;
+    incomplete: number;
+    cancelled: number;
+  };
+  tasks: {
+    total: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+  };
+  sales: {
+    deliveredAmount: number;
+    bookedAmount: number;
+    totalAmount: number;
+  };
 }
 
 export interface DashboardReportFilters {
@@ -98,6 +145,16 @@ export interface DashboardReports {
 export const dashboardService = {
   async getStats(): Promise<DashboardStats> {
     const response = await api.get('/dashboard/stats');
+    return response.data;
+  },
+
+  /**
+   * The caller's own visit/task/sale counts for a day, aggregated server-side. Replaces
+   * fetching whole lists and filtering them in the browser.
+   */
+  async getMyStats(date?: string): Promise<MyDashboardStats> {
+    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    const response = await api.get(`/dashboard/my-stats${query}`);
     return response.data;
   },
 

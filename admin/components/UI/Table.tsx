@@ -4,9 +4,15 @@ import GlobalDataTable, { TableColumn } from './GlobalDataTable';
 import {
   exportTableToCsv,
   exportTableToPdf,
+  getExportColumns,
   type TableExportColumn,
   type TableExportFormat,
 } from '../../utils/tableExport';
+import {
+  buildGrandTotalExportRow,
+  computeGrandTotals,
+  type GrandTotalEntry,
+} from '../../utils/tableGrandTotal';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './GlobalDataTable.module.scss';
 import { toast } from 'react-toastify';
@@ -22,6 +28,13 @@ export interface TableColumnConfig {
   omitFromExport?: boolean;
   /** Override CSV cell text (defaults to formatted `row[key]`). */
   exportValue?: (row: any) => string;
+  /**
+   * Force this column into or out of the grand total. Omit to let `computeGrandTotals`
+   * decide — it sums a column when every non-empty value in it is a number.
+   */
+  total?: 'sum' | 'none';
+  /** Format the summed figure (currency, units). Defaults to a plain grouped number. */
+  totalFormat?: (total: number) => string;
 }
 
 interface TableProps {
@@ -42,6 +55,33 @@ interface TableProps {
   exportFormats?: TableExportFormat[];
   /** Optional title line at the top of exported PDFs. */
   exportPdfTitle?: string;
+  /**
+   * Show a grand-total bar under the table summing every numeric column, and carry the same
+   * figures into CSV/PDF exports. On for reports; off for plain list tables, where summing
+   * an id or a quantity column would be noise.
+   */
+  showGrandTotal?: boolean;
+  /** Label on the total bar. Defaults to "Grand Total". */
+  grandTotalLabel?: string;
+}
+
+/** The bar under the table: one figure per summable column, over the whole dataset. */
+function GrandTotalBar({ totals, label }: { totals: GrandTotalEntry[]; label: string }) {
+  if (totals.length === 0) return null;
+
+  return (
+    <div className={styles.grandTotalBar} role="group" aria-label={label}>
+      <span className={styles.grandTotalLabel}>{label}</span>
+      <div className={styles.grandTotalItems}>
+        {totals.map((entry) => (
+          <div key={entry.key} className={styles.grandTotalItem}>
+            <span className={styles.grandTotalItemTitle}>{entry.title}</span>
+            <strong className={styles.grandTotalItemValue}>{entry.text}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function TableExportControl({
@@ -51,6 +91,7 @@ function TableExportControl({
   exportFileName,
   exportFormats,
   exportPdfTitle,
+  grandTotalRow,
 }: {
   disabled: boolean;
   columns: TableExportColumn[];
@@ -58,6 +99,7 @@ function TableExportControl({
   exportFileName: string;
   exportFormats: TableExportFormat[];
   exportPdfTitle?: string;
+  grandTotalRow?: string[] | null;
 }) {
   const [open, setOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -86,9 +128,9 @@ function TableExportControl({
   }, [open]);
 
   const runCsv = useCallback(() => {
-    exportTableToCsv({ filename: exportFileName, columns, data });
+    exportTableToCsv({ filename: exportFileName, columns, data, grandTotalRow });
     setOpen(false);
-  }, [columns, data, exportFileName]);
+  }, [columns, data, exportFileName, grandTotalRow]);
 
   const runPdf = useCallback(async () => {
     setPdfBusy(true);
@@ -98,6 +140,7 @@ function TableExportControl({
         columns,
         data,
         title: exportPdfTitle,
+        grandTotalRow,
       });
       setOpen(false);
     } catch (err) {
@@ -106,7 +149,7 @@ function TableExportControl({
     } finally {
       setPdfBusy(false);
     }
-  }, [columns, data, exportFileName, exportPdfTitle]);
+  }, [columns, data, exportFileName, exportPdfTitle, grandTotalRow]);
 
   if (hasCsv && !hasPdf) {
     return (
@@ -194,6 +237,8 @@ const Table: React.FC<TableProps> = ({
   exportFileName = 'export',
   exportFormats = ['csv', 'pdf'],
   exportPdfTitle,
+  showGrandTotal = false,
+  grandTotalLabel = 'Grand Total',
 }) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -216,6 +261,21 @@ const Table: React.FC<TableProps> = ({
     return list.length ? [...list] : ['csv', 'pdf'];
   }, [exportFormats]);
 
+  // Over the whole dataset, not the visible page — a total that changed on paging would be
+  // worse than no total at all.
+  const grandTotals = useMemo(
+    () => (showGrandTotal ? computeGrandTotals(columns, data) : []),
+    [showGrandTotal, columns, data],
+  );
+
+  const grandTotalRow = useMemo(
+    () =>
+      grandTotals.length
+        ? buildGrandTotalExportRow(getExportColumns(columns as TableExportColumn[]), grandTotals)
+        : null,
+    [columns, grandTotals],
+  );
+
   const subHeaderComponent =
     ENABLE_TABLE_EXPORT_UI && exportable && isAdmin ? (
       <TableExportControl
@@ -225,22 +285,26 @@ const Table: React.FC<TableProps> = ({
         exportFileName={exportFileName}
         exportFormats={formats}
         exportPdfTitle={exportPdfTitle}
+        grandTotalRow={grandTotalRow}
       />
     ) : undefined;
 
   return (
-    <GlobalDataTable
-      columns={normalizedColumns}
-      data={data}
-      loading={loading}
-      onRowClick={onRowClick}
-      paginate={paginate}
-      pageSize={pageSize}
-      noDataText={noDataText}
-      fixedHeader={fixedHeader}
-      fixedHeaderHeight={fixedHeaderHeight}
-      subHeaderComponent={subHeaderComponent}
-    />
+    <>
+      <GlobalDataTable
+        columns={normalizedColumns}
+        data={data}
+        loading={loading}
+        onRowClick={onRowClick}
+        paginate={paginate}
+        pageSize={pageSize}
+        noDataText={noDataText}
+        fixedHeader={fixedHeader}
+        fixedHeaderHeight={fixedHeaderHeight}
+        subHeaderComponent={subHeaderComponent}
+      />
+      {!loading && <GrandTotalBar totals={grandTotals} label={grandTotalLabel} />}
+    </>
   );
 };
 

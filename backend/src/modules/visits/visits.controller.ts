@@ -70,6 +70,20 @@ export async function dealerGallery(req: Request, res: Response, next: NextFunct
   }
 }
 
+export async function dealerLastVisit(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { dealerId } = req.query as Record<string, string>;
+    if (!dealerId) {
+      return next(badRequest('dealerId is required'));
+    }
+    const result = await visitsService.findLastVisitForDealer(dealerId);
+    // Never visited is a normal answer, not a 404 — the profile renders "Never visited".
+    res.json(result ?? { visit: null, daysAgo: null });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function startSelfVisit(req: Request, res: Response, next: NextFunction) {
   try {
     const { dealerId } = req.body as { dealerId?: string };

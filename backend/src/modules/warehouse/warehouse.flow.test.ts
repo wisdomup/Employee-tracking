@@ -309,6 +309,275 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
+  console.log('\nEditing and deleting a receipt (admin correction path)');
+  // -------------------------------------------------------------------------
+  await resetStockState();
+
+  // The document series is global and never rewinds, so the number under test is whatever this
+  // receipt was issued — the point is that an edit does not change it.
+  let editDocNo: number | undefined;
+  let editReceiptId = "";
+
+  await test('editing a receipt re-posts the stock at the corrected quantity', async () => {
+    const receipt = await receiptsService.createStockReceipt(
+      {
+        receiptDate: new Date('2026-09-01'),
+        supplierName: 'Acme Traders',
+        products: [{ productId: productA, quantity: 100, rate: 10 }],
+      },
+      adminId,
+    );
+    editDocNo = (receipt as unknown as { documentNo?: number }).documentNo;
+    editReceiptId = String((receipt as unknown as { _id: unknown })._id);
+    assert.ok(editDocNo, 'the receipt was issued a document number');
+    assert.equal((await balance(mainId, productA)).sellable, 100);
+
+    await receiptsService.updateStockReceipt(
+      String((receipt as unknown as { _id: unknown })._id),
+      {
+        receiptDate: new Date('2026-09-01'),
+        supplierName: 'Acme Traders',
+        reason: 'Counted 120 pieces, invoice said 100',
+        products: [{ productId: productA, quantity: 120, rate: 10 }],
+      },
+      adminId,
+    );
+    assert.equal((await balance(mainId, productA)).sellable, 120);
+  });
+
+  await test('a corrected RATE replaces the old one in the weighted average', async () => {
+    // The reason this is a reverse-and-repost rather than a quantity diff: a diff would leave the
+    // original row weighting the average at the wrong rate for ever.
+    const receipt = await StockReceiptModel.findById(editReceiptId).lean();
+    await receiptsService.updateStockReceipt(
+      editReceiptId,
+      {
+        receiptDate: new Date('2026-09-01'),
+        reason: 'Rate was 25, not 10',
+        products: [{ productId: productA, quantity: 120, rate: 25 }],
+      },
+      adminId,
+    );
+    const cost = await costOf(productA);
+    assert.equal(cost.avg, 25, 'the old rate must not survive the edit');
+    assert.equal(cost.last, 25);
+    assert.equal((await balance(mainId, productA)).sellable, 120, 'quantity unchanged');
+  });
+
+  await test('the document number and the totals survive the edit', async () => {
+    const receipt = await StockReceiptModel.findById(editReceiptId).lean();
+    assert.equal(receipt?.documentNo, editDocNo, 'a correction is not a new document');
+    assert.equal(receipt?.totalPieces, 120);
+    assert.equal(receipt?.totalAmount, 3000, '120 × 25');
+    assert.equal(receipt?.editCount, 2);
+    assert.equal(receipt?.editReason, 'Rate was 25, not 10');
+    assert.equal(String(receipt?.lastEditedBy), adminId);
+  });
+
+  await test('a product can be swapped out entirely, moving stock on both', async () => {
+    const receipt = await StockReceiptModel.findById(editReceiptId).lean();
+    await receiptsService.updateStockReceipt(
+      editReceiptId,
+      {
+        receiptDate: new Date('2026-09-01'),
+        reason: 'Wrong product picked',
+        products: [{ productId: productB, quantity: 40, rate: 5 }],
+      },
+      adminId,
+    );
+    assert.equal((await balance(mainId, productA)).sellable, 0, 'the wrong product gives it all back');
+    assert.equal((await balance(mainId, productB)).sellable, 40);
+  });
+
+  await test('an edit is refused once the pieces have already left the warehouse', async () => {
+    await applyStockMovements(
+      [{ warehouseId: mainId, productId: productB, bucket: 'sellable', delta: -40, type: 'sale_out' }],
+      { refType: 'order', refId: String(new Types.ObjectId()), actorId: adminId },
+    );
+    const receipt = await StockReceiptModel.findById(editReceiptId).lean();
+    await rejectsWith(
+      receiptsService.updateStockReceipt(
+        String(receipt!._id),
+        {
+          receiptDate: new Date('2026-09-01'),
+          reason: 'too late',
+          products: [{ productId: productB, quantity: 10, rate: 5 }],
+        },
+        adminId,
+      ),
+      /insufficient sellable stock/i,
+    );
+    const after = await StockReceiptModel.findById(receipt!._id).lean();
+    assert.equal(after?.products[0].quantity, 40, 'a refused edit changes nothing');
+    assert.equal(after?.editCount, 3);
+  });
+
+  await test('an edit that fails half-way puts the original stock back', async () => {
+    await resetStockState();
+    const receipt = await receiptsService.createStockReceipt(
+      { receiptDate: new Date('2026-09-20'), products: [{ productId: productA, quantity: 50, rate: 7 }] },
+      adminId,
+    );
+    editReceiptId = String((receipt as unknown as { _id: unknown })._id);
+
+    // A fractional quantity clears the service's own checks (they only cover product existence
+    // and duplicates) and blows up inside the ledger — after the reversal has already landed.
+    await rejectsWith(
+      receiptsService.updateStockReceipt(
+        editReceiptId,
+        {
+          receiptDate: new Date('2026-09-20'),
+          reason: 'fat finger',
+          products: [{ productId: productA, quantity: 12.5, rate: 7 }],
+        },
+        adminId,
+      ),
+      /whole pieces/i,
+    );
+    assert.equal((await balance(mainId, productA)).sellable, 50, 'the original 50 are back');
+    const after = await StockReceiptModel.findById(editReceiptId).lean();
+    assert.equal(after?.products[0].quantity, 50, 'the lines are untouched');
+    assert.ok(after?.lastEditFailedAt, 'the rolled-back attempt is recorded');
+  });
+
+  await test('retrying after a rolled-back edit applies once, not twice', async () => {
+    // Regression: the idempotency scope is derived from the receipt's `updatedAt`. A rolled-back
+    // attempt saved nothing, so the retry reused the same scope — the reversal was then seen as a
+    // replay and moved no stock, while the re-apply added its pieces on top of the restored ones.
+    // 50 restored + 80 applied = 130 instead of 80.
+    await receiptsService.updateStockReceipt(
+      editReceiptId,
+      {
+        receiptDate: new Date('2026-09-20'),
+        reason: 'retry with a whole number',
+        products: [{ productId: productA, quantity: 80, rate: 7 }],
+      },
+      adminId,
+    );
+    assert.equal((await balance(mainId, productA)).sellable, 80, 'exactly the corrected quantity');
+    assert.equal((await costOf(productA)).mirror, 80, 'and the mirror agrees');
+  });
+
+  await test('a genuine replay of the SAME edit still applies only once', async () => {
+    // The other side of the coin: burning the stamp on failure must not weaken replay
+    // protection for a double-submitted successful edit.
+    const receiptDoc = await StockReceiptModel.findById(editReceiptId).lean();
+    const payload = {
+      receiptDate: new Date('2026-09-20'),
+      reason: 'double click',
+      products: [{ productId: productA, quantity: 65, rate: 7 }],
+    };
+    await receiptsService.updateStockReceipt(editReceiptId, payload, adminId);
+    assert.equal((await balance(mainId, productA)).sellable, 65);
+
+    // Replay the request exactly as the first one saw the document — same pre-edit `updatedAt`,
+    // so the same idempotency scope, which is what a retried HTTP request produces.
+    await StockReceiptModel.updateOne(
+      { _id: editReceiptId },
+      { $set: { updatedAt: receiptDoc!.updatedAt } },
+      { timestamps: false },
+    );
+    await receiptsService.updateStockReceipt(editReceiptId, payload, adminId);
+    assert.equal((await balance(mainId, productA)).sellable, 65, 'a replay must not move stock again');
+  });
+
+  await test('a cancelled receipt cannot be edited', async () => {
+    await resetStockState();
+    const receipt = await receiptsService.createStockReceipt(
+      {
+        receiptDate: new Date('2026-09-05'),
+        products: [{ productId: productA, quantity: 10, rate: 4 }],
+      },
+      adminId,
+    );
+    const receiptId = String((receipt as unknown as { _id: unknown })._id);
+    await receiptsService.cancelStockReceipt(receiptId, 'wrong', adminId);
+    await rejectsWith(
+      receiptsService.updateStockReceipt(
+        receiptId,
+        {
+          receiptDate: new Date('2026-09-05'),
+          reason: 'fix it',
+          products: [{ productId: productA, quantity: 12, rate: 4 }],
+        },
+        adminId,
+      ),
+      /cancelled receipt cannot be edited/i,
+    );
+  });
+
+  await test('deleting a receipt reverses its stock and hides the row', async () => {
+    await resetStockState();
+    const receipt = await receiptsService.createStockReceipt(
+      {
+        receiptDate: new Date('2026-09-10'),
+        products: [{ productId: productA, quantity: 60, rate: 8 }],
+      },
+      adminId,
+    );
+    const receiptId = String((receipt as unknown as { _id: unknown })._id);
+    assert.equal((await balance(mainId, productA)).sellable, 60);
+
+    await receiptsService.deleteStockReceipt(receiptId, 'Duplicate entry', adminId);
+
+    assert.equal((await balance(mainId, productA)).sellable, 0);
+    const rows = await receiptsService.findAllStockReceipts({}, { userId: adminId, role: 'admin' });
+    assert.equal(
+      rows.some((r) => String(r._id) === receiptId),
+      false,
+      'a deleted receipt is gone from the list',
+    );
+  });
+
+  await test('the deleted row survives underneath, so the ledger still points somewhere', async () => {
+    // A hard delete would leave every StockMovement referencing a document that no longer exists.
+    const trashed = await StockReceiptModel.findOne({ isTrashed: true }).lean();
+    assert.ok(trashed, 'the row is trashed, not dropped');
+    assert.equal(trashed?.status, 'cancelled');
+    assert.equal(trashed?.cancelReason, 'Duplicate entry');
+    assert.equal(String(trashed?.trashedBy), adminId);
+  });
+
+  await test('deleting drops the receipt out of the weighted average cost', async () => {
+    await resetStockState();
+    await receiptsService.createStockReceipt(
+      { receiptDate: new Date('2026-09-11'), products: [{ productId: productA, quantity: 10, rate: 10 }] },
+      adminId,
+    );
+    const second = await receiptsService.createStockReceipt(
+      { receiptDate: new Date('2026-09-12'), products: [{ productId: productA, quantity: 10, rate: 30 }] },
+      adminId,
+    );
+    assert.equal((await costOf(productA)).avg, 20, '10@10 + 10@30 averages to 20');
+
+    await receiptsService.deleteStockReceipt(
+      String((second as unknown as { _id: unknown })._id),
+      'keyed twice',
+      adminId,
+    );
+    assert.equal((await costOf(productA)).avg, 10, 'only the surviving receipt weighs the average');
+  });
+
+  await test('a delete is refused once the pieces have already left the warehouse', async () => {
+    await resetStockState();
+    const receipt = await receiptsService.createStockReceipt(
+      { receiptDate: new Date('2026-09-15'), products: [{ productId: productA, quantity: 20, rate: 6 }] },
+      adminId,
+    );
+    const receiptId = String((receipt as unknown as { _id: unknown })._id);
+    await applyStockMovements(
+      [{ warehouseId: mainId, productId: productA, bucket: 'sellable', delta: -20, type: 'sale_out' }],
+      { refType: 'order', refId: String(new Types.ObjectId()), actorId: adminId },
+    );
+    await rejectsWith(
+      receiptsService.deleteStockReceipt(receiptId, 'too late', adminId),
+      /insufficient sellable stock/i,
+    );
+    const after = await StockReceiptModel.findById(receiptId).lean();
+    assert.equal(after?.isTrashed ?? false, false, 'a refused delete leaves the row alone');
+  });
+
+  // -------------------------------------------------------------------------
   console.log('\nOpening stock (one-time)');
   // -------------------------------------------------------------------------
   await resetStockState();

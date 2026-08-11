@@ -16,6 +16,7 @@ import {
   SaleTotals,
   formatRs,
   formatDayLabel,
+  formatWindowLabel,
   todayKey,
   shiftDayKey,
 } from '../../services/regionSalesService';
@@ -29,6 +30,27 @@ type Level =
   | { kind: 'regions' }
   | { kind: 'salesmen'; regionKey: string; regionLabel: string }
   | { kind: 'daily'; employeeId: string; employeeLabel: string; regionKey: string; regionLabel: string };
+
+/**
+ * The windows an admin asks for by name. Each resolves at click time rather than at module
+ * load, so a tab left open overnight still means "today" when the button is pressed.
+ */
+const RANGE_PRESETS: { label: string; resolve: () => { from: string; to: string } }[] = [
+  { label: 'Today', resolve: () => ({ from: todayKey(), to: todayKey() }) },
+  {
+    label: 'Yesterday',
+    resolve: () => {
+      const y = shiftDayKey(todayKey(), -1);
+      return { from: y, to: y };
+    },
+  },
+  { label: 'Last 7 days', resolve: () => ({ from: shiftDayKey(todayKey(), -6), to: todayKey() }) },
+  { label: 'Last 30 days', resolve: () => ({ from: shiftDayKey(todayKey(), -29), to: todayKey() }) },
+  {
+    label: 'This month',
+    resolve: () => ({ from: `${todayKey().slice(0, 7)}-01`, to: todayKey() }),
+  },
+];
 
 /** The four headline numbers, shared by every level. */
 const TotalsRow: React.FC<{ totals: SaleTotals; caption: string }> = ({ totals, caption }) => (
@@ -57,10 +79,12 @@ const TotalsRow: React.FC<{ totals: SaleTotals; caption: string }> = ({ totals, 
 
 const RegionSalesPage: React.FC = () => {
   const [level, setLevel] = useState<Level>({ kind: 'regions' });
-  /** Shared by the region and salesmen levels, so drilling in/out keeps the date. */
-  const [date, setDate] = useState(todayKey());
-  /** Day-wise level only. */
-  const [from, setFrom] = useState(() => shiftDayKey(todayKey(), -6));
+  /**
+   * One window for all three levels, so drilling in and back out never silently changes the
+   * period you are looking at. Defaults to today — the dashboard opened on a single day
+   * before ranges existed, and that is still the figure most people come here for.
+   */
+  const [from, setFrom] = useState(todayKey());
   const [to, setTo] = useState(todayKey());
 
   const [regions, setRegions] = useState<RegionTotalsReport | null>(null);
@@ -73,9 +97,9 @@ const RegionSalesPage: React.FC = () => {
     setLoading(true);
     try {
       if (level.kind === 'regions') {
-        setRegions(await regionSalesService.getRegions(date));
+        setRegions(await regionSalesService.getRegions({ from, to }));
       } else if (level.kind === 'salesmen') {
-        setSalesmen(await regionSalesService.getRegionSalesmen(level.regionKey, date));
+        setSalesmen(await regionSalesService.getRegionSalesmen(level.regionKey, { from, to }));
       } else {
         setDaily(await regionSalesService.getSalesmanDaily(level.employeeId, from, to));
       }
@@ -88,7 +112,7 @@ const RegionSalesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [level, date, from, to]);
+  }, [level, from, to]);
 
   useEffect(() => {
     load();
@@ -112,16 +136,19 @@ const RegionSalesPage: React.FC = () => {
         key: 'totalAmount',
         title: 'Total Sale',
         render: (value: number) => <strong>{formatRs(value)}</strong>,
+        totalFormat: formatRs,
       },
       {
         key: 'deliveredAmount',
         title: 'Delivered',
         render: (value: number) => <span style={{ color: '#065f46' }}>{formatRs(value)}</span>,
+        totalFormat: formatRs,
       },
       {
         key: 'bookedAmount',
         title: 'Booked',
         render: (value: number) => <span style={{ color: '#b45309' }}>{formatRs(value)}</span>,
+        totalFormat: formatRs,
       },
       { key: 'orderCount', title: 'Orders' },
     ],
@@ -144,16 +171,19 @@ const RegionSalesPage: React.FC = () => {
         key: 'totalAmount',
         title: 'Total Sale',
         render: (value: number) => <strong>{formatRs(value)}</strong>,
+        totalFormat: formatRs,
       },
       {
         key: 'deliveredAmount',
         title: 'Delivered',
         render: (value: number) => <span style={{ color: '#065f46' }}>{formatRs(value)}</span>,
+        totalFormat: formatRs,
       },
       {
         key: 'bookedAmount',
         title: 'Booked',
         render: (value: number) => <span style={{ color: '#b45309' }}>{formatRs(value)}</span>,
+        totalFormat: formatRs,
       },
       { key: 'orderCount', title: 'Orders' },
     ],
@@ -171,16 +201,19 @@ const RegionSalesPage: React.FC = () => {
         key: 'totalAmount',
         title: 'Total Sale',
         render: (value: number) => <strong>{formatRs(value)}</strong>,
+        totalFormat: formatRs,
       },
       {
         key: 'deliveredAmount',
         title: 'Delivered',
         render: (value: number) => <span style={{ color: '#065f46' }}>{formatRs(value)}</span>,
+        totalFormat: formatRs,
       },
       {
         key: 'bookedAmount',
         title: 'Booked',
         render: (value: number) => <span style={{ color: '#b45309' }}>{formatRs(value)}</span>,
+        totalFormat: formatRs,
       },
       { key: 'orderCount', title: 'Orders' },
     ],
@@ -260,17 +293,44 @@ const RegionSalesPage: React.FC = () => {
 
         {breadcrumb}
 
-        {/* Date controls: a single day for levels 1–2, a range for the day-wise report. */}
+        {/* One date range for every level. Presets cover the windows people ask for daily. */}
         <div className={styles.filters}>
-          {level.kind === 'daily' ? (
-            <>
-              <DatePickerFilter value={from} onChange={setFrom} placeholder="From" title="From date" />
-              <DatePickerFilter value={to} onChange={setTo} placeholder="To" title="To date" />
-            </>
-          ) : (
-            <DatePickerFilter value={date} onChange={setDate} placeholder="Date" title="Sale date" />
-          )}
+          <DatePickerFilter value={from} onChange={setFrom} placeholder="From" title="From date" />
+          <DatePickerFilter value={to} onChange={setTo} placeholder="To" title="To date" />
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {RANGE_PRESETS.map((preset) => {
+              const range = preset.resolve();
+              const active = range.from === from && range.to === to;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setFrom(range.from);
+                    setTo(range.to);
+                  }}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '999px',
+                    border: `1px solid ${active ? 'var(--admin-primary)' : '#d1d5db'}`,
+                    background: active ? 'var(--admin-primary)' : '#fff',
+                    color: active ? '#fff' : '#374151',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+        {from > to && (
+          <div className={styles.emptyState} style={{ marginBottom: '1rem' }}>
+            The “From” date is after the “To” date — pick a valid range.
+          </div>
+        )}
 
         {loading && <Loader />}
 
@@ -279,7 +339,7 @@ const RegionSalesPage: React.FC = () => {
           <>
             <TotalsRow
               totals={regions.totals}
-              caption={`${formatDayLabel(regions.date)} · all regions · times in ${regions.timezone}`}
+              caption={`${formatWindowLabel(regions.from, regions.to)} · all regions · times in ${regions.timezone}`}
             />
             <div className={styles.section}>
               <h2>Region-wise Sale ({regions.regions.length})</h2>
@@ -292,8 +352,9 @@ const RegionSalesPage: React.FC = () => {
                   onRowClick={(row: RegionRow) =>
                     setLevel({ kind: 'salesmen', regionKey: row.regionKey, regionLabel: row.region })
                   }
-                  exportFileName={`region-sales-${regions.date}`}
-                  exportPdfTitle={`Region Sales — ${formatDayLabel(regions.date)}`}
+                  showGrandTotal
+                  exportFileName={`region-sales-${regions.from}-to-${regions.to}`}
+                  exportPdfTitle={`Region Sales — ${formatWindowLabel(regions.from, regions.to)}`}
                 />
               </div>
               {regions.regions.length === 0 ? (
@@ -314,7 +375,7 @@ const RegionSalesPage: React.FC = () => {
           <>
             <TotalsRow
               totals={salesmen.totals}
-              caption={`${formatDayLabel(salesmen.date)} · ${salesmen.region} · times in ${salesmen.timezone}`}
+              caption={`${formatWindowLabel(salesmen.from, salesmen.to)} · ${salesmen.region} · times in ${salesmen.timezone}`}
             />
             <div className={styles.section}>
               <h2>
@@ -335,8 +396,9 @@ const RegionSalesPage: React.FC = () => {
                       regionLabel: salesmen.region,
                     })
                   }
-                  exportFileName={`region-sales-${salesmen.regionKey || 'unassigned'}-${salesmen.date}`}
-                  exportPdfTitle={`${salesmen.region} — ${formatDayLabel(salesmen.date)}`}
+                  showGrandTotal
+                  exportFileName={`region-sales-${salesmen.regionKey || 'unassigned'}-${salesmen.from}-to-${salesmen.to}`}
+                  exportPdfTitle={`${salesmen.region} — ${formatWindowLabel(salesmen.from, salesmen.to)}`}
                 />
               </div>
               {salesmen.salesmen.length === 0 ? (
@@ -382,6 +444,7 @@ const RegionSalesPage: React.FC = () => {
                   loading={false}
                   paginate={daily.days.length > 31}
                   pageSize={31}
+                  showGrandTotal
                   exportFileName={`sale-${daily.employee?.username ?? 'salesman'}-${daily.from}-to-${daily.to}`}
                   exportPdfTitle={`${daily.employee?.fullName ?? ''} — ${formatDayLabel(daily.from)} to ${formatDayLabel(daily.to)}`}
                 />

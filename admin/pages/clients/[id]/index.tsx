@@ -7,19 +7,104 @@ import Table from '../../../components/UI/Table';
 import MapView from '../../../components/Map/MapView';
 import NavigateButton from '../../../components/Map/NavigateButton';
 import StartVisitButton from '../../../components/Visits/StartVisitButton';
+import ClientLocationCorrection from '../../../components/Clients/ClientLocationCorrection';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import { clientService, Client } from '../../../services/clientService';
 import {
   visitService,
   Visit,
   DealerGalleryEntry,
+  DealerLastVisit,
   getVisitCompletionImageUrl,
 } from '../../../services/visitService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { can } from '../../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import Loader from '../../../components/UI/Loader';
 import styles from '../../../styles/DetailPage.module.scss';
+
+/** "Yesterday" / "3 days ago" — the phrasing a rider or admin would actually use out loud. */
+function describeGap(daysAgo: number): string {
+  if (daysAgo === 0) return 'today';
+  if (daysAgo === 1) return 'yesterday';
+  return `${daysAgo} days ago`;
+}
+
+/**
+ * The first thing on a client profile: when this shop was last actually visited.
+ *
+ * Colour is the signal — a shop untouched for over a fortnight is the one an admin needs to
+ * notice, so it turns amber rather than sitting quietly in the same grey as everything else.
+ */
+function LastVisitBanner({
+  lastVisit,
+  onOpenVisit,
+}: {
+  lastVisit: DealerLastVisit | null;
+  onOpenVisit: (visitId: string) => void;
+}) {
+  if (!lastVisit) return null;
+
+  const { visit, daysAgo } = lastVisit;
+  const stale = daysAgo != null && daysAgo > 14;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1rem',
+        flexWrap: 'wrap',
+        padding: '0.9rem 1.25rem',
+        marginBottom: '1.5rem',
+        borderRadius: '0.75rem',
+        border: `1px solid ${visit ? (stale ? '#fcd34d' : '#bbf7d0') : '#e5e7eb'}`,
+        background: visit ? (stale ? '#fffbeb' : '#f0fdf4') : '#f9fafb',
+      }}
+    >
+      <div style={{ fontSize: '0.8125rem', color: '#6b7280', fontWeight: 600, letterSpacing: '0.02em' }}>
+        LAST VISIT
+      </div>
+      {!visit || daysAgo == null ? (
+        <div style={{ color: '#6b7280', fontSize: '0.95rem' }}>
+          This shop has never been visited.
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: '0.95rem', color: '#111827' }}>
+            <strong>{format(new Date(visit.completedAt as string), 'EEE, MMM dd, yyyy')}</strong>
+            {' — '}
+            <span style={{ color: stale ? '#b45309' : '#15803d', fontWeight: 600 }}>
+              {describeGap(daysAgo)}
+            </span>
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
+            by {visit.employeeId?.fullName || visit.employeeId?.username || visit.employeeId?.userID || 'Unknown rider'}
+            {visit.routeId?.name ? ` · ${visit.routeId.name}` : ''}
+            {visit.durationMinutes != null ? ` · ${visit.durationMinutes} min` : ''}
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenVisit(visit._id)}
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: '#0369a1',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            View that visit
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 const ClientDetailPage: React.FC = () => {
   const router = useRouter();
@@ -32,6 +117,11 @@ const ClientDetailPage: React.FC = () => {
    */
   const canStartVisit =
     !!user?.role && ['order_taker', 'delivery_man', 'employee'].includes(user.role);
+  /**
+   * Field staff can correct the pin and the address of a client they are standing in front of.
+   * Everything else on the client record stays on the admin edit form.
+   */
+  const canCorrectLocation = can(user?.role, 'dealers:fix-location');
   const [client, setClient] = useState<Client | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [visitFilterDate, setVisitFilterDate] = useState<string>(() => {
@@ -43,11 +133,14 @@ const ClientDetailPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [gallery, setGallery] = useState<DealerGalleryEntry[]>([]);
+  const [correctingLocation, setCorrectingLocation] = useState(false);
+  const [lastVisit, setLastVisit] = useState<DealerLastVisit | null>(null);
 
   useEffect(() => {
     if (id) {
       fetchClient();
       fetchGallery();
+      fetchLastVisit();
     }
   }, [id]);
 
@@ -90,6 +183,17 @@ const ClientDetailPage: React.FC = () => {
       setGallery(Array.isArray(data) ? data : []);
     } catch {
       setGallery([]);
+    }
+  };
+
+  /** Whoever last stood in this shop, and how long ago — shown the moment the profile opens. */
+  const fetchLastVisit = async () => {
+    if (!id) return;
+    try {
+      const data = await visitService.getDealerLastVisit(id as string);
+      setLastVisit(data);
+    } catch {
+      setLastVisit({ visit: null, daysAgo: null });
     }
   };
 
@@ -172,6 +276,15 @@ const ClientDetailPage: React.FC = () => {
                 className={styles.navigateButton}
               />
             )}
+            {canCorrectLocation && (
+              <button
+                className={styles.navigateButton}
+                onClick={() => setCorrectingLocation(true)}
+                title="Fix the map pin or the postal address for this client"
+              >
+                Fix Location
+              </button>
+            )}
             {isAdmin && (
               <button className={styles.editButton} onClick={handleEdit}>
                 Edit
@@ -187,6 +300,8 @@ const ClientDetailPage: React.FC = () => {
         </div>
 
         <div className={styles.content}>
+          <LastVisitBanner lastVisit={lastVisit} onOpenVisit={(visitId) => router.push(`/visits/${visitId}`)} />
+
           <div className={styles.section}>
             <h2>Basic Information</h2>
             <div className={styles.infoGrid}>
@@ -450,6 +565,14 @@ const ClientDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {correctingLocation && (
+        <ClientLocationCorrection
+          client={client}
+          onSaved={setClient}
+          onClose={() => setCorrectingLocation(false)}
+        />
+      )}
     </Layout>
   );
 };

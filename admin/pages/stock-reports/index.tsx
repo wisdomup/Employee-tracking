@@ -173,17 +173,17 @@ const StockReportsPage: React.FC = () => {
     { key: 'onHoldQty', title: 'On Hold Qty' },
     { key: 'soldQtyInPeriod', title: 'Sold in Period' },
     {
-      key: 'salePrice',
+      key: 'salePrice', total: 'none' as const,
       title: 'Sale Price',
       render: (v) => formatCurrency(v),
     },
     {
-      key: 'purchasePrice',
+      key: 'purchasePrice', total: 'none' as const,
       title: 'Purchase Price',
       render: (v) => formatCurrency(v),
     },
     {
-      key: 'survivalQuantity',
+      key: 'survivalQuantity', total: 'none' as const,
       title: 'Survival Qty',
       render: (v) => (v != null ? v : <span style={{ color: '#9ca3af' }}>Not set</span>),
     },
@@ -200,7 +200,7 @@ const StockReportsPage: React.FC = () => {
       render: (v) => <strong>{v}</strong>,
     },
     {
-      key: 'unitPrice',
+      key: 'unitPrice', total: 'none' as const,
       title: 'Unit Price',
       render: (v) => formatCurrency(v),
     },
@@ -224,7 +224,7 @@ const StockReportsPage: React.FC = () => {
       render: (v) => <strong style={{ color: '#b91c1c' }}>{v}</strong>,
     },
     {
-      key: 'unitPrice',
+      key: 'unitPrice', total: 'none' as const,
       title: 'Unit Price',
       render: (v) => formatCurrency(v),
     },
@@ -249,7 +249,7 @@ const StockReportsPage: React.FC = () => {
         <span className={v === 0 ? styles.criticalBadge : styles.warningBadge}>{v}</span>
       ),
     },
-    { key: 'survivalQuantity', title: 'Survival Qty' },
+    { key: 'survivalQuantity', total: 'none' as const, title: 'Survival Qty' },
     {
       key: 'deficit',
       title: 'Deficit',
@@ -430,6 +430,7 @@ const StockReportsPage: React.FC = () => {
             exportFileName={exportFileName}
             exportPdfTitle={exportPdfTitle}
             exportFormats={['csv', 'pdf']}
+            showGrandTotal
             noDataText="No products found."
           />
         )}
@@ -444,6 +445,7 @@ const StockReportsPage: React.FC = () => {
             exportFileName={exportFileName}
             exportPdfTitle={exportPdfTitle}
             exportFormats={['csv', 'pdf']}
+            showGrandTotal
             noDataText="No hold stock found for this period."
           />
         )}
@@ -458,6 +460,7 @@ const StockReportsPage: React.FC = () => {
             exportFileName={exportFileName}
             exportPdfTitle={exportPdfTitle}
             exportFormats={['csv', 'pdf']}
+            showGrandTotal
             noDataText="No damage records found for this period."
           />
         )}
@@ -522,6 +525,7 @@ const StockReportsPage: React.FC = () => {
                 exportFileName={exportFileName}
                 exportPdfTitle={exportPdfTitle}
                 exportFormats={['csv', 'pdf']}
+                showGrandTotal
                 noDataText="No low stock alerts."
               />
             )}

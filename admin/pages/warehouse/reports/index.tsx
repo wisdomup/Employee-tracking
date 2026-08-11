@@ -379,12 +379,12 @@ function WarehouseReportsPage() {
       render: (value: number) => (value > 0 ? formatPieces(value) : '0'),
     },
     {
-      key: 'totalSellableAllWarehouses',
+      key: 'totalSellableAllWarehouses', total: 'none' as const,
       title: 'Total (all warehouses)',
       render: (v: number) => formatPieces(v),
     },
     {
-      key: 'survivalQuantity',
+      key: 'survivalQuantity', total: 'none' as const,
       title: 'Low-stock level',
       render: (value: number | null) =>
         value === null ? <span style={{ color: '#9ca3af' }}>Not set</span> : formatPieces(value),
@@ -393,16 +393,16 @@ function WarehouseReportsPage() {
     },
     ...(showCost
       ? [
-          { key: 'avgCost', title: 'Avg cost', render: (v: number) => (v ? formatRsExact(v) : '—') },
+          { key: 'avgCost', total: 'none' as const, title: 'Avg cost', render: (v: number) => (v ? formatRsExact(v) : '—') },
           {
-            key: 'stockValue',
+            key: 'stockValue', totalFormat: formatRsExact,
             title: 'Stock value',
             render: (v: number) => (v ? formatRsExact(v) : '—'),
           },
         ]
       : []),
     {
-      key: 'potentialSaleValue',
+      key: 'potentialSaleValue', totalFormat: formatRsExact,
       title: 'Could sell for',
       render: (v: number) => (v ? formatRsExact(v) : '—'),
     },
@@ -462,9 +462,9 @@ function WarehouseReportsPage() {
         ),
       exportValue: (row: StockMovementRow) => (row.delta < 0 ? String(Math.abs(row.delta)) : ''),
     },
-    { key: 'balanceAfter', title: 'Balance after', render: (v: number) => formatPieces(v ?? 0) },
+    { key: 'balanceAfter', total: 'none' as const, title: 'Balance after', render: (v: number) => formatPieces(v ?? 0) },
     ...(showCost
-      ? [{ key: 'unitCost', title: 'Rate', render: (v: number) => (v ? formatRsExact(v) : '—') }]
+      ? [{ key: 'unitCost', total: 'none' as const, title: 'Rate', render: (v: number) => (v ? formatRsExact(v) : '—') }]
       : []),
     {
       key: 'actorId',
@@ -478,7 +478,7 @@ function WarehouseReportsPage() {
 
   const transferColumns: TableColumnConfig[] = [
     {
-      key: 'documentNo',
+      key: 'documentNo', total: 'none' as const,
       title: 'Transfer #',
       render: (value: number) => (value ? String(value).padStart(5, '0') : '—'),
     },
@@ -522,7 +522,7 @@ function WarehouseReportsPage() {
 
   const damageColumns: TableColumnConfig[] = [
     {
-      key: 'documentNo',
+      key: 'documentNo', total: 'none' as const,
       title: 'Entry #',
       render: (value: number) => (value ? String(value).padStart(5, '0') : '—'),
     },
@@ -562,7 +562,7 @@ function WarehouseReportsPage() {
 
   const countColumns: TableColumnConfig[] = [
     {
-      key: 'documentNo',
+      key: 'documentNo', total: 'none' as const,
       title: 'Count #',
       render: (value: number | null) => (value ? String(value).padStart(5, '0') : '—'),
     },
@@ -613,7 +613,7 @@ function WarehouseReportsPage() {
     { key: 'productName', title: 'Product' },
     { key: 'barcode', title: 'Barcode' },
     { key: 'qtySold', title: 'Pieces sold', render: (v: number) => formatPieces(v) },
-    { key: 'revenue', title: 'Revenue', render: (v: number) => formatRsExact(v) },
+    { key: 'revenue', totalFormat: formatRsExact, title: 'Revenue', render: (v: number) => formatRsExact(v) },
     {
       key: 'currentSellableQty',
       title: 'Sellable now',
@@ -980,6 +980,7 @@ function WarehouseReportsPage() {
               pageSize={25}
               exportFileName="warehouse-stock-on-hand"
               exportPdfTitle={exportPdfTitle}
+              showGrandTotal
               noDataText="No stock matches these filters."
             />
           </>
@@ -1001,6 +1002,7 @@ function WarehouseReportsPage() {
               pageSize={25}
               exportFileName="warehouse-stock-movements"
               exportPdfTitle={exportPdfTitle}
+              showGrandTotal
               noDataText="No stock movements match these filters."
             />
           </>
@@ -1023,6 +1025,7 @@ function WarehouseReportsPage() {
               pageSize={25}
               exportFileName="warehouse-transfer-history"
               exportPdfTitle={exportPdfTitle}
+              showGrandTotal
               noDataText="No transfers match these filters."
             />
           </>
@@ -1037,6 +1040,7 @@ function WarehouseReportsPage() {
             pageSize={25}
             exportFileName="warehouse-damage-claims"
             exportPdfTitle={exportPdfTitle}
+            showGrandTotal
             noDataText="No damage or claim entries match these filters."
           />
         )}
@@ -1050,6 +1054,7 @@ function WarehouseReportsPage() {
             pageSize={25}
             exportFileName="monthly-stock-count-report"
             exportPdfTitle={exportPdfTitle}
+            showGrandTotal
             noDataText="No stock counts match these filters."
           />
         )}
@@ -1079,6 +1084,7 @@ function WarehouseReportsPage() {
               pageSize={25}
               exportFileName="warehouse-best-sellers"
               exportPdfTitle={`Best Sellers — ${exportPdfTitle}`}
+              showGrandTotal
               noDataText="No delivered sales in this period."
             />
           </>

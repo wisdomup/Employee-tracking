@@ -19,21 +19,30 @@ const MANAGEMENT_ROLES = ['admin', 'sales_manager'] as const;
  * /api/region-sales/regions:
  *   get:
  *     tags: [Region Sales]
- *     summary: City-wise sale totals for one day
+ *     summary: City-wise sale totals for a day or a date range
  *     description: >
  *       Regions are derived from each salesman's own city. Days are bounded in the
- *       report timezone (Asia/Karachi by default), not UTC. Regions with no sale that
- *       day are still listed at zero.
+ *       report timezone (Asia/Karachi by default), not UTC. Regions with no sale in the
+ *       window are still listed at zero. Pass `from`/`to` for a range or `date` for a
+ *       single day; omitting everything gives today. Ranges are capped at 366 days.
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
+ *         name: from
+ *         schema: { type: string, example: "2026-07-01" }
+ *         description: Start of the window. Defaults to `to`, so a lone `to` is one day.
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, example: "2026-07-31" }
+ *         description: End of the window. Defaults to today in the report timezone.
+ *       - in: query
  *         name: date
  *         schema: { type: string, example: "2026-07-31" }
- *         description: Defaults to today in the report timezone.
+ *         description: Single-day shorthand, used when `from`/`to` are absent.
  *     responses:
- *       200: { description: "{ date, timezone, totals, regions[] }" }
- *       400: { description: Malformed date }
+ *       200: { description: "{ from, to, date, timezone, totals, regions[] }" }
+ *       400: { description: Malformed date, reversed range, or a range over 366 days }
  */
 router.get('/regions', requireRoles(...MANAGEMENT_ROLES), controller.regions);
 
@@ -42,7 +51,7 @@ router.get('/regions', requireRoles(...MANAGEMENT_ROLES), controller.regions);
  * /api/region-sales/regions/{regionKey}/salesmen:
  *   get:
  *     tags: [Region Sales]
- *     summary: Every salesman in a region with their individual sale for the day
+ *     summary: Every salesman in a region with their individual sale over the window
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -52,10 +61,17 @@ router.get('/regions', requireRoles(...MANAGEMENT_ROLES), controller.regions);
  *         schema: { type: string, example: "lahore" }
  *         description: Lowercased city name, or the literal "unassigned".
  *       - in: query
+ *         name: from
+ *         schema: { type: string, example: "2026-07-01" }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, example: "2026-07-31" }
+ *       - in: query
  *         name: date
  *         schema: { type: string, example: "2026-07-31" }
+ *         description: Single-day shorthand, used when `from`/`to` are absent.
  *     responses:
- *       200: { description: "{ date, region, totals, salesmen[] } — includes zero-sale salesmen" }
+ *       200: { description: "{ from, to, region, totals, salesmen[] } — includes zero-sale salesmen" }
  */
 router.get(
   '/regions/:regionKey/salesmen',

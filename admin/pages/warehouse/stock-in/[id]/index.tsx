@@ -25,6 +25,8 @@ function StockInDetailPage() {
   const [printBusy, setPrintBusy] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const showMoney = can(user?.role, 'stock:set-low-level'); // admin-only, matches the API
 
@@ -101,6 +103,22 @@ function StockInDetailPage() {
     }
   };
 
+  const handleDelete = async (reason: string) => {
+    if (!id || typeof id !== 'string') return;
+    setDeleteBusy(true);
+    try {
+      await stockInService.deleteReceipt(id, reason);
+      toast.success('Receipt deleted and its stock reversed');
+      setDeleteOpen(false);
+      router.push('/warehouse/stock-in');
+    } catch (err) {
+      // Refused when the pieces have already left the warehouse — the API explains which.
+      toast.error(getApiErrorMessage(err, 'Failed to delete the receipt'));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -120,6 +138,9 @@ function StockInDetailPage() {
   }
 
   const canCancel = can(user?.role, 'stock-in:cancel') && receipt.status === 'posted';
+  // Admin-only keys — absent from every permission Set, so `can()` is an exact admin test.
+  const canEdit = can(user?.role, 'stock-in:edit') && receipt.status === 'posted';
+  const canDelete = can(user?.role, 'stock-in:delete');
 
   return (
     <Layout>
@@ -132,9 +153,27 @@ function StockInDetailPage() {
             <button className={styles.editButton} onClick={handlePrint} disabled={printBusy}>
               {printBusy ? 'Preparing…' : 'Print slip'}
             </button>
+            {canEdit && (
+              <button
+                className={styles.editButton}
+                onClick={() => router.push(`/warehouse/stock-in/${receipt._id}/edit`)}
+                title="Correct the quantities, rates or supplier on this receipt"
+              >
+                Edit
+              </button>
+            )}
             {canCancel && (
               <button className={styles.editButton} onClick={() => setCancelOpen(true)}>
                 Cancel receipt
+              </button>
+            )}
+            {canDelete && (
+              <button
+                className={styles.editButton}
+                style={{ background: '#dc2626', borderColor: '#dc2626', color: '#fff' }}
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete
               </button>
             )}
             <button className={styles.backButton} onClick={() => router.push('/warehouse/stock-in')}>
@@ -218,6 +257,36 @@ function StockInDetailPage() {
             </div>
           )}
 
+          {receipt.editCount ? (
+            <div className={styles.section}>
+              <h2>Corrected</h2>
+              <div className={styles.infoGrid}>
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Reason</span>
+                  <span className={styles.value}>{receipt.editReason || '—'}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Corrected by</span>
+                  <span className={styles.value}>
+                    {receipt.lastEditedBy ? employeeDisplayLabel(receipt.lastEditedBy) : '—'}
+                  </span>
+                </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Corrected at</span>
+                  <span className={styles.value}>
+                    {receipt.lastEditedAt
+                      ? format(new Date(receipt.lastEditedAt), 'MMM dd, yyyy HH:mm')
+                      : '—'}
+                  </span>
+                </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.label}>Times corrected</span>
+                  <span className={styles.value}>{receipt.editCount}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className={styles.section}>
             <h2>Products</h2>
             <div style={{ overflowX: 'auto' }}>
@@ -272,6 +341,20 @@ function StockInDetailPage() {
           if (!cancelBusy) setCancelOpen(false);
         }}
         onConfirm={handleCancel}
+      />
+
+      <ReasonModal
+        open={deleteOpen}
+        title="Delete this receipt"
+        description="The stock is reversed and the receipt disappears from every list and report. The row is kept underneath so the stock ledger still has something to point at. If the pieces have already been transferred or sold, the deletion will be refused."
+        label="Reason (optional)"
+        required={false}
+        confirmLabel="Delete receipt"
+        busy={deleteBusy}
+        onClose={() => {
+          if (!deleteBusy) setDeleteOpen(false);
+        }}
+        onConfirm={handleDelete}
       />
     </Layout>
   );

@@ -137,6 +137,34 @@ router.get(
 
 /**
  * @openapi
+ * /api/visits/last:
+ *   get:
+ *     tags: [Visits]
+ *     summary: The most recent completed visit to a client, and how many days ago it was
+ *     description: >
+ *       Only `completed` visits count — that is the only status meaning a rider physically
+ *       checked in and out at the shop. Returns `{ visit: null, daysAgo: null }` when the
+ *       client has never been visited.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: dealerId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Last visit and its age in days }
+ *       400: { description: dealerId is required }
+ */
+// NOTE: must stay above `GET /:id`, otherwise "last" is parsed as a visit id.
+router.get(
+  '/last',
+  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  controller.dealerLastVisit,
+);
+
+/**
+ * @openapi
  * /api/visits/{id}/complete:
  *   patch:
  *     tags: [Visits]

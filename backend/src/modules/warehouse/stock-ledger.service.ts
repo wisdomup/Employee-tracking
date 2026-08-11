@@ -513,6 +513,13 @@ export async function getStockBalance(
  * lets `recomputeProductCost` drop a cancelled receipt out of the weighted average. It also answers
  * "did this document ever actually move stock?" — a claim auto-created alongside a return has not,
  * and must not be reversed as though it had.
+ *
+ * **The sort is load-bearing.** A document used to post exactly one row per (product, bucket), so
+ * the map had a single candidate and order never mattered. Editing a Stock In receipt reverses and
+ * re-posts against the SAME `refId`, so a product can now carry several `stock_in` rows. Building
+ * the map from an unsorted find would leave the winner up to whichever index the planner picked.
+ * Ascending `_id` means the newest row wins (later entries overwrite in a Map), which is the one a
+ * subsequent cancel or delete has to reverse — the earlier rows already carry their own reversals.
  */
 export async function findPostedMovementIds(
   refType: StockRefType,
@@ -525,6 +532,7 @@ export async function findPostedMovementIds(
     type: { $in: types },
   })
     .select('_id productId bucket')
+    .sort({ _id: 1 })
     .lean();
 
   return new Map(rows.map((r) => [`${String(r.productId)}:${r.bucket}`, String(r._id)]));

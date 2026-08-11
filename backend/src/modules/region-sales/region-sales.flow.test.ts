@@ -225,6 +225,66 @@ async function main(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------
+  console.log('\nDate ranges');
+  // -------------------------------------------------------------------------
+  await test('a range spanning both PKT days sums them, unlike either day alone', async () => {
+    // Jul 31 has Lahore delivered 1500, Aug 1 has 8000 (Ali's 02:00 PKT order).
+    const span = await service.getRegionTotals(
+      { from: '2026-07-31', to: '2026-08-01' },
+      String(ADMIN),
+      'admin',
+    );
+    assert.equal(region(span, 'Lahore')!.deliveredAmount, 9500);
+    assert.equal(span.from, '2026-07-31');
+    assert.equal(span.to, '2026-08-01');
+  });
+
+  await test('a range of one day matches the single-day call exactly', async () => {
+    const asDay = await service.getRegionTotals(DAY, String(ADMIN), 'admin');
+    const asRange = await service.getRegionTotals(
+      { from: DAY, to: DAY },
+      String(ADMIN),
+      'admin',
+    );
+    assert.deepEqual(asRange.regions, asDay.regions);
+    assert.deepEqual(asRange.totals, asDay.totals);
+  });
+
+  await test('a lone "to" is one day, not everything up to it', async () => {
+    // Regression guard: defaulting `from` to today rather than to `to` would have made this
+    // request cover the whole intervening period.
+    const r = await service.getRegionTotals({ to: DAY }, String(ADMIN), 'admin');
+    assert.equal(r.from, DAY);
+    assert.equal(region(r, 'Lahore')!.deliveredAmount, 1500);
+  });
+
+  await test('the drill-down honours the same range', async () => {
+    const span = await service.getRegionSalesmen(
+      { from: '2026-07-31', to: '2026-08-01' },
+      'lahore',
+      String(ADMIN),
+      'admin',
+    );
+    const ali = span.salesmen.find((s) => s.username === 'ali')!;
+    assert.ok(ali, 'ali should be listed');
+    assert.equal(ali.deliveredAmount, 9000, '1000 on Jul 31 + 8000 on Aug 1');
+  });
+
+  await test('a reversed range is rejected', async () => {
+    await rejectsWith(
+      service.getRegionTotals({ from: '2026-08-01', to: '2026-07-31' }, String(ADMIN), 'admin'),
+      /must not be after/,
+    );
+  });
+
+  await test('an oversized range is rejected rather than scanning a decade', async () => {
+    await rejectsWith(
+      service.getRegionTotals({ from: '2020-01-01', to: '2026-07-31' }, String(ADMIN), 'admin'),
+      /too large/,
+    );
+  });
+
+  // -------------------------------------------------------------------------
   console.log('\nRegion → salesmen drill-down');
   // -------------------------------------------------------------------------
   await test('every salesman in the region is listed, including one with zero sales', async () => {

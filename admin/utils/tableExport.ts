@@ -67,11 +67,24 @@ export function formatCellForExport(value: unknown): string {
   return String(value);
 }
 
-export function buildTableCsv(columns: TableExportColumn[], data: unknown[]): string {
+export function buildTableCsv(
+  columns: TableExportColumn[],
+  data: unknown[],
+  /** Appended as the last line so the exported file carries the same total as the screen. */
+  grandTotalRow?: string[] | null,
+): string {
   const { headers, rows } = getExportTableData(columns, data);
   const headerLine = headers.map(escapeCsvField).join(',');
   const lines = rows.map((r) => r.map(escapeCsvField).join(','));
+  if (grandTotalRow?.length) {
+    lines.push(grandTotalRow.map(escapeCsvField).join(','));
+  }
   return [headerLine, ...lines].join('\r\n');
+}
+
+/** The export columns a grand-total row must line up with (same filter the data rows use). */
+export function getExportColumns(columns: TableExportColumn[]): TableExportColumn[] {
+  return filterExportColumns(columns);
 }
 
 export function downloadCsv(filename: string, csvBody: string): void {
@@ -90,10 +103,11 @@ export function exportTableToCsv(options: {
   filename: string;
   columns: TableExportColumn[];
   data: unknown[];
+  grandTotalRow?: string[] | null;
 }): void {
-  const { filename, columns, data } = options;
+  const { filename, columns, data, grandTotalRow } = options;
   if (!data.length) return;
-  const csv = buildTableCsv(columns, data);
+  const csv = buildTableCsv(columns, data, grandTotalRow);
   downloadCsv(filename, csv);
 }
 
@@ -131,6 +145,7 @@ export async function exportTableToPdf(options: {
   columns: TableExportColumn[];
   data: unknown[];
   title?: string;
+  grandTotalRow?: string[] | null;
 }): Promise<void> {
   const { filename } = options;
   const blob = await buildTablePdfBlob(options);
@@ -149,8 +164,9 @@ export async function buildTablePdfBlob(options: {
   columns: TableExportColumn[];
   data: unknown[];
   title?: string;
+  grandTotalRow?: string[] | null;
 }): Promise<Blob | null> {
-  const { columns, data, title } = options;
+  const { columns, data, title, grandTotalRow } = options;
   if (!data.length) return null;
 
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
@@ -191,6 +207,19 @@ export async function buildTablePdfBlob(options: {
     theme: 'grid',
     head: [headRow],
     body: bodyRows,
+    // `foot` repeats on every page and is styled apart from the data, which is exactly what
+    // a grand total wants to be.
+    ...(grandTotalRow?.length
+      ? { foot: [grandTotalRow.map((c) => cellTextForPdf(String(c)))] }
+      : {}),
+    footStyles: {
+      fontStyle: 'bold',
+      fillColor: [243, 244, 246],
+      textColor: [17, 24, 39],
+      lineWidth: 0.15,
+      lineColor: [209, 213, 219],
+    },
+    showFoot: 'lastPage',
     styles: {
       font: 'helvetica',
       fontSize: 9,

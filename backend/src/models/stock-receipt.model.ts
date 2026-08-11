@@ -5,8 +5,13 @@ import { Schema, model, Document, Types } from 'mongoose';
  * supplier master and no approval workflow, because the spec asks only for "pick the product,
  * enter quantity and rate". `supplierName` is free text.
  *
- * Every receipt lands in the Main warehouse; from there stock is transferred out. Receipts are
- * never deleted — a mistake is cancelled with a reason and the movement reversed.
+ * Every receipt lands in the Main warehouse; from there stock is transferred out.
+ *
+ * A mistake has three exits, all admin-only and all guarded so the reversal can never drive
+ * stock negative: **cancel** (keeps the row, marks it cancelled), **edit** (rewrites the lines
+ * and re-posts the ledger, keeping the document number), and **delete** (reverses and trashes
+ * the row). Delete is a soft delete on purpose — the ledger rows point at this document, so
+ * removing it outright would leave the audit trail dangling.
  */
 export interface IStockReceiptLine {
   productId: Types.ObjectId;
@@ -29,6 +34,24 @@ export interface IStockReceipt extends Document {
   cancelledBy?: Types.ObjectId;
   cancelledAt?: Date;
   cancelReason?: string;
+  /**
+   * Correction trail. An admin may edit a posted receipt (the ledger is fully reversed and
+   * re-applied underneath), and an edit to a stock document has to be attributable — the
+   * printed slip already went out with the old figures.
+   */
+  lastEditedBy?: Types.ObjectId;
+  lastEditedAt?: Date;
+  editReason?: string;
+  /** How many times this receipt has been corrected. Zero/absent means never. */
+  editCount?: number;
+  /**
+   * When an edit was attempted, failed part-way and was rolled back.
+   *
+   * Written for the audit trail, but it is also load-bearing: the edit's idempotency scope is
+   * derived from `updatedAt`, and saving this is what moves `updatedAt` on so a retry does not
+   * reuse a stamp whose reversal has already been recorded. See `updateStockReceipt`.
+   */
+  lastEditFailedAt?: Date;
   createdBy: Types.ObjectId;
   isTrashed?: boolean;
   trashedAt?: Date;
@@ -60,6 +83,11 @@ const stockReceiptSchema = new Schema<IStockReceipt>(
     cancelledBy: { type: Schema.Types.ObjectId, ref: 'User' },
     cancelledAt: { type: Date },
     cancelReason: { type: String, trim: true, maxlength: 500 },
+    lastEditedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lastEditedAt: { type: Date },
+    editReason: { type: String, trim: true, maxlength: 500 },
+    editCount: { type: Number, default: 0 },
+    lastEditFailedAt: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },

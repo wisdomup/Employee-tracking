@@ -13,6 +13,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { UserModel } from '../../models/user.model';
 import { DealerModel } from '../../models/dealer.model';
 import * as dealersService from './dealers.service';
+import { updateDealerLocationSchema } from './dto/dealers.schemas';
 import { resolveCityScope } from '../users/users.service';
 
 let passed = 0;
@@ -172,6 +173,93 @@ async function main(): Promise<void> {
     const shop = await DealerModel.findOne({ name: 'Karachi Shop A' });
     const found = await dealersService.findById(String(shop!._id), null);
     assert.equal(found.name, 'Karachi Shop A');
+  });
+
+  // -------------------------------------------------------------------------
+  console.log('\nCorrecting a client\'s pin and address');
+  // -------------------------------------------------------------------------
+  await test('the payload the correction dialog actually sends is accepted', () => {
+    // Regression: the shared `addressSchema` is built from bare `Joi.string()`, which rejects
+    // ''. The create form gets away with it by stripping blanks before posting, but the
+    // correction dialog shows all five fields pre-filled — so a client with no State recorded
+    // posted `state: ''` and was refused for a field the rider never touched.
+    const { error } = updateDealerLocationSchema.validate({
+      latitude: 31.52,
+      longitude: 74.35,
+      address: { street: 'Mall Road', city: 'Lahore', state: '', country: '', postalCode: '' },
+    });
+    assert.equal(error, undefined, error?.message ?? '');
+  });
+
+  await test('half a pin is refused — a lone latitude would mix old and new coordinates', () => {
+    assert.ok(updateDealerLocationSchema.validate({ latitude: 31.52 }).error);
+    assert.ok(updateDealerLocationSchema.validate({}).error, 'an empty correction is refused too');
+  });
+
+  await test('a correction moves the pin and the address, and touches nothing else', async () => {
+    const shop = await DealerModel.findOne({ name: 'Lahore Shop A' });
+    const before = shop!.toObject();
+
+    await dealersService.updateDealerLocation(
+      String(shop!._id),
+      {
+        latitude: 31.5599,
+        longitude: 74.3599,
+        address: { street: 'Corrected Street', city: 'Lahore', state: '' },
+      },
+      String(LAHORE_RIDER),
+      'Lahore',
+    );
+
+    const after = await DealerModel.findById(shop!._id).lean();
+    assert.equal(after?.latitude, 31.5599);
+    assert.equal(after?.address?.street, 'Corrected Street');
+    // The whole point of the narrow endpoint: office fields are out of reach.
+    assert.equal(after?.phone, before.phone, 'phone untouched');
+    assert.equal(after?.status, before.status, 'status untouched');
+    assert.equal(String(after?.route ?? ''), String(before.route ?? ''), 'route untouched');
+  });
+
+  await test('a partial address merges rather than wiping the fields it omits', async () => {
+    const shop = await DealerModel.findOne({ name: 'Lahore Shop A' });
+    await dealersService.updateDealerLocation(
+      String(shop!._id),
+      { address: { city: 'Lahore' } },
+      String(LAHORE_RIDER),
+      'Lahore',
+    );
+    const after = await DealerModel.findById(shop!._id).lean();
+    assert.equal(after?.address?.street, 'Corrected Street', 'the street survives an omitted key');
+  });
+
+  await test('a rider CANNOT relocate a client from another city', async () => {
+    // The write path has to be scoped exactly like the read path, or the id-guessing hole
+    // closed above reopens as a way to move someone else\'s shop.
+    const shop = await DealerModel.findOne({ name: 'Karachi Shop A' });
+    await rejectsWith(
+      dealersService.updateDealerLocation(
+        String(shop!._id),
+        { latitude: 0.1, longitude: 0.1 },
+        String(LAHORE_RIDER),
+        'Lahore',
+      ),
+      /not found/i,
+    );
+    const untouched = await DealerModel.findById(shop!._id).lean();
+    assert.notEqual(untouched?.latitude, 0.1, 'a refused correction moves nothing');
+  });
+
+  await test('a trashed client cannot be corrected', async () => {
+    const shop = await DealerModel.findOne({ name: 'Trashed Lahore Shop' });
+    await rejectsWith(
+      dealersService.updateDealerLocation(
+        String(shop!._id),
+        { latitude: 31.1, longitude: 74.1 },
+        String(LAHORE_RIDER),
+        'Lahore',
+      ),
+      /not found/i,
+    );
   });
 
   // -------------------------------------------------------------------------

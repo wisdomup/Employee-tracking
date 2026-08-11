@@ -69,6 +69,7 @@ const ReportsPage: React.FC = () => {
       { key: 'soldQty', title: 'Sold Qty' },
       {
         key: 'salesAmount',
+        totalFormat: (t: number) => t.toFixed(2),
         title: 'Sales Amount',
         render: (value: number) => (value != null ? value.toFixed(2) : '0.00'),
       },
@@ -183,6 +184,7 @@ const ReportsPage: React.FC = () => {
               pageSize={10}
               fixedHeader
               fixedHeaderHeight="430px"
+              showGrandTotal
               noDataText="No stock rows found"
             />
           </div>
@@ -198,6 +200,7 @@ const ReportsPage: React.FC = () => {
               pageSize={10}
               fixedHeader
               fixedHeaderHeight="430px"
+              showGrandTotal
               noDataText="No sales rows found"
             />
           </div>

@@ -6,13 +6,56 @@ import { CategoryModel } from '../../models/category.model';
 import { ProductModel } from '../../models/product.model';
 import { ReturnModel } from '../../models/return.model';
 import { RouteModel } from '../../models/route.model';
+import { VisitModel } from '../../models/visit.model';
+import { Types } from 'mongoose';
+import { badRequest } from '../../utils/app-error';
+// Shared day-key validation, so "is this a real date" has one answer across the app.
+import { isValidDayKey } from '../region-sales/region-sales.rules';
 import { getRecentActivity } from '../activity-logs/activity-logs.service';
 
+/** Order statuses that count as money actually realised. Mirrors the analytics module. */
+const DELIVERED_ORDER_STATUSES = ['delivered'];
+/** Committed but not yet delivered — the "booked" half of a sale figure. */
+const OPEN_ORDER_STATUSES = ['pending', 'approved', 'packed', 'dispatched'];
+
+/** Local midnight-to-midnight bounds for a day. */
+function dayBounds(date = new Date()): { start: Date; end: Date } {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
+/** A `Date` as the `YYYY-MM-DD` key the admin sees and the visits list filter speaks. */
+function toDayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+/**
+ * Day bounds for a **visit** count, matching `visits.service#findAll` exactly.
+ *
+ * The visit cards deep-link into `/visits?startDate=&endDate=`, and a card whose number does not
+ * match the list it opens is worse than no card. `findAll` bounds a `YYYY-MM-DD` with
+ * `setUTCHours`, so this does too — `dayBounds` above uses *local* midnight, which is a
+ * different window anywhere east or west of UTC and would have made the two disagree by the
+ * offset. All three visit counts also key off `visitDate` for the same reason: it is the only
+ * field `findAll` filters on.
+ */
+function visitDayBoundsUtc(dayKey: string): { start: Date; end: Date } {
+  const start = new Date(dayKey);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(dayKey);
+  end.setUTCHours(23, 59, 59, 999);
+  return { start, end };
+}
+
 export async function getDashboardStats() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start: today, end: tomorrow } = dayBounds();
+  const todayKey = toDayKey(new Date());
+  const visitDay = visitDayBoundsUtc(todayKey);
 
   const [
     activeEmployees,
@@ -26,6 +69,11 @@ export async function getDashboardStats() {
     totalOrders,
     totalPendingOrders,
     totalRoutes,
+    visitsToday,
+    visitsCompletedToday,
+    visitsOpenToday,
+    ordersToday,
+    salesToday,
     recentActivity,
   ] = await Promise.all([
     UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: true, isTrashed: { $ne: true } }),
@@ -39,6 +87,33 @@ export async function getDashboardStats() {
     OrderModel.countDocuments({ isTrashed: { $ne: true } }),
     OrderModel.countDocuments({ status: 'pending', isTrashed: { $ne: true } }),
     RouteModel.countDocuments({ isTrashed: { $ne: true } }),
+    // Visits are the unit of field work now; the task counts above are the legacy module and
+    // are kept only so the older cards keep their meaning.
+    //
+    // All three share one window on `visitDate`, so "X completed of Y scheduled" is a real
+    // subset. Counting the completed ones by `completedAt` instead would let a visit scheduled
+    // yesterday and finished this morning into the numerator but not the denominator — and
+    // "48 of 46" is exactly the kind of figure that costs a dashboard its credibility.
+    VisitModel.countDocuments({
+      isTrashed: { $ne: true },
+      visitDate: { $gte: visitDay.start, $lte: visitDay.end },
+    }),
+    VisitModel.countDocuments({
+      isTrashed: { $ne: true },
+      status: 'completed',
+      visitDate: { $gte: visitDay.start, $lte: visitDay.end },
+    }),
+    VisitModel.countDocuments({
+      isTrashed: { $ne: true },
+      status: { $in: ['todo', 'in_progress', 'checked_in'] },
+      visitDate: { $gte: visitDay.start, $lte: visitDay.end },
+    }),
+    OrderModel.countDocuments({
+      isTrashed: { $ne: true },
+      status: { $ne: 'cancelled' },
+      createdAt: { $gte: today, $lt: tomorrow },
+    }),
+    sumOrderAmounts({ $gte: today, $lt: tomorrow }),
     getRecentActivity(10),
   ]);
 
@@ -53,6 +128,9 @@ export async function getDashboardStats() {
     .exec();
 
   return {
+    // The day the visit figures cover, so the cards can link to exactly the rows they counted
+    // instead of the browser guessing its own "today" from a possibly different clock.
+    today: todayKey,
     stats: {
       activeEmployees,
       inactiveEmployees,
@@ -65,20 +143,154 @@ export async function getDashboardStats() {
       totalOrders,
       totalPendingOrders,
       totalRoutes,
+      visitsToday,
+      visitsCompletedToday,
+      visitsOpenToday,
+      ordersToday,
+      deliveredSalesToday: salesToday.delivered,
+      bookedSalesToday: salesToday.booked,
     },
     recentActivity,
     completedTasksForMap: completedTasksForMap.map((task) => {
       const dealer: any = task.dealerId;
+      const clientLocation = dealer
+        ? { latitude: dealer.latitude, longitude: dealer.longitude, name: dealer.name }
+        : null;
       return {
         taskName: task.taskName,
         employeeName: (task.assignedTo as any)?.username,
-        dealerLocation: dealer
-          ? { latitude: dealer.latitude, longitude: dealer.longitude, name: dealer.name }
-          : null,
+        // `clientLocation` is what the admin dashboard map reads. `dealerLocation` is the
+        // original name and is kept as an alias so nothing built against it breaks.
+        clientLocation,
+        dealerLocation: clientLocation,
         completionLocation: { latitude: task.latitude, longitude: task.longitude },
         completedAt: task.completedAt,
       };
     }),
+  };
+}
+
+/** Delivered vs booked order value in a window, in one pass over the same matched set. */
+async function sumOrderAmounts(
+  createdAt: Record<string, Date>,
+  createdBy?: Types.ObjectId,
+): Promise<{ delivered: number; booked: number }> {
+  const rows = await OrderModel.aggregate<{ delivered: number; booked: number }>([
+    {
+      $match: {
+        isTrashed: { $ne: true },
+        status: { $ne: 'cancelled' },
+        createdAt,
+        ...(createdBy ? { createdBy } : {}),
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        delivered: {
+          $sum: {
+            $cond: [
+              { $in: ['$status', DELIVERED_ORDER_STATUSES] },
+              { $ifNull: ['$grandTotal', 0] },
+              0,
+            ],
+          },
+        },
+        booked: {
+          $sum: {
+            $cond: [
+              { $in: ['$status', OPEN_ORDER_STATUSES] },
+              { $ifNull: ['$grandTotal', 0] },
+              0,
+            ],
+          },
+        },
+      },
+    },
+  ]);
+
+  const hit = rows[0];
+  return {
+    delivered: Math.round((hit?.delivered ?? 0) * 100) / 100,
+    booked: Math.round((hit?.booked ?? 0) * 100) / 100,
+  };
+}
+
+/**
+ * The salesman dashboard's cards, counted in the database rather than by fetching a list and
+ * filtering it in the browser.
+ *
+ * The old page pulled every visit and every task and did `.filter()` on the result, which meant
+ * the task counts covered the rider's whole history while the visit counts covered today — two
+ * cards side by side answering different questions. Everything here is scoped to one day.
+ */
+export async function getMyDashboardStats(userId: string, date?: string) {
+  // Without this an unparseable string becomes an Invalid Date that silently matches nothing,
+  // reporting a blank day as though it were real. A shape check is not enough on its own:
+  // `2026-02-30` is well-formed and JS quietly rolls it over to March 2, so the report would
+  // come back for a day the caller never asked for. `isValidDayKey` round-trips the date to
+  // reject the impossible ones — the same guard the region-sales dashboard uses.
+  if (date !== undefined && !isValidDayKey(date)) {
+    throw badRequest('date must be a valid date in YYYY-MM-DD format');
+  }
+  const day = date ? new Date(`${date}T12:00:00`) : new Date();
+  const { start, end } = dayBounds(day);
+  const dayKey = date ?? toDayKey(day);
+  // Same window and same field the visits list uses, so each card matches the list it opens.
+  const visitDay = visitDayBoundsUtc(dayKey);
+  const employeeId = new Types.ObjectId(userId);
+
+  const [visitRows, taskRows, sales] = await Promise.all([
+    VisitModel.aggregate<{ _id: string; count: number }>([
+      {
+        $match: {
+          employeeId,
+          isTrashed: { $ne: true },
+          visitDate: { $gte: visitDay.start, $lte: visitDay.end },
+        },
+      },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
+    TaskModel.aggregate<{ _id: string; count: number }>([
+      {
+        $match: {
+          assignedTo: employeeId,
+          isTrashed: { $ne: true },
+          createdAt: { $gte: start, $lt: end },
+        },
+      },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
+    sumOrderAmounts({ $gte: start, $lt: end }, employeeId),
+  ]);
+
+  const countBy = (rows: { _id: string; count: number }[], status: string) =>
+    rows.find((r) => r._id === status)?.count ?? 0;
+  const total = (rows: { _id: string; count: number }[]) =>
+    rows.reduce((sum, r) => sum + r.count, 0);
+
+  return {
+    date: dayKey,
+    visits: {
+      total: total(visitRows),
+      todo: countBy(visitRows, 'todo'),
+      inProgress: countBy(visitRows, 'in_progress') + countBy(visitRows, 'checked_in'),
+      completed: countBy(visitRows, 'completed'),
+      skipped: countBy(visitRows, 'skipped'),
+      incomplete: countBy(visitRows, 'incomplete'),
+      cancelled: countBy(visitRows, 'cancelled'),
+    },
+    tasks: {
+      total: total(taskRows),
+      pending: countBy(taskRows, 'pending'),
+      inProgress: countBy(taskRows, 'in_progress'),
+      completed: countBy(taskRows, 'completed'),
+    },
+    sales: {
+      deliveredAmount: sales.delivered,
+      bookedAmount: sales.booked,
+      totalAmount: Math.round((sales.delivered + sales.booked) * 100) / 100,
+    },
   };
 }
 

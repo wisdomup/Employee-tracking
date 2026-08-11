@@ -88,6 +88,48 @@ function requireDay(value: string | undefined, field: string): string {
 }
 
 /**
+ * What the region levels accept as their window.
+ *
+ * A bare string is the original single-day call and still means exactly that — every existing
+ * caller and test keeps working. An object opens the range up: `{ from, to }` for a span,
+ * `{ date }` for one day.
+ */
+export type SaleWindowInput = string | undefined | { from?: string; to?: string; date?: string };
+
+/**
+ * Resolves any of the accepted window shapes into an inclusive `from`..`to` pair.
+ *
+ * Defaults are chosen so each omission means the obvious thing: no window at all is today,
+ * a `to` on its own is that single day, and a `from` on its own runs up to today.
+ */
+function resolveWindow(input: SaleWindowInput): { from: string; to: string } {
+  if (input == null || typeof input === 'string') {
+    const day = requireDay(input, 'date');
+    return { from: day, to: day };
+  }
+
+  const to = requireDay(input.to ?? input.date, 'to');
+  // Falling back to `to` (not to today) is what makes a single-day request stay one day.
+  const from = requireDay(input.from ?? input.to ?? input.date, 'from');
+
+  if (from > to) {
+    throw badRequest('"from" date must not be after "to" date');
+  }
+  if (dayRangeLength(from, to) > MAX_RANGE_DAYS) {
+    throw badRequest(`Date range is too large — pick ${MAX_RANGE_DAYS} days or fewer`);
+  }
+  return { from, to };
+}
+
+/** UTC instants bounding an inclusive local-day range, in the report timezone. */
+function windowRangeUtc(from: string, to: string): { start: Date; end: Date } {
+  return {
+    start: localDayRangeUtc(from).start,
+    end: localDayRangeUtc(to).end,
+  };
+}
+
+/**
  * The field staff a viewer may see, as concrete ids.
  *
  * `resolveVisibleEmployeeIds` returns `null` for admin (unrestricted); this dashboard
@@ -131,22 +173,32 @@ function pickRegionLabel(current: string, candidate: string): string {
 }
 
 /**
- * Region (city) totals for a single day.
+ * Region (city) totals over a window — one day by default, any range on request.
  *
- * Built from the salesman roster rather than from orders, so a region with no sales that
- * day still shows as Rs. 0 instead of silently disappearing from the list.
+ * Built from the salesman roster rather than from orders, so a region with no sales in the
+ * window still shows as Rs. 0 instead of silently disappearing from the list.
+ *
+ * `date` in the response is the last day of the window, kept so callers written against the
+ * single-day version keep reading a sensible value.
  */
 export async function getRegionTotals(
-  date: string | undefined,
+  window: SaleWindowInput,
   viewerId: string,
   viewerRole: string,
 ) {
-  const day = requireDay(date, 'date');
-  const { start, end } = localDayRangeUtc(day);
+  const { from, to } = resolveWindow(window);
+  const { start, end } = windowRangeUtc(from, to);
 
   const roster = await resolveRoster(viewerId, viewerRole);
   if (roster.length === 0) {
-    return { date: day, timezone: REPORT_TIMEZONE, totals: emptyTotals(), regions: [] as RegionRow[] };
+    return {
+      from,
+      to,
+      date: to,
+      timezone: REPORT_TIMEZONE,
+      totals: emptyTotals(),
+      regions: [] as RegionRow[],
+    };
   }
 
   const employeeIds = roster.map((u) => u._id as Types.ObjectId);
@@ -211,7 +263,9 @@ export async function getRegionTotals(
   });
 
   return {
-    date: day,
+    from,
+    to,
+    date: to,
     timezone: REPORT_TIMEZONE,
     totals: sumTotals(regions),
     regions,
@@ -219,18 +273,18 @@ export async function getRegionTotals(
 }
 
 /**
- * Every salesman in one region, with their individual sale for the day.
- * Salesmen with no sale that day are included at Rs. 0 — the region list must be the
+ * Every salesman in one region, with their individual sale over the window.
+ * Salesmen with no sale in the window are included at Rs. 0 — the region list must be the
  * full team, not only those who sold something.
  */
 export async function getRegionSalesmen(
-  date: string | undefined,
+  window: SaleWindowInput,
   regionKey: string,
   viewerId: string,
   viewerRole: string,
 ) {
-  const day = requireDay(date, 'date');
-  const { start, end } = localDayRangeUtc(day);
+  const { from, to } = resolveWindow(window);
+  const { start, end } = windowRangeUtc(from, to);
   const wantedKey = normalizeCityKey(regionKey);
 
   const roster = (await resolveRoster(viewerId, viewerRole)).filter(
@@ -239,7 +293,9 @@ export async function getRegionSalesmen(
 
   if (roster.length === 0) {
     return {
-      date: day,
+      from,
+      to,
+      date: to,
       timezone: REPORT_TIMEZONE,
       regionKey: wantedKey,
       region: wantedKey === UNASSIGNED_REGION_KEY ? UNASSIGNED_REGION : regionKey,
@@ -280,7 +336,9 @@ export async function getRegionSalesmen(
   salesmen.sort((a, b) => b.totalAmount - a.totalAmount);
 
   return {
-    date: day,
+    from,
+    to,
+    date: to,
     timezone: REPORT_TIMEZONE,
     regionKey: wantedKey,
     // Same label rule as the region list, so the two levels agree on the spelling.

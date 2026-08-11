@@ -233,6 +233,81 @@ export async function updateDealer(
   return dealer.populate('route');
 }
 
+/**
+ * Correct a client's pin and postal address, and nothing else.
+ *
+ * Field staff are the only people standing outside the shop, so they are the only people who
+ * can see that the pin is in the wrong street — but the full update form also carries phone,
+ * category, route and status, which are office decisions. This is a deliberately narrow path:
+ * an order taker may move the pin and fix the address, and cannot touch anything else.
+ *
+ * `cityScope` mirrors the read path (`findById`): a rider who cannot open a client must not be
+ * able to relocate it by guessing the id.
+ */
+export async function updateDealerLocation(
+  id: string,
+  data: {
+    address?: {
+      street?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      postalCode?: string;
+    };
+    latitude?: number;
+    longitude?: number;
+  },
+  actorId?: string,
+  cityScope?: string | null,
+) {
+  const query: Record<string, unknown> = { _id: id, isTrashed: { $ne: true } };
+  if (cityScope) query['address.city'] = cityMatcher(cityScope);
+
+  const dealer = await DealerModel.findOne(query);
+  if (!dealer) {
+    throw notFound('Dealer not found');
+  }
+
+  const before = {
+    latitude: dealer.latitude,
+    longitude: dealer.longitude,
+    address: dealer.address ? { ...(dealer.address as Record<string, unknown>) } : undefined,
+  };
+
+  if (data.latitude !== undefined) dealer.latitude = data.latitude;
+  if (data.longitude !== undefined) dealer.longitude = data.longitude;
+  if (data.address !== undefined) {
+    // Merge rather than replace: the form may send only the fields it shows, and a missing
+    // key should not silently wipe a stored one.
+    dealer.address = {
+      ...((dealer.address as Record<string, unknown>) ?? {}),
+      ...data.address,
+    } as typeof dealer.address;
+  }
+
+  await dealer.save();
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'dealer',
+    entityId: String(dealer._id),
+    action: 'updated',
+    changes: {
+      location: {
+        from: before,
+        to: {
+          latitude: dealer.latitude,
+          longitude: dealer.longitude,
+          address: dealer.address,
+        },
+      },
+    },
+    meta: { name: dealer.name, shopName: dealer.shopName, correction: 'location' },
+  });
+
+  return dealer.populate('route');
+}
+
 export async function deleteDealer(id: string, actorId?: string) {
   const dealer = await DealerModel.findOne({ _id: id, isTrashed: { $ne: true } });
 

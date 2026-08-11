@@ -13,12 +13,36 @@ export or messaging automation, by design.
 
 | Level | Page state | Content |
 | --- | --- | --- |
-| 1 | Regions | Every region with that day's total, delivered, booked, order count and salesman count |
-| 2 | Region → salesmen | Every salesman in that region with their individual sale for the same day |
-| 3 | Salesman → day-wise | From–To range: range total plus a day-by-day breakdown and trend chart |
+| 1 | Regions | Every region with the window's total, delivered, booked, order count and salesman count |
+| 2 | Region → salesmen | Every salesman in that region with their individual sale for the same window |
+| 3 | Salesman → day-wise | Day-by-day breakdown and trend chart across the window |
 
-One page (`/region-sales`) with a breadcrumb; the selected date survives drilling in and
+One page (`/region-sales`) with a breadcrumb; the selected window survives drilling in and
 back out.
+
+### The window
+
+All three levels share **one From–To range**, so drilling in and back out never silently
+changes the period you are looking at. It defaults to today — the dashboard was single-day
+before ranges existed, and a day is still the figure most people come here for — with
+presets for Today, Yesterday, Last 7 days, Last 30 days and This month.
+
+Ranges are capped at **366 days** and a reversed range is rejected rather than silently
+swapped, because a `from` after `to` is far more likely to be a typo than an intent.
+
+On the API, a window can arrive three ways, and the defaults are chosen so each omission
+means the obvious thing:
+
+| Sent | Window |
+| --- | --- |
+| nothing | today |
+| `date=X` | just X |
+| `to=X` | just X — `from` defaults to `to`, **not** to today |
+| `from=X` | X up to today |
+| `from=X&to=Y` | X to Y inclusive |
+
+The `to`-only case is the one worth remembering: defaulting `from` to today instead of to
+`to` would have quietly turned a single-day request into "everything since".
 
 ### Delivered vs Booked
 
@@ -110,9 +134,14 @@ orders — not derived from the orders alone. So:
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/api/region-sales/regions?date=YYYY-MM-DD` | Defaults to today in the report timezone |
-| `GET` | `/api/region-sales/regions/:regionKey/salesmen?date=` | `regionKey` is the lowercased city, or the literal `unassigned` |
+| `GET` | `/api/region-sales/regions?from=&to=` | Also accepts `date=` for one day; defaults to today in the report timezone |
+| `GET` | `/api/region-sales/regions/:regionKey/salesmen?from=&to=` | `regionKey` is the lowercased city, or the literal `unassigned` |
 | `GET` | `/api/region-sales/salesman/:employeeId?from=&to=` | Defaults to the last 7 days; range capped at 366 days |
+
+Responses from the first two carry `from`, `to` **and** `date` — the last is an alias for
+`to`, kept so anything written against the original single-day API still reads a sensible
+value. In the service the window parameter is `string | { from, to, date }`, and a bare
+string still means that single day, so no existing caller or test needed changing.
 
 **Access: `admin` and `sales_manager` only** (`requireRoles`). Riders get 403 — this is an
 oversight view.
@@ -133,7 +162,7 @@ another team's data — consistent with `/analytics` and `/flags`.
 
 ```bash
 npm run test:region-sales        # 19 unit tests — timezone, day keys, city normalisation
-npm run test:region-sales:flow   # 27 integration tests against in-memory MongoDB
+npm run test:region-sales:flow   # 35 integration tests against in-memory MongoDB
 ```
 
 Unit tests pin the boundary behaviour: a Karachi day's exact UTC span, a 02:00 PKT order
@@ -144,6 +173,10 @@ Integration tests cover the aggregation and, critically, the scoping: one manage
 see another's region, drill into it, or pull a salesman from it. Also proven: cancelled /
 trashed / amount-less orders excluded, `Unassigned` bucket, zero-sale salesmen present,
 and that level-2 figures sum to the level-1 region total.
+
+The range tests pin the defaults as much as the arithmetic: a two-day window sums both PKT
+days, a one-day range is byte-identical to the old single-day call, and a lone `to` stays
+one day rather than reaching back to the start of the period.
 
 ### Two bugs the tests caught during development
 1. **`Intl.formatToParts` has no milliseconds**, so the computed offset came out as

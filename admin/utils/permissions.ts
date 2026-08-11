@@ -15,6 +15,9 @@ export type Role =
 const ORDER_TAKER_PERMISSIONS = new Set([
   'dealers:view',
   'dealers:create',
+  // The pin and the postal address only — the rider is the one standing outside the shop.
+  // Phone, category, route and status stay on the admin edit form.
+  'dealers:fix-location',
   'catalogs:view',
   'products:view',
   'activity-logs:view',
@@ -70,10 +73,15 @@ const SALES_MANAGER_PERMISSIONS = new Set([
  * entries and counts, but never approve them — approval is the only control on write-offs.
  *
  * Note which keys are deliberately ABSENT: `transfers:approve`, `damage:approve`,
- * `stock-count:approve`, `warehouses:manage`, `opening-stock:manage`, `stock:set-low-level` and
- * `orders:set-source-warehouse` appear in no Set at all. `can()` returns true for 'admin' before
- * consulting any Set, so `can(role, 'transfers:approve')` is an exact admin test — which lets pages
- * express "admin only" through `can()` instead of hardcoding a role comparison.
+ * `stock-count:approve`, `warehouses:manage`, `opening-stock:manage`, `stock:set-low-level`,
+ * `orders:set-source-warehouse`, `stock-in:edit` and `stock-in:delete` appear in no Set at all.
+ * `can()` returns true for 'admin' before consulting any Set, so `can(role, 'transfers:approve')`
+ * is an exact admin test — which lets pages express "admin only" through `can()` instead of
+ * hardcoding a role comparison.
+ *
+ * `stock-in:edit`/`stock-in:delete` are admin-only while `stock-in:cancel` is not, on purpose: a
+ * cancel leaves the wrong figures visible in the record, whereas an edit rewrites them and a
+ * delete hides the document. Those two rewrite history and stay with the admin.
  */
 const WAREHOUSE_STAFF_PERMISSIONS = new Set([
   'products:view',

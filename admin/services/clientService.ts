@@ -72,6 +72,18 @@ export const clientService = {
     return response.data;
   },
 
+  /**
+   * Correction path for field staff: pin + address only. The full `updateClient` is admin/office
+   * work, so an order taker gets this endpoint instead of the whole form.
+   */
+  async updateClientLocation(
+    id: string,
+    data: { address?: Client['address']; latitude?: number; longitude?: number },
+  ) {
+    const response = await api.patch(`/dealers/${id}/location`, data);
+    return response.data;
+  },
+
   async deleteClient(id: string) {
     const response = await api.delete(`/dealers/${id}`);
     return response.data;

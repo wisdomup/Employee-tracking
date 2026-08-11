@@ -105,7 +105,7 @@ const AnalyticsPage: React.FC = () => {
         ),
       },
       {
-        key: 'salesAmount',
+        key: 'salesAmount', totalFormat: money,
         title: 'Sales vs Target',
         render: (_: unknown, row: PerformanceRow) => (
           <AchievementBar
@@ -118,7 +118,7 @@ const AnalyticsPage: React.FC = () => {
         ),
       },
       {
-        key: 'bookedAmount',
+        key: 'bookedAmount', totalFormat: money,
         title: 'Booked',
         render: (value: number) => money(value ?? 0),
       },
@@ -165,19 +165,19 @@ const AnalyticsPage: React.FC = () => {
         ),
       },
       {
-        key: 'avgVisitMinutes',
+        key: 'avgVisitMinutes', total: 'none' as const,
         title: 'Avg Time At Store',
         render: (value: number | null) => (value == null ? '-' : `${value} min`),
       },
       {
-        key: 'strikeRatePercent',
+        key: 'strikeRatePercent', total: 'none' as const,
         title: 'Strike Rate',
         render: (value: number) => (
           <span title="Share of completed visits that produced an order">{value}%</span>
         ),
       },
       {
-        key: 'outstandingTotal',
+        key: 'outstandingTotal', totalFormat: money,
         title: 'Outstanding',
         render: (value: number, row: PerformanceRow) => (
           <span style={{ color: value > 0 ? '#b45309' : undefined }}>
@@ -189,7 +189,7 @@ const AnalyticsPage: React.FC = () => {
         ),
       },
       {
-        key: 'returnAmount',
+        key: 'returnAmount', totalFormat: money,
         title: 'Returns',
         render: (value: number, row: PerformanceRow) => (
           <span>
@@ -558,6 +558,7 @@ const AnalyticsPage: React.FC = () => {
               columns={columns}
               data={report.rows}
               loading={false}
+              showGrandTotal
               exportFileName={`performance-${periodMonth}`}
               exportPdfTitle={`Performance — ${formatPeriodMonth(periodMonth)}`}
             />

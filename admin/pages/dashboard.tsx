@@ -5,11 +5,13 @@ import {
   ArrowsClockwise,
   CheckCircle,
   ClipboardText,
+  CurrencyCircleDollar,
   Fingerprint,
   Folders,
   Hourglass,
   MapTrifold,
   Package,
+  Path,
   PencilSimple,
   Play,
   Plus,
@@ -28,10 +30,10 @@ import {
   dashboardService,
   DashboardReports,
   DashboardStats,
+  MyDashboardStats,
   RecentActivityEntry,
 } from '../services/dashboardService';
 import { visitService, Visit, getVisitCompletionImageUrl } from '../services/visitService';
-import { taskService } from '../services/taskService';
 import {
   attendanceService,
   Attendance,
@@ -40,6 +42,7 @@ import {
 } from '../services/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import { ALL_ROLES } from '../utils/permissions';
+import { formatRs } from '../utils/formatCurrency';
 import { toast } from 'react-toastify';
 import { format, differenceInMinutes } from 'date-fns';
 import styles from '../styles/Dashboard.module.scss';
@@ -223,16 +226,7 @@ const Dashboard: React.FC = () => {
   );
   const [checkInOutLoading, setCheckInOutLoading] = useState(false);
 
-  const [orderTakerStats, setOrderTakerStats] = useState<{
-    totalVisits: number;
-    visitsTodo: number;
-    visitsInProgress: number;
-    visitsCompleted: number;
-    totalTasks: number;
-    tasksPending: number;
-    tasksInProgress: number;
-    tasksCompleted: number;
-  } | null>(null);
+  const [orderTakerStats, setOrderTakerStats] = useState<MyDashboardStats | null>(null);
   const [orderTakerVisitsForDate, setOrderTakerVisitsForDate] = useState<Visit[]>([]);
   const [orderTakerMapDate, setOrderTakerMapDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [orderTakerMapLoading, setOrderTakerMapLoading] = useState(false);
@@ -245,7 +239,7 @@ const Dashboard: React.FC = () => {
     if (isAdmin) {
       fetchInitialData();
     } else if (isOrderTaker && user?.id) {
-      fetchOrderTakerStats(user.id);
+      fetchOrderTakerStats();
       setLoading(false);
       setReportLoading(false);
     } else {
@@ -254,27 +248,16 @@ const Dashboard: React.FC = () => {
     }
   }, [isAdmin, isOrderTaker, user?.id]);
 
-  const fetchOrderTakerStats = async (userId: string) => {
+  /**
+   * One aggregated call instead of pulling both lists and counting them in the browser.
+   *
+   * The old version fetched today's visits but *all* of the rider's tasks, so the two rows of
+   * cards silently answered different questions — "today" for visits, "ever" for tasks. Both
+   * are now counted in the database against the same day.
+   */
+  const fetchOrderTakerStats = async () => {
     try {
-      // Scope to TODAY. Without a date filter this counted every open visit the rider
-      // had ever been given, so an unfinished visit from a previous day kept showing up
-      // in "Visits To Do" indefinitely.
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      const [visits, tasks] = await Promise.all([
-        visitService.getVisits({ employeeId: userId, startDate: todayStr, endDate: todayStr }),
-        taskService.getTasks({ assignedTo: userId }),
-      ]);
-      setOrderTakerStats({
-        totalVisits: visits.length,
-        visitsTodo: visits.filter((v: any) => v.status === 'todo').length,
-        visitsInProgress: visits.filter((v: any) => v.status === 'in_progress').length,
-        visitsCompleted: visits.filter((v: any) => v.status === 'completed').length,
-        totalTasks: tasks.length,
-        tasksPending: tasks.filter((t: any) => t.status === 'pending').length,
-        tasksInProgress: tasks.filter((t: any) => t.status === 'in_progress').length,
-        tasksCompleted: tasks.filter((t: any) => t.status === 'completed').length,
-      });
+      setOrderTakerStats(await dashboardService.getMyStats());
     } catch {
       // non-critical — widgets will just show links without counts
     }
@@ -422,6 +405,24 @@ const Dashboard: React.FC = () => {
   };
 
   const trendData = useMemo(() => buildTrendDataFromReports(reports), [reports]);
+
+  /**
+   * A `/visits` link scoped to the same day the card's number was counted over.
+   *
+   * The day comes from the API response, not `new Date()` here: the counts are bounded
+   * server-side, and a browser in another timezone (or simply left open past midnight) would
+   * otherwise link to a different day than the one it is displaying.
+   */
+  const visitsDay = stats?.today ?? orderTakerStats?.date ?? '';
+  const visitsLink = (opts?: { status?: string }) => {
+    const params = new URLSearchParams({ view: 'list' });
+    if (opts?.status) params.set('status', opts.status);
+    if (visitsDay) {
+      params.set('startDate', visitsDay);
+      params.set('endDate', visitsDay);
+    }
+    return `/visits?${params.toString()}`;
+  };
 
   const orderTakerVisitSummary = useMemo(() => {
     return {
@@ -876,35 +877,61 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Tasks widgets */}
-          <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>My Tasks</h2>
+          {/*
+            My day. Server-aggregated and scoped to today, so these agree with the map above and
+            with each other. Each card opens the list it counts.
+          */}
+          <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>My Day</h2>
           <div className={styles.statsGrid} style={{ marginBottom: '2rem' }}>
+            <Link href={visitsLink({ status: 'completed' })} className={styles.statCard}>
+              <StatCardIcon Icon={CheckCircle} />
+              <div className={styles.statContent}>
+                {orderTakerStats && (
+                  <div className={styles.statValue}>{orderTakerStats.visits.completed}</div>
+                )}
+                <div className={styles.statLabel}>Completed Visits</div>
+                {orderTakerStats && (
+                  <div className={styles.statSub}>of {orderTakerStats.visits.total} today</div>
+                )}
+              </div>
+            </Link>
+            <Link href={visitsLink({ status: 'todo' })} className={styles.statCard}>
+              <StatCardIcon Icon={Path} />
+              <div className={styles.statContent}>
+                {orderTakerStats && (
+                  <div className={styles.statValue}>{orderTakerStats.visits.todo}</div>
+                )}
+                <div className={styles.statLabel}>Visits To Do</div>
+              </div>
+            </Link>
+            <Link href="/orders" className={styles.statCard}>
+              <StatCardIcon Icon={CurrencyCircleDollar} />
+              <div className={styles.statContent}>
+                {orderTakerStats && (
+                  <div className={styles.statValue}>
+                    {formatRs(orderTakerStats.sales.totalAmount)}
+                  </div>
+                )}
+                <div className={styles.statLabel}>My Sale Today</div>
+                {orderTakerStats && (
+                  <div className={styles.statSub}>
+                    {formatRs(orderTakerStats.sales.deliveredAmount)} delivered
+                  </div>
+                )}
+              </div>
+            </Link>
             <Link href="/tasks" className={styles.statCard}>
               <StatCardIcon Icon={ClipboardText} />
               <div className={styles.statContent}>
-                {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.totalTasks}</div>}
-                <div className={styles.statLabel}>Total Tasks</div>
-              </div>
-            </Link>
-            <Link href="/tasks" className={styles.statCard}>
-              <StatCardIcon Icon={Hourglass} />
-              <div className={styles.statContent}>
-                {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.tasksPending}</div>}
-                <div className={styles.statLabel}>Pending</div>
-              </div>
-            </Link>
-            <Link href="/tasks" className={styles.statCard}>
-              <StatCardIcon Icon={ArrowsClockwise} />
-              <div className={styles.statContent}>
-                {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.tasksInProgress}</div>}
-                <div className={styles.statLabel}>In Progress</div>
-              </div>
-            </Link>
-            <Link href="/tasks" className={styles.statCard}>
-              <StatCardIcon Icon={CheckCircle} />
-              <div className={styles.statContent}>
-                {orderTakerStats && <div className={styles.statValue}>{orderTakerStats.tasksCompleted}</div>}
-                <div className={styles.statLabel}>Completed</div>
+                {orderTakerStats && (
+                  <div className={styles.statValue}>{orderTakerStats.tasks.total}</div>
+                )}
+                <div className={styles.statLabel}>Tasks Today</div>
+                {orderTakerStats && (
+                  <div className={styles.statSub}>
+                    {orderTakerStats.tasks.completed} done · {orderTakerStats.tasks.pending} pending
+                  </div>
+                )}
               </div>
             </Link>
           </div>
@@ -941,21 +968,24 @@ const Dashboard: React.FC = () => {
   }
 
   const mapMarkers = stats.completedTasksForMap.flatMap((task) => {
-    const markers = [];
-    if (task.clientLocation) {
+    const markers: { lat: number; lng: number; type: 'client' | 'completion'; label: string }[] = [];
+    // `clientLocation` was read here while the API only sent `dealerLocation`, so the shop pin
+    // never rendered. The API now sends both under the same object; prefer the new name.
+    const client = task.clientLocation ?? task.dealerLocation;
+    if (client?.latitude != null && client?.longitude != null) {
       markers.push({
-        lat: task.clientLocation.latitude,
-        lng: task.clientLocation.longitude,
-        type: 'client' as const,
-        label: task.clientLocation.name,
+        lat: client.latitude,
+        lng: client.longitude,
+        type: 'client',
+        label: client.name ?? 'Client',
       });
     }
-    if (task.completionLocation) {
+    if (task.completionLocation?.latitude != null && task.completionLocation?.longitude != null) {
       markers.push({
         lat: task.completionLocation.latitude,
         lng: task.completionLocation.longitude,
-        type: 'completion' as const,
-        label: `${task.taskName} - ${task.employeeName}`,
+        type: 'completion',
+        label: `${task.taskName ?? 'Task'} - ${task.employeeName ?? 'Unknown'}`,
       });
     }
     return markers;
@@ -1071,6 +1101,63 @@ const Dashboard: React.FC = () => {
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.tasksInProgress}</div>
               <div className={styles.statLabel}>Tasks In Progress</div>
+            </div>
+          </Link>
+        </div>
+
+        {/*
+          Today's field work. Visits — not the legacy Tasks module above — are what the riders
+          actually do all day, so these are the numbers an admin opens the dashboard for. Every
+          card deep-links into the list it counts.
+        */}
+        <h2 className={styles.sectionTitle} style={{ marginTop: '2rem', marginBottom: '1rem' }}>
+          Today
+        </h2>
+        <div className={styles.statsGrid}>
+          {/*
+            Both links carry the server's own day and the same status, so the list that opens
+            holds exactly the rows the card counted.
+          */}
+          <Link href={visitsLink({ status: 'completed' })} className={styles.statCard}>
+            <StatCardIcon Icon={CheckCircle} />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.visitsCompletedToday}</div>
+              <div className={styles.statLabel}>Completed Visits</div>
+              <div className={styles.statSub}>of {stats.stats.visitsToday} scheduled today</div>
+            </div>
+          </Link>
+
+          {/*
+            No status filter here: "still open" spans todo, in progress and checked in, and the
+            list's filter takes one status. Linking to today unfiltered shows a superset the
+            admin can narrow, which is honest; linking to `status=todo` would quietly show
+            fewer rows than the number promised.
+          */}
+          <Link href={visitsLink()} className={styles.statCard}>
+            <StatCardIcon Icon={Path} />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.visitsOpenToday}</div>
+              <div className={styles.statLabel}>Visits Still Open</div>
+              <div className={styles.statSub}>to do, in progress or checked in</div>
+            </div>
+          </Link>
+
+          <Link href="/orders" className={styles.statCard}>
+            <StatCardIcon Icon={ShoppingCart} />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{stats.stats.ordersToday}</div>
+              <div className={styles.statLabel}>Orders Today</div>
+            </div>
+          </Link>
+
+          <Link href="/region-sales" className={styles.statCard}>
+            <StatCardIcon Icon={CurrencyCircleDollar} />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>{formatRs(stats.stats.deliveredSalesToday)}</div>
+              <div className={styles.statLabel}>Delivered Sales Today</div>
+              <div className={styles.statSub}>
+                {formatRs(stats.stats.bookedSalesToday)} booked
+              </div>
             </div>
           </Link>
         </div>
