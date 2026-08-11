@@ -214,6 +214,59 @@ export function recentPeriodMonths(count = 12): string[] {
   return months;
 }
 
+/** KPI tiles on `/analytics` that drill down into a detail page. Mirrors the backend enum. */
+export type PerformanceDetailMetric =
+  | 'sales'
+  | 'target'
+  | 'achievement'
+  | 'booked'
+  | 'orders'
+  | 'visits-completed'
+  | 'overstays'
+  | 'new-clients'
+  | 'visit-completion'
+  | 'visits-skipped'
+  | 'extra-visits'
+  | 'total-visits-done'
+  | 'open-flags'
+  | 'days-present'
+  | 'collected'
+  | 'outstanding'
+  | 'collection-rate'
+  | 'returns'
+  | 'avg-order-value'
+  | 'strike-rate'
+  | 'tasks-done'
+  | 'achieved-target'
+  | 'behind-pace'
+  | 'below-visits';
+
+export type DetailColumnType = 'text' | 'number' | 'currency' | 'percent' | 'date';
+
+export interface DetailColumn {
+  key: string;
+  title: string;
+  type?: DetailColumnType;
+}
+
+export interface DetailSummaryItem {
+  label: string;
+  value: number;
+  type?: DetailColumnType;
+}
+
+export interface PerformanceDetail {
+  metric: PerformanceDetailMetric;
+  title: string;
+  description: string;
+  filters: { periodMonth: string; employeeId: string | null };
+  columns: DetailColumn[];
+  summary: DetailSummaryItem[];
+  rows: Record<string, any>[];
+  /** `true` when the row cap was hit and the list is partial. */
+  truncated: boolean;
+}
+
 export const analyticsService = {
   async getPerformance(filters?: {
     periodMonth?: string;
@@ -223,6 +276,17 @@ export const analyticsService = {
     if (filters?.periodMonth) params.append('periodMonth', filters.periodMonth);
     if (filters?.employeeId) params.append('employeeId', filters.employeeId);
     const response = await api.get(`/analytics/performance?${params.toString()}`);
+    return response.data;
+  },
+
+  async getPerformanceDetail(
+    metric: PerformanceDetailMetric,
+    filters?: { periodMonth?: string; employeeId?: string },
+  ): Promise<PerformanceDetail> {
+    const params = new URLSearchParams({ metric });
+    if (filters?.periodMonth) params.append('periodMonth', filters.periodMonth);
+    if (filters?.employeeId) params.append('employeeId', filters.employeeId);
+    const response = await api.get(`/analytics/performance/detail?${params.toString()}`);
     return response.data;
   },
 

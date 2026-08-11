@@ -17,14 +17,25 @@ import { toast } from 'react-toastify';
 import { format, differenceInMinutes } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
 
+/** Minutes on a closed shift; 0 while the shift is still open or the clock ran backwards. */
+function durationMinutes(checkIn: string, checkOut?: string): number {
+  if (!checkOut) return 0;
+  const mins = differenceInMinutes(new Date(checkOut), new Date(checkIn));
+  return mins > 0 ? mins : 0;
+}
+
+function formatMinutes(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 function formatDuration(checkIn: string, checkOut?: string): string {
   if (!checkOut) return '-';
   const mins = differenceInMinutes(new Date(checkOut), new Date(checkIn));
   if (mins < 0) return '-';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h ${m}m`;
+  return formatMinutes(mins);
 }
 
 const AttendancePage: React.FC = () => {
@@ -144,6 +155,9 @@ const AttendancePage: React.FC = () => {
       render: (_: unknown, row: Attendance) =>
         formatDuration(row.checkInTime, row.checkOutTime),
       exportValue: (row: Attendance) => formatDuration(row.checkInTime, row.checkOutTime),
+      total: 'sum' as const,
+      totalValue: (row: Attendance) => durationMinutes(row.checkInTime, row.checkOutTime),
+      totalRender: (value: number) => formatMinutes(value),
     },
     {
       key: 'note',

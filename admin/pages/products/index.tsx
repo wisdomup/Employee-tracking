@@ -162,6 +162,7 @@ const ProductsPage: React.FC = () => {
         ) : (
           '-'
         ),
+      total: 'sum' as const,
     },
     {
       key: 'createdBy',

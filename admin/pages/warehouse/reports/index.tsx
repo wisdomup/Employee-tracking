@@ -361,6 +361,8 @@ function WarehouseReportsPage() {
         return formatPieces(value);
       },
       exportValue: (row: StockRow) => String(row.sellable),
+      total: 'sum',
+      totalRender: (value: number) => formatPieces(value),
     },
     {
       key: 'damaged',
@@ -372,14 +374,20 @@ function WarehouseReportsPage() {
           '0'
         ),
       exportValue: (row: StockRow) => String(row.damaged),
+      total: 'sum',
+      totalRender: (value: number) => formatPieces(value),
     },
     {
       key: 'inTransit',
       title: 'In Transit',
       render: (value: number) => (value > 0 ? formatPieces(value) : '0'),
+      total: 'sum',
+      totalRender: (value: number) => formatPieces(value),
     },
     {
-      key: 'totalSellableAllWarehouses', total: 'none' as const,
+      // Deliberately NOT totalled: the same all-warehouse figure repeats on every warehouse row,
+      // so a sum would multiply the real stock by the number of warehouses holding that product.
+      key: 'totalSellableAllWarehouses',
       title: 'Total (all warehouses)',
       render: (v: number) => formatPieces(v),
     },
@@ -393,18 +401,28 @@ function WarehouseReportsPage() {
     },
     ...(showCost
       ? [
-          { key: 'avgCost', total: 'none' as const, title: 'Avg cost', render: (v: number) => (v ? formatRsExact(v) : '—') },
           {
-            key: 'stockValue', totalFormat: formatRsExact,
+            key: 'avgCost',
+            title: 'Avg cost',
+            render: (v: number) => (v ? formatRsExact(v) : '—'),
+            total: 'avg' as const,
+            totalRender: (value: number) => formatRsExact(value),
+          },
+          {
+            key: 'stockValue',
             title: 'Stock value',
             render: (v: number) => (v ? formatRsExact(v) : '—'),
+            total: 'sum' as const,
+            totalRender: (value: number) => formatRsExact(value),
           },
         ]
       : []),
     {
-      key: 'potentialSaleValue', totalFormat: formatRsExact,
+      key: 'potentialSaleValue',
       title: 'Could sell for',
       render: (v: number) => (v ? formatRsExact(v) : '—'),
+      total: 'sum',
+      totalRender: (value: number) => formatRsExact(value),
     },
   ];
 
@@ -450,6 +468,9 @@ function WarehouseReportsPage() {
       render: (_: unknown, row: StockMovementRow) =>
         row.delta > 0 ? <span style={{ color: '#047857' }}>+{formatPieces(row.delta)}</span> : '',
       exportValue: (row: StockMovementRow) => (row.delta > 0 ? String(row.delta) : ''),
+      total: 'sum',
+      totalValue: (row: StockMovementRow) => (row.delta > 0 ? row.delta : 0),
+      totalRender: (value: number) => `+${formatPieces(value)}`,
     },
     {
       key: 'out',
@@ -461,10 +482,22 @@ function WarehouseReportsPage() {
           ''
         ),
       exportValue: (row: StockMovementRow) => (row.delta < 0 ? String(Math.abs(row.delta)) : ''),
+      total: 'sum',
+      totalValue: (row: StockMovementRow) => (row.delta < 0 ? Math.abs(row.delta) : 0),
+      totalRender: (value: number) => `-${formatPieces(value)}`,
     },
-    { key: 'balanceAfter', total: 'none' as const, title: 'Balance after', render: (v: number) => formatPieces(v ?? 0) },
+    // `balanceAfter` is a running balance — the last row already IS the total, so no footer sum.
+    { key: 'balanceAfter', title: 'Balance after', render: (v: number) => formatPieces(v ?? 0) },
     ...(showCost
-      ? [{ key: 'unitCost', total: 'none' as const, title: 'Rate', render: (v: number) => (v ? formatRsExact(v) : '—') }]
+      ? [
+          {
+            key: 'unitCost',
+            title: 'Rate',
+            render: (v: number) => (v ? formatRsExact(v) : '—'),
+            total: 'avg' as const,
+            totalRender: (value: number) => formatRsExact(value),
+          },
+        ]
       : []),
     {
       key: 'actorId',

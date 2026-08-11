@@ -7,6 +7,48 @@ export interface TableExportColumn {
   title: string;
   omitFromExport?: boolean;
   exportValue?: (row: unknown) => string;
+  /** Grand-total treatment; mirrors `TableColumnConfig` so exports carry the same footer row. */
+  total?: 'sum' | 'avg' | 'count';
+  totalValue?: (row: any) => number;
+  totalRender?: (value: number) => unknown;
+}
+
+/**
+ * Grand total for one column across the WHOLE data set. Shared by the on-screen footer and the
+ * CSV/PDF export so a printed report can never disagree with the screen it came from.
+ */
+export function aggregateColumn(column: TableExportColumn, data: unknown[]): number {
+  const rows = data as Record<string, unknown>[];
+  const rawOf = (row: Record<string, unknown>) =>
+    column.totalValue ? column.totalValue(row) : row[column.key];
+
+  if (column.total === 'count') {
+    return rows.filter((row) => Boolean(rawOf(row))).length;
+  }
+
+  const numberOf = (row: Record<string, unknown>) => {
+    const raw = rawOf(row);
+    const num = typeof raw === 'string' ? Number(raw.replace(/,/g, '')) : Number(raw);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const sum = rows.reduce((total, row) => total + numberOf(row), 0);
+  if (column.total === 'avg') {
+    // Rows with no reading sit out of the divisor rather than dragging the average toward zero.
+    const counted = rows.filter((row) => {
+      const raw = rawOf(row);
+      return raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw));
+    }).length;
+    return counted ? sum / counted : 0;
+  }
+  return sum;
+}
+
+/** Locale-grouped fallback for a total with no `totalRender`. */
+export function formatTotalForDisplay(value: number): string {
+  return Number.isInteger(value)
+    ? value.toLocaleString()
+    : value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export type TableExportFormat = 'csv' | 'pdf';
@@ -30,7 +72,30 @@ export function getExportTableData(
       return raw ?? '';
     }),
   );
+
+  const totalsRow = buildTotalsRow(exportCols, data);
+  if (totalsRow) rows.push(totalsRow);
+
   return { headers, rows };
+}
+
+/** The exported footer, or `null` when no visible column declares a total. */
+function buildTotalsRow(exportCols: TableExportColumn[], data: unknown[]): string[] | null {
+  if (!data.length || !exportCols.some((col) => col.total)) return null;
+
+  return exportCols.map((col, index) => {
+    if (col.total) {
+      const value = aggregateColumn(col, data);
+      // `totalRender` may return JSX for the screen; only a plain string is usable in a file.
+      const rendered = col.totalRender ? col.totalRender(value) : undefined;
+      const text =
+        typeof rendered === 'string' || typeof rendered === 'number'
+          ? String(rendered)
+          : formatTotalForDisplay(value);
+      return col.total === 'avg' ? `Avg ${text}` : text;
+    }
+    return index === 0 ? `TOTAL (${data.length} entries)` : '';
+  });
 }
 
 function escapeCsvField(val: string): string {

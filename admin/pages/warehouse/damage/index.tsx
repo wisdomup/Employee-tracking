@@ -140,6 +140,9 @@ function DamageListPage() {
         formatPieces(row.products.reduce((sum, p) => sum + p.quantity, 0)),
       exportValue: (row: DamageClaim) =>
         String(row.products.reduce((sum, p) => sum + p.quantity, 0)),
+      total: 'sum',
+      totalValue: (row: DamageClaim) => row.products.reduce((sum, p) => sum + p.quantity, 0),
+      totalRender: (value: number) => formatPieces(value),
     },
     {
       key: 'source',

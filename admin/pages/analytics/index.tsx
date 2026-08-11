@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -13,6 +14,7 @@ import { ALL_ROLES, can } from '../../utils/permissions';
 import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
 import {
   analyticsService,
+  PerformanceDetailMetric,
   PerformanceReport,
   PerformanceRow,
   PerformanceTrend,
@@ -27,6 +29,31 @@ const LineTrendChart = dynamic(() => import('../../components/UI/LineTrendChart'
 
 const money = (value: number) =>
   value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * A KPI tile that drills into `/analytics/[metric]`. The month and employee filter travel in the
+ * query so the detail page opens on exactly the slice the tile was showing.
+ */
+const KpiTile: React.FC<{
+  metric: PerformanceDetailMetric;
+  label: React.ReactNode;
+  query: string;
+  /** Colour applied to the value, as each tile used before it became a link. */
+  valueStyle?: React.CSSProperties;
+  /** Tooltip explaining the metric; falls back to a plain drill-down hint. */
+  hint?: string;
+  children: React.ReactNode;
+}> = ({ metric, label, query, valueStyle, hint, children }) => (
+  <Link
+    href={`/analytics/${metric}${query}`}
+    className={`${styles.kpiCard} ${styles.kpiCardLink}`}
+    title={hint ?? 'View details'}
+  >
+    <span>{label}</span>
+    <strong style={valueStyle}>{children}</strong>
+    <em className={styles.kpiCardHint}>View details</em>
+  </Link>
+);
 
 const AnalyticsPage: React.FC = () => {
   const router = useRouter();
@@ -68,6 +95,21 @@ const AnalyticsPage: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Restore the filters when coming back from a KPI drill-down, which links back with them.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const month = router.query.periodMonth as string | undefined;
+    if (month) setPeriodMonth(month);
+    setEmployeeId((router.query.employeeId as string) || '');
+  }, [router.isReady, router.query.periodMonth, router.query.employeeId]);
+
+  /** Filters carried into every KPI drill-down link. */
+  const detailQuery = useMemo(() => {
+    const params = new URLSearchParams({ periodMonth });
+    if (employeeId) params.append('employeeId', employeeId);
+    return `?${params.toString()}`;
+  }, [periodMonth, employeeId]);
 
   // Roster depends only on the month, never on the selected employee.
   useEffect(() => {
@@ -116,11 +158,16 @@ const AnalyticsPage: React.FC = () => {
             format={money}
           />
         ),
+        total: 'sum' as const,
+        totalValue: (row: PerformanceRow) => row.salesAmount ?? 0,
+        totalRender: (value: number) => money(value),
       },
       {
         key: 'bookedAmount', totalFormat: money,
         title: 'Booked',
         render: (value: number) => money(value ?? 0),
+        total: 'sum' as const,
+        totalRender: (value: number) => money(value),
       },
       {
         key: 'orderCount',
@@ -133,6 +180,8 @@ const AnalyticsPage: React.FC = () => {
             )}
           </span>
         ),
+        total: 'sum' as const,
+        totalValue: (row: PerformanceRow) => row.orderCount ?? 0,
       },
       {
         key: 'visitsCompleted',
@@ -163,11 +212,16 @@ const AnalyticsPage: React.FC = () => {
             )}
           </span>
         ),
+        total: 'sum' as const,
+        totalValue: (row: PerformanceRow) => row.visitsCompleted ?? 0,
+        totalRender: (value: number) => `${value.toLocaleString()} done`,
       },
       {
         key: 'avgVisitMinutes', total: 'none' as const,
         title: 'Avg Time At Store',
         render: (value: number | null) => (value == null ? '-' : `${value} min`),
+        total: 'avg' as const,
+        totalRender: (value: number) => `${Math.round(value * 10) / 10} min`,
       },
       {
         key: 'strikeRatePercent', total: 'none' as const,
@@ -175,6 +229,8 @@ const AnalyticsPage: React.FC = () => {
         render: (value: number) => (
           <span title="Share of completed visits that produced an order">{value}%</span>
         ),
+        total: 'avg' as const,
+        totalRender: (value: number) => `${Math.round(value * 10) / 10}%`,
       },
       {
         key: 'outstandingTotal', totalFormat: money,
@@ -187,6 +243,8 @@ const AnalyticsPage: React.FC = () => {
             </span>
           </span>
         ),
+        total: 'sum' as const,
+        totalRender: (value: number) => money(value),
       },
       {
         key: 'returnAmount', totalFormat: money,
@@ -199,6 +257,8 @@ const AnalyticsPage: React.FC = () => {
             </span>
           </span>
         ),
+        total: 'sum' as const,
+        totalRender: (value: number) => money(value),
       },
       {
         key: 'daysPresent',
@@ -212,6 +272,8 @@ const AnalyticsPage: React.FC = () => {
             </span>
           </span>
         ),
+        total: 'sum' as const,
+        totalRender: (value: number) => `${value.toLocaleString()} days`,
       },
       {
         key: 'tasksCompleted',
@@ -227,6 +289,8 @@ const AnalyticsPage: React.FC = () => {
               </span>
             </span>
           ),
+        total: 'sum' as const,
+        totalValue: (row: PerformanceRow) => row.tasksCompleted ?? 0,
       },
       {
         key: 'overstayCount',
@@ -242,8 +306,11 @@ const AnalyticsPage: React.FC = () => {
             </span>
           );
         },
+        total: 'sum' as const,
+        totalValue: (row: PerformanceRow) => (row.overstayCount ?? 0) + (row.lowCompletionFlags ?? 0),
+        totalRender: (value: number) => `${value.toLocaleString()} flags`,
       },
-      { key: 'newClients', title: 'New Clients' },
+      { key: 'newClients', title: 'New Clients', total: 'sum' as const },
       {
         key: '_actions',
         title: 'Actions',
@@ -351,180 +418,170 @@ const AnalyticsPage: React.FC = () => {
         </p>
 
         <div className={styles.kpiGrid}>
-          <div className={styles.kpiCard}>
-            <span>Sales (Delivered)</span>
-            <strong>{money(kpis.salesAmount)}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Target</span>
-            <strong>{kpis.targetSalesAmount ? money(kpis.targetSalesAmount) : '—'}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Achievement</span>
-            <strong
-              style={{
-                color:
-                  kpis.salesAchievementPercent == null
-                    ? undefined
-                    : kpis.salesAchievementPercent >= 100
-                      ? '#065f46'
-                      : kpis.salesAchievementPercent >= kpis.monthElapsedPercent * 0.9
-                        ? '#0369a1'
-                        : '#b91c1c',
-              }}
-            >
-              {kpis.salesAchievementPercent == null ? '—' : `${kpis.salesAchievementPercent}%`}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Booked (Open Orders)</span>
-            <strong>{money(kpis.bookedAmount)}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Orders</span>
-            <strong>{kpis.orderCount}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Visits Completed</span>
-            <strong>
-              {kpis.visitsCompleted}
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {' '}
-                / {kpis.visitsAssigned}
-              </span>
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Overstays ({'>'}30 min)</span>
-            <strong style={{ color: kpis.overstayCount > 0 ? '#b91c1c' : undefined }}>
-              {kpis.overstayCount}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>New Clients</span>
-            <strong>{kpis.newClients}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Visit Completion</span>
-            <strong
-              style={{
-                color:
-                  kpis.visitsAssigned > 0 && kpis.visitCompletionRate < kpis.visitThresholdPercent
-                    ? '#b91c1c'
-                    : undefined,
-              }}
-            >
-              {kpis.visitCompletionRate}%
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {' '}
-                / {kpis.visitThresholdPercent}% pass
-              </span>
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Visits Skipped</span>
-            <strong style={{ color: kpis.visitsSkipped > 0 ? '#92400e' : undefined }}>
-              {kpis.visitsSkipped}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Extra Visits</span>
-            <strong
-              style={{ color: kpis.extraVisitsCompleted > 0 ? '#5b21b6' : undefined }}
-              title="Visits riders started themselves, outside their assigned route. Counted as work done, but not in the completion rate."
-            >
-              {kpis.extraVisitsCompleted}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Total Visits Done</span>
-            <strong title="Assigned visits completed plus self-started extras">
-              {kpis.totalVisitsCompleted}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Open Flags</span>
-            <strong style={{ color: kpis.flagsOpen > 0 ? '#b91c1c' : undefined }}>
-              {kpis.flagsOpen}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Days Present</span>
-            <strong>
-              {kpis.daysPresent}
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {' '}
-                · {kpis.hoursWorked}h
-              </span>
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Collected</span>
-            <strong>{money(kpis.collectedTotal)}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Outstanding</span>
-            <strong style={{ color: kpis.outstandingTotal > 0 ? '#b45309' : undefined }}>
-              {money(kpis.outstandingTotal)}
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Collection Rate</span>
-            <strong>{kpis.collectionRatePercent}%</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Returns</span>
-            <strong>
-              {money(kpis.returnAmount)}
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {' '}
-                ({kpis.returnRatePercent}%)
-              </span>
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Avg Order Value</span>
-            <strong>{money(kpis.avgOrderValue)}</strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Strike Rate</span>
-            <strong title="Share of completed visits that produced an order">
-              {kpis.strikeRatePercent}%
-            </strong>
-          </div>
-          <div className={styles.kpiCard}>
-            <span>Tasks Done</span>
-            <strong>
-              {kpis.tasksCompleted}
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                {' '}
-                / {kpis.tasksAssigned} ({kpis.taskCompletionRate}%)
-              </span>
-            </strong>
-          </div>
+          <KpiTile metric="sales" label="Sales (Delivered)" query={detailQuery}>
+            {money(kpis.salesAmount)}
+          </KpiTile>
+          <KpiTile metric="target" label="Target" query={detailQuery}>
+            {kpis.targetSalesAmount ? money(kpis.targetSalesAmount) : '—'}
+          </KpiTile>
+          <KpiTile
+            metric="achievement"
+            label="Achievement"
+            query={detailQuery}
+            valueStyle={{
+              color:
+                kpis.salesAchievementPercent == null
+                  ? undefined
+                  : kpis.salesAchievementPercent >= 100
+                    ? '#065f46'
+                    : kpis.salesAchievementPercent >= kpis.monthElapsedPercent * 0.9
+                      ? '#0369a1'
+                      : '#b91c1c',
+            }}
+          >
+            {kpis.salesAchievementPercent == null ? '—' : `${kpis.salesAchievementPercent}%`}
+          </KpiTile>
+          <KpiTile metric="booked" label="Booked (Open Orders)" query={detailQuery}>
+            {money(kpis.bookedAmount)}
+          </KpiTile>
+          <KpiTile metric="orders" label="Orders" query={detailQuery}>
+            {kpis.orderCount}
+          </KpiTile>
+          <KpiTile metric="visits-completed" label="Visits Completed" query={detailQuery}>
+            {kpis.visitsCompleted}
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> / {kpis.visitsAssigned}</span>
+          </KpiTile>
+          <KpiTile
+            metric="overstays"
+            label={`Overstays (>30 min)`}
+            query={detailQuery}
+            valueStyle={{ color: kpis.overstayCount > 0 ? '#b91c1c' : undefined }}
+          >
+            {kpis.overstayCount}
+          </KpiTile>
+          <KpiTile metric="new-clients" label="New Clients" query={detailQuery}>
+            {kpis.newClients}
+          </KpiTile>
+          <KpiTile
+            metric="visit-completion"
+            label="Visit Completion"
+            query={detailQuery}
+            valueStyle={{
+              color:
+                kpis.visitsAssigned > 0 && kpis.visitCompletionRate < kpis.visitThresholdPercent
+                  ? '#b91c1c'
+                  : undefined,
+            }}
+          >
+            {kpis.visitCompletionRate}%
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+              {' '}
+              / {kpis.visitThresholdPercent}% pass
+            </span>
+          </KpiTile>
+          <KpiTile
+            metric="visits-skipped"
+            label="Visits Skipped"
+            query={detailQuery}
+            valueStyle={{ color: kpis.visitsSkipped > 0 ? '#92400e' : undefined }}
+          >
+            {kpis.visitsSkipped}
+          </KpiTile>
+          <KpiTile
+            metric="extra-visits"
+            label="Extra Visits"
+            query={detailQuery}
+            valueStyle={{ color: kpis.extraVisitsCompleted > 0 ? '#5b21b6' : undefined }}
+            hint="Visits riders started themselves, outside their assigned route. Counted as work done, but not in the completion rate."
+          >
+            {kpis.extraVisitsCompleted}
+          </KpiTile>
+          <KpiTile
+            metric="total-visits-done"
+            label="Total Visits Done"
+            query={detailQuery}
+            hint="Assigned visits completed plus self-started extras"
+          >
+            {kpis.totalVisitsCompleted}
+          </KpiTile>
+          <KpiTile
+            metric="open-flags"
+            label="Open Flags"
+            query={detailQuery}
+            valueStyle={{ color: kpis.flagsOpen > 0 ? '#b91c1c' : undefined }}
+          >
+            {kpis.flagsOpen}
+          </KpiTile>
+          <KpiTile metric="days-present" label="Days Present" query={detailQuery}>
+            {kpis.daysPresent}
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> · {kpis.hoursWorked}h</span>
+          </KpiTile>
+          <KpiTile metric="collected" label="Collected" query={detailQuery}>
+            {money(kpis.collectedTotal)}
+          </KpiTile>
+          <KpiTile
+            metric="outstanding"
+            label="Outstanding"
+            query={detailQuery}
+            valueStyle={{ color: kpis.outstandingTotal > 0 ? '#b45309' : undefined }}
+          >
+            {money(kpis.outstandingTotal)}
+          </KpiTile>
+          <KpiTile metric="collection-rate" label="Collection Rate" query={detailQuery}>
+            {kpis.collectionRatePercent}%
+          </KpiTile>
+          <KpiTile metric="returns" label="Returns" query={detailQuery}>
+            {money(kpis.returnAmount)}
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+              {' '}
+              ({kpis.returnRatePercent}%)
+            </span>
+          </KpiTile>
+          <KpiTile metric="avg-order-value" label="Avg Order Value" query={detailQuery}>
+            {money(kpis.avgOrderValue)}
+          </KpiTile>
+          <KpiTile
+            metric="strike-rate"
+            label="Strike Rate"
+            query={detailQuery}
+            hint="Share of completed visits that produced an order"
+          >
+            {kpis.strikeRatePercent}%
+          </KpiTile>
+          <KpiTile metric="tasks-done" label="Tasks Done" query={detailQuery}>
+            {kpis.tasksCompleted}
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+              {' '}
+              / {kpis.tasksAssigned} ({kpis.taskCompletionRate}%)
+            </span>
+          </KpiTile>
           {!isSelfOnly && (
             <>
-              <div className={styles.kpiCard}>
-                <span>Achieved Target</span>
-                <strong style={{ color: '#065f46' }}>
-                  {kpis.ridersAchieved}
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> / {kpis.headcount}</span>
-                </strong>
-              </div>
-              <div className={styles.kpiCard}>
-                <span>Behind Pace</span>
-                <strong style={{ color: kpis.ridersBehind > 0 ? '#b91c1c' : undefined }}>
-                  {kpis.ridersBehind}
-                </strong>
-              </div>
-              <div className={styles.kpiCard}>
-                <span>Below {kpis.visitThresholdPercent}% Visits</span>
-                <strong
-                  style={{ color: kpis.ridersBelowVisitThreshold > 0 ? '#b91c1c' : undefined }}
-                >
-                  {kpis.ridersBelowVisitThreshold}
-                </strong>
-              </div>
+              <KpiTile
+                metric="achieved-target"
+                label="Achieved Target"
+                query={detailQuery}
+                valueStyle={{ color: '#065f46' }}
+              >
+                {kpis.ridersAchieved}
+                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> / {kpis.headcount}</span>
+              </KpiTile>
+              <KpiTile
+                metric="behind-pace"
+                label="Behind Pace"
+                query={detailQuery}
+                valueStyle={{ color: kpis.ridersBehind > 0 ? '#b91c1c' : undefined }}
+              >
+                {kpis.ridersBehind}
+              </KpiTile>
+              <KpiTile
+                metric="below-visits"
+                label={`Below ${kpis.visitThresholdPercent}% Visits`}
+                query={detailQuery}
+                valueStyle={{ color: kpis.ridersBelowVisitThreshold > 0 ? '#b91c1c' : undefined }}
+              >
+                {kpis.ridersBelowVisitThreshold}
+              </KpiTile>
             </>
           )}
         </div>

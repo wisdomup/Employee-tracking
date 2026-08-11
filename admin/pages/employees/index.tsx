@@ -105,16 +105,23 @@ const EmployeesPage: React.FC = () => {
       title: 'Salary',
       render: (_: unknown, row: Employee) =>
         row.perks?.salary != null ? String(row.perks.salary) : '-',
+      total: 'sum' as const,
+      totalValue: (row: Employee) => Number(row.perks?.salary ?? 0),
     },
     {
       key: 'target',
       title: 'Target',
       render: (value: string) => value || '-',
+      // Stored as free text, so anything non-numeric contributes nothing rather than breaking.
+      total: 'sum' as const,
+      totalValue: (row: Employee) => Number(row.target) || 0,
     },
     {
       key: 'achivedTarget',
       title: 'Target Achieved',
       render: (value: string) => value || '-',
+      total: 'sum' as const,
+      totalValue: (row: Employee) => Number(row.achivedTarget) || 0,
     },
     {
       key: 'address',

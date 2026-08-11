@@ -136,6 +136,11 @@ function WarehousesPage() {
           />
         );
       },
+      // Sellable only: adding damaged and in-transit here would double-count stock that the
+      // per-warehouse cell deliberately keeps in separate buckets.
+      total: 'sum',
+      totalValue: (row: Warehouse) => totalsByWarehouse.get(row._id)?.sellable ?? 0,
+      totalRender: (value: number) => `${value.toLocaleString()} sellable`,
     },
     {
       key: 'isActive',

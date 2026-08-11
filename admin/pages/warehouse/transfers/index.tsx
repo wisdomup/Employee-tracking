@@ -149,6 +149,8 @@ function TransfersListPage() {
       title: 'Lines',
       render: (_: unknown, row: StockTransfer) => String(row.products.length),
       exportValue: (row: StockTransfer) => String(row.products.length),
+      total: 'sum',
+      totalValue: (row: StockTransfer) => row.products.length,
     },
     {
       key: 'sent',
@@ -157,6 +159,9 @@ function TransfersListPage() {
         formatPieces(row.products.reduce((sum, p) => sum + p.sentQty, 0)),
       exportValue: (row: StockTransfer) =>
         String(row.products.reduce((sum, p) => sum + p.sentQty, 0)),
+      total: 'sum',
+      totalValue: (row: StockTransfer) => row.products.reduce((sum, p) => sum + p.sentQty, 0),
+      totalRender: (value: number) => formatPieces(value),
     },
     {
       key: 'received',
@@ -170,6 +175,10 @@ function TransfersListPage() {
         row.products.some((p) => p.receivedQty !== undefined)
           ? String(row.products.reduce((sum, p) => sum + (p.receivedQty ?? 0), 0))
           : '',
+      total: 'sum',
+      totalValue: (row: StockTransfer) =>
+        row.products.reduce((sum, p) => sum + (p.receivedQty ?? 0), 0),
+      totalRender: (value: number) => formatPieces(value),
     },
     {
       key: 'mismatch',
@@ -190,6 +199,13 @@ function TransfersListPage() {
         row.products.some((p) => p.receivedQty !== undefined)
           ? String(row.products.reduce((sum, p) => sum + (p.sentQty - (p.receivedQty ?? 0)), 0))
           : '',
+      total: 'sum',
+      // Only settled transfers carry a shortfall; in-flight ones would otherwise read as short.
+      totalValue: (row: StockTransfer) =>
+        row.products.some((p) => p.receivedQty !== undefined)
+          ? row.products.reduce((sum, p) => sum + (p.sentQty - (p.receivedQty ?? 0)), 0)
+          : 0,
+      totalRender: (value: number) => formatPieces(value),
     },
     {
       key: 'status',

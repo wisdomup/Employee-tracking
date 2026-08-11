@@ -155,11 +155,17 @@ const ReturnsPage: React.FC = () => {
         const first = value[0]?.productId?.name || 'Product';
         return value.length === 1 ? first : `${first} +${value.length - 1} more`;
       },
+      total: 'sum' as const,
+      totalValue: (row: any) =>
+        (row.products ?? []).reduce((sum: number, p: any) => sum + (p.quantity ?? 0), 0),
+      totalRender: (value: number) => `${value.toLocaleString()} pcs`,
     },
     {
       key: 'amount',
       title: 'Amount',
       render: (value: number) => (value != null ? `Rs. ${value.toFixed(2)}` : '-'),
+      total: 'sum' as const,
+      totalRender: (value: number) => `Rs. ${value.toFixed(2)}`,
     },
     {
       key: 'returnReason',

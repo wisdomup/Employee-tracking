@@ -206,6 +206,9 @@ const VisitsPage: React.FC = () => {
             {value} min
           </span>
         ),
+      // Visits without a recorded duration sit out of the divisor, so they cannot drag it down.
+      total: 'avg' as const,
+      totalRender: (value: number) => `${Math.round(value * 10) / 10} min avg`,
     },
     {
       key: 'createdBy',

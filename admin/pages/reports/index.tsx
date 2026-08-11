@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
@@ -11,6 +13,7 @@ import {
   DashboardReportRow,
   DashboardReports,
   DashboardSalesRow,
+  ReportDetailMetric,
 } from '../../services/dashboardService';
 import styles from '../../styles/Reports.module.scss';
 import { buildTrendDataFromReports } from '../../utils/dashboardReportsTrend';
@@ -19,13 +22,54 @@ const LineTrendChart = dynamic(() => import('../../components/UI/LineTrendChart'
   ssr: false,
 });
 
+/** Each KPI tile drills into `/reports/[metric]`; `value` reads the tile's number off the payload. */
+const KPI_TILES: Array<{
+  metric: ReportDetailMetric;
+  label: string;
+  value: (reports: DashboardReports) => string | number;
+}> = [
+  { metric: 'current-stock', label: 'Current Stock', value: (r) => r.kpis.totalCurrentStock },
+  { metric: 'stock-hold', label: 'Stock Hold', value: (r) => r.kpis.totalHoldStock },
+  { metric: 'returned-qty', label: 'Returned Qty', value: (r) => r.kpis.totalReturnedQty },
+  { metric: 'damaged-qty', label: 'Damaged Qty', value: (r) => r.kpis.totalDamagedQty },
+  { metric: 'sold-qty', label: 'Sold Qty', value: (r) => r.kpis.totalSoldQty },
+  {
+    metric: 'earned',
+    label: 'Earned (Delivered Sales)',
+    value: (r) => r.kpis.salesInRange.toFixed(2),
+  },
+  {
+    metric: 'paid-back',
+    label: 'Paid Back (Returns)',
+    value: (r) => r.kpis.totalReturnPayout.toFixed(2),
+  },
+  {
+    metric: 'net-after-returns',
+    label: 'Net After Returns',
+    value: (r) => r.kpis.netAfterReturns.toFixed(2),
+  },
+  {
+    metric: 'booked-sales',
+    label: 'Booked Sales (Open Orders)',
+    value: (r) => r.kpis.bookedSalesInRange.toFixed(2),
+  },
+];
+
 const ReportsPage: React.FC = () => {
+  const router = useRouter();
   const [reports, setReports] = useState<DashboardReports | null>(null);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [groupBy, setGroupBy] = useState<'day' | 'month' | 'year'>('month');
   const [viewBy, setViewBy] = useState<'item' | 'category'>('item');
+
+  // Restore the range when returning from a drill-down page, which links back with it in the query.
+  useEffect(() => {
+    if (!router.isReady) return;
+    setStartDate((router.query.startDate as string) || '');
+    setEndDate((router.query.endDate as string) || '');
+  }, [router.isReady, router.query.startDate, router.query.endDate]);
 
   useEffect(() => {
     const run = async () => {
@@ -42,6 +86,15 @@ const ReportsPage: React.FC = () => {
 
   const trendData = useMemo(() => buildTrendDataFromReports(reports), [reports]);
 
+  /** Range travels with the link so the detail page opens on the same window. */
+  const detailQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const query = params.toString();
+    return query ? `?${query}` : '';
+  }, [startDate, endDate]);
+
   const stockColumns = useMemo(
     () => [
       {
@@ -50,10 +103,10 @@ const ReportsPage: React.FC = () => {
         render: (_: unknown, row: DashboardReportRow) =>
           viewBy === 'item' ? row.productName || '-' : row.categoryName || '-',
       },
-      { key: 'availableQty', title: 'Current Stock' },
-      { key: 'onHoldQty', title: 'Stock Hold' },
-      { key: 'returnedQty', title: 'Returned Qty' },
-      { key: 'damagedQty', title: 'Damaged Qty' },
+      { key: 'availableQty', title: 'Current Stock', total: 'sum' as const },
+      { key: 'onHoldQty', title: 'Stock Hold', total: 'sum' as const },
+      { key: 'returnedQty', title: 'Returned Qty', total: 'sum' as const },
+      { key: 'damagedQty', title: 'Damaged Qty', total: 'sum' as const },
     ],
     [viewBy],
   );
@@ -66,14 +119,16 @@ const ReportsPage: React.FC = () => {
         render: (_: unknown, row: DashboardSalesRow) =>
           viewBy === 'item' ? row.productName || '-' : row.categoryName || '-',
       },
-      { key: 'soldQty', title: 'Sold Qty' },
+      { key: 'soldQty', title: 'Sold Qty', total: 'sum' as const },
       {
         key: 'salesAmount',
         totalFormat: (t: number) => t.toFixed(2),
         title: 'Sales Amount',
         render: (value: number) => (value != null ? value.toFixed(2) : '0.00'),
+        total: 'sum' as const,
+        totalRender: (value: number) => value.toFixed(2),
       },
-      { key: 'orderCount', title: 'Orders' },
+      { key: 'orderCount', title: 'Orders', total: 'sum' as const },
     ],
     [viewBy],
   );
@@ -130,15 +185,18 @@ const ReportsPage: React.FC = () => {
         </div>
 
         <div className={styles.kpiGrid}>
-          <div className={styles.kpiCard}><span>Current Stock</span><strong>{reports.kpis.totalCurrentStock}</strong></div>
-          <div className={styles.kpiCard}><span>Stock Hold</span><strong>{reports.kpis.totalHoldStock}</strong></div>
-          <div className={styles.kpiCard}><span>Returned Qty</span><strong>{reports.kpis.totalReturnedQty}</strong></div>
-          <div className={styles.kpiCard}><span>Damaged Qty</span><strong>{reports.kpis.totalDamagedQty}</strong></div>
-          <div className={styles.kpiCard}><span>Sold Qty</span><strong>{reports.kpis.totalSoldQty}</strong></div>
-          <div className={styles.kpiCard}><span>Earned (Delivered Sales)</span><strong>{reports.kpis.salesInRange.toFixed(2)}</strong></div>
-          <div className={styles.kpiCard}><span>Paid Back (Returns)</span><strong>{reports.kpis.totalReturnPayout.toFixed(2)}</strong></div>
-          <div className={styles.kpiCard}><span>Net After Returns</span><strong>{reports.kpis.netAfterReturns.toFixed(2)}</strong></div>
-          <div className={styles.kpiCard}><span>Booked Sales (Open Orders)</span><strong>{reports.kpis.bookedSalesInRange.toFixed(2)}</strong></div>
+          {KPI_TILES.map((tile) => (
+            <Link
+              key={tile.metric}
+              href={`/reports/${tile.metric}${detailQuery}`}
+              className={`${styles.kpiCard} ${styles.kpiCardLink}`}
+              title={`View ${tile.label} details`}
+            >
+              <span>{tile.label}</span>
+              <strong>{tile.value(reports)}</strong>
+              <em className={styles.kpiCardHint}>View details</em>
+            </Link>
+          ))}
         </div>
 
         <div className={styles.section}>

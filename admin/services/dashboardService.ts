@@ -142,6 +142,46 @@ export interface DashboardReports {
   salesReport: DashboardSalesRow[];
 }
 
+/** KPI tiles on `/reports` that drill down into a detail page. Values match the backend enum. */
+export type ReportDetailMetric =
+  | 'current-stock'
+  | 'stock-hold'
+  | 'returned-qty'
+  | 'damaged-qty'
+  | 'sold-qty'
+  | 'earned'
+  | 'paid-back'
+  | 'net-after-returns'
+  | 'booked-sales';
+
+export type ReportDetailColumnType = 'text' | 'number' | 'currency' | 'date';
+
+export interface ReportDetailColumn {
+  key: string;
+  title: string;
+  type?: ReportDetailColumnType;
+}
+
+export interface ReportDetailSummaryItem {
+  label: string;
+  value: number;
+  type?: ReportDetailColumnType;
+}
+
+export interface ReportDetail {
+  metric: ReportDetailMetric;
+  title: string;
+  description: string;
+  /** `false` for all-time snapshots (stock, returns) — the date filter does not apply. */
+  dateFiltered: boolean;
+  filters: { startDate: string; endDate: string };
+  columns: ReportDetailColumn[];
+  summary: ReportDetailSummaryItem[];
+  rows: Record<string, any>[];
+  /** `true` when the row cap was hit and the list is partial. */
+  truncated: boolean;
+}
+
 export const dashboardService = {
   async getStats(): Promise<DashboardStats> {
     const response = await api.get('/dashboard/stats');
@@ -166,6 +206,17 @@ export const dashboardService = {
     if (filters?.viewBy) params.append('viewBy', filters.viewBy);
     const query = params.toString();
     const response = await api.get(`/dashboard/reports${query ? `?${query}` : ''}`);
+    return response.data;
+  },
+
+  async getReportDetail(
+    metric: ReportDetailMetric,
+    filters?: Pick<DashboardReportFilters, 'startDate' | 'endDate'>,
+  ): Promise<ReportDetail> {
+    const params = new URLSearchParams({ metric });
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+    const response = await api.get(`/dashboard/reports/detail?${params.toString()}`);
     return response.data;
   },
 };

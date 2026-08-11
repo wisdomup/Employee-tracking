@@ -14,6 +14,12 @@ interface GlobalDataTableProps<T> {
   fixedHeaderHeight?: string;
   /** Renders above the table via react-data-table-component `subHeader` / `subHeaderComponent` */
   subHeaderComponent?: React.ReactNode;
+  /**
+   * One entry per column, rendered as a grand-total row under the table. `null` leaves the cell
+   * blank. Geometry mirrors react-data-table-component's own cells (`flex: 1 0 0`, `min-width:
+   * 100px`, 16px side padding) so the totals line up with the columns above them.
+   */
+  footerCells?: (React.ReactNode | null)[];
 }
 
 function GlobalDataTable<T>({
@@ -27,6 +33,7 @@ function GlobalDataTable<T>({
   fixedHeader = false,
   fixedHeaderHeight = '420px',
   subHeaderComponent,
+  footerCells,
 }: GlobalDataTableProps<T>) {
   const tableStyles = useMemo<TableStyles>(
     () => ({
@@ -152,6 +159,46 @@ function GlobalDataTable<T>({
         fixedHeader={fixedHeader}
         fixedHeaderScrollHeight={fixedHeaderHeight}
       />
+      {footerCells && footerCells.length > 0 && (
+        <div
+          role="row"
+          style={{
+            display: 'flex',
+            width: 'max-content',
+            minWidth: '100%',
+            backgroundColor: '#eef2ff',
+            border: '1px solid #d1d5db',
+            borderRadius: '10px',
+            marginTop: '-1px',
+            fontSize: '14px',
+            fontWeight: 700,
+            color: 'var(--admin-primary)',
+          }}
+        >
+          {footerCells.map((cell, index) => (
+            <div
+              // Columns have no stable id here; position is what aligns a footer cell to its column.
+              key={index}
+              role="cell"
+              style={{
+                flexGrow: 1,
+                flexShrink: 0,
+                flexBasis: 0,
+                minWidth: '100px',
+                maxWidth: '100%',
+                padding: '12px 16px',
+                boxSizing: 'border-box',
+                borderRight: index < footerCells.length - 1 ? '1px solid #dbe1ea' : 'none',
+                whiteSpace: 'normal',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
+              }}
+            >
+              {cell}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

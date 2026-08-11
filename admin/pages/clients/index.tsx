@@ -171,6 +171,8 @@ const ClientsPage: React.FC = () => {
       key: 'rating',
       title: 'Rating',
       render: (value: number) => (value != null ? String(value) : '-'),
+      total: 'avg' as const,
+      totalRender: (value: number) => (Math.round(value * 10) / 10).toString(),
     },
     {
       key: 'address',

@@ -133,6 +133,17 @@ const OrdersPage: React.FC = () => {
     }
   };
 
+  /** Order value, falling back to line totals less discount when `grandTotal` was never stored. */
+  const orderTotal = (row: Order, value?: number | null): number | null => {
+    const stored = value ?? row.grandTotal ?? row.totalPrice;
+    if (stored !== undefined && stored !== null) return Number(stored);
+    const fromProducts = row.products?.reduce(
+      (sum, p) => sum + (p.quantity ?? 0) * (typeof p.price === 'number' ? p.price : 0),
+      0,
+    );
+    return fromProducts == null ? null : fromProducts - (row.discount ?? 0);
+  };
+
   const columns = [
     {
       key: '_id',
@@ -148,18 +159,13 @@ const OrdersPage: React.FC = () => {
       key: 'grandTotal',
       title: 'Grand Total',
       render: (value: number, row: Order) => {
-        const total = value ?? row.grandTotal ?? row.totalPrice;
-        if (total !== undefined && total !== null) return `Rs. ${Number(total).toFixed(2)}`;
-        const fromProducts = row.products?.reduce(
-          (sum, p) => sum + (p.quantity ?? 0) * (typeof p.price === 'number' ? p.price : 0),
-          0
-        );
-        if (fromProducts != null) {
-          const discount = row.discount ?? 0;
-          return `Rs. ${(fromProducts - discount).toFixed(2)}`;
-        }
-        return '-';
+        const total = orderTotal(row, value);
+        return total == null ? '-' : `Rs. ${total.toFixed(2)}`;
       },
+      total: 'sum' as const,
+      // Same fallback chain the cell uses, so the footer cannot disagree with the column above it.
+      totalValue: (row: Order) => orderTotal(row, row.grandTotal) ?? 0,
+      totalRender: (value: number) => `Rs. ${value.toFixed(2)}`,
     },
     {
       key: 'paymentType',

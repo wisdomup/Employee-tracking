@@ -169,9 +169,10 @@ const StockReportsPage: React.FC = () => {
       // Warehouse → Reports → Stock on Hand.
       title: 'Total Sellable (all warehouses)',
       render: (v) => <strong>{v}</strong>,
+      total: 'sum',
     },
-    { key: 'onHoldQty', title: 'On Hold Qty' },
-    { key: 'soldQtyInPeriod', title: 'Sold in Period' },
+    { key: 'onHoldQty', title: 'On Hold Qty', total: 'sum' },
+    { key: 'soldQtyInPeriod', title: 'Sold in Period', total: 'sum' },
     {
       key: 'salePrice', total: 'none' as const,
       title: 'Sale Price',
@@ -198,11 +199,16 @@ const StockReportsPage: React.FC = () => {
       key: 'qtyOnHold',
       title: 'Qty on Hold',
       render: (v) => <strong>{v}</strong>,
+      total: 'sum',
     },
     {
       key: 'unitPrice', total: 'none' as const,
       title: 'Unit Price',
       render: (v) => formatCurrency(v),
+      // A sum of unit prices is meaningless; the held value is what an admin actually wants.
+      total: 'sum',
+      totalValue: (row) => (row.qtyOnHold ?? 0) * (row.unitPrice ?? 0),
+      totalRender: (value) => `Value ${formatCurrency(value)}`,
     },
     { key: 'orderStatus', title: 'Order Status' },
     {
@@ -222,11 +228,15 @@ const StockReportsPage: React.FC = () => {
       key: 'damagedQty',
       title: 'Damaged Qty',
       render: (v) => <strong style={{ color: '#b91c1c' }}>{v}</strong>,
+      total: 'sum',
     },
     {
       key: 'unitPrice', total: 'none' as const,
       title: 'Unit Price',
       render: (v) => formatCurrency(v),
+      total: 'sum',
+      totalValue: (row) => (row.damagedQty ?? 0) * (row.unitPrice ?? 0),
+      totalRender: (value) => `Value ${formatCurrency(value)}`,
     },
     { key: 'returnReason', title: 'Reason', render: (v) => v || '—' },
     { key: 'returnStatus', title: 'Status' },
@@ -248,6 +258,7 @@ const StockReportsPage: React.FC = () => {
       render: (v, row: LowStockRow) => (
         <span className={v === 0 ? styles.criticalBadge : styles.warningBadge}>{v}</span>
       ),
+      total: 'sum',
     },
     { key: 'survivalQuantity', total: 'none' as const, title: 'Survival Qty' },
     {
@@ -256,6 +267,8 @@ const StockReportsPage: React.FC = () => {
       render: (v) => (
         <span className={styles.criticalBadge}>-{v}</span>
       ),
+      total: 'sum',
+      totalRender: (value) => `-${value.toLocaleString()}`,
     },
   ];
 

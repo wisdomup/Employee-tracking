@@ -84,6 +84,27 @@ export interface MovementFilters {
   limit?: number;
 }
 
+/** One product's corrected figures. Absolute piece counts, not deltas. */
+export interface StockAdjustmentLine {
+  productId: string;
+  sellable?: number;
+  damaged?: number;
+}
+
+export interface StockAdjustmentResult {
+  warehouseId: string;
+  adjustedProducts: number;
+  movements: number;
+  changes: {
+    productId: string;
+    productName: string;
+    bucket: 'sellable' | 'damaged';
+    from: number;
+    to: number;
+    delta: number;
+  }[];
+}
+
 export const warehouseService = {
   async getWarehouses(filters?: { search?: string; city?: string; isActive?: boolean }): Promise<Warehouse[]> {
     const params = new URLSearchParams();
@@ -134,6 +155,20 @@ export const warehouseService = {
     if (filters?.lowOnly) params.append('lowOnly', 'true');
     if (filters?.includeEmpty) params.append('includeEmpty', 'true');
     const response = await api.get(`/warehouse/stock?${params.toString()}`);
+    return response.data;
+  },
+
+  /**
+   * Correct stock in place from the warehouse detail page. Admin only; the reason is recorded on
+   * every ledger row the correction writes. In-transit is not adjustable — that bucket belongs to
+   * the transfer documents.
+   */
+  async adjustStock(payload: {
+    warehouseId: string;
+    reason: string;
+    lines: StockAdjustmentLine[];
+  }): Promise<StockAdjustmentResult> {
+    const response = await api.post('/warehouse/stock/adjust', payload);
     return response.data;
   },
 

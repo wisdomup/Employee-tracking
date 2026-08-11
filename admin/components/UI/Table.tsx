@@ -2,17 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CaretDown } from '@phosphor-icons/react';
 import GlobalDataTable, { TableColumn } from './GlobalDataTable';
 import {
+  aggregateColumn,
   exportTableToCsv,
   exportTableToPdf,
-  getExportColumns,
+  formatTotalForDisplay,
   type TableExportColumn,
   type TableExportFormat,
 } from '../../utils/tableExport';
-import {
-  buildGrandTotalExportRow,
-  computeGrandTotals,
-  type GrandTotalEntry,
-} from '../../utils/tableGrandTotal';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './GlobalDataTable.module.scss';
 import { toast } from 'react-toastify';
@@ -29,12 +25,17 @@ export interface TableColumnConfig {
   /** Override CSV cell text (defaults to formatted `row[key]`). */
   exportValue?: (row: any) => string;
   /**
-   * Force this column into or out of the grand total. Omit to let `computeGrandTotals`
-   * decide — it sums a column when every non-empty value in it is a number.
+   * Grand-total treatment for the footer row. Opt-in per column, because summing is only
+   * meaningful for additive figures — a total of unit prices, percentages, rates or invoice
+   * numbers is noise. `avg` suits rates; `count` counts rows where the value is truthy.
    */
-  total?: 'sum' | 'none';
-  /** Format the summed figure (currency, units). Defaults to a plain grouped number. */
-  totalFormat?: (total: number) => string;
+  total?: 'sum' | 'avg' | 'count' | 'none';
+  /** Value to aggregate for a row, when `row[key]` is not the raw number (formatted, nested, …). */
+  totalValue?: (row: any) => number;
+  /** Formats the aggregate; defaults to a locale-grouped number. */
+  totalRender?: (value: number) => React.ReactNode;
+  /** Backward-compatible alias for pages that still provide string formatting via `totalFormat`. */
+  totalFormat?: (value: number) => string;
 }
 
 interface TableProps {
@@ -55,34 +56,14 @@ interface TableProps {
   exportFormats?: TableExportFormat[];
   /** Optional title line at the top of exported PDFs. */
   exportPdfTitle?: string;
-  /**
-   * Show a grand-total bar under the table summing every numeric column, and carry the same
-   * figures into CSV/PDF exports. On for reports; off for plain list tables, where summing
-   * an id or a quantity column would be noise.
-   */
+  /** Backward-compatible alias for `showTotals`; older pages still pass this prop. */
   showGrandTotal?: boolean;
-  /** Label on the total bar. Defaults to "Grand Total". */
+  /** Backward-compatible prop retained so older callers compile; the current footer row ignores it. */
   grandTotalLabel?: string;
+  /** Hide the grand-total row even when columns declare a `total`. Default: shown. */
+  showTotals?: boolean;
 }
 
-/** The bar under the table: one figure per summable column, over the whole dataset. */
-function GrandTotalBar({ totals, label }: { totals: GrandTotalEntry[]; label: string }) {
-  if (totals.length === 0) return null;
-
-  return (
-    <div className={styles.grandTotalBar} role="group" aria-label={label}>
-      <span className={styles.grandTotalLabel}>{label}</span>
-      <div className={styles.grandTotalItems}>
-        {totals.map((entry) => (
-          <div key={entry.key} className={styles.grandTotalItem}>
-            <span className={styles.grandTotalItemTitle}>{entry.title}</span>
-            <strong className={styles.grandTotalItemValue}>{entry.text}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function TableExportControl({
   disabled,
@@ -237,8 +218,9 @@ const Table: React.FC<TableProps> = ({
   exportFileName = 'export',
   exportFormats = ['csv', 'pdf'],
   exportPdfTitle,
-  showGrandTotal = false,
-  grandTotalLabel = 'Grand Total',
+  showGrandTotal,
+  grandTotalLabel: _grandTotalLabel = 'Grand Total',
+  showTotals = true,
 }) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -261,20 +243,29 @@ const Table: React.FC<TableProps> = ({
     return list.length ? [...list] : ['csv', 'pdf'];
   }, [exportFormats]);
 
-  // Over the whole dataset, not the visible page — a total that changed on paging would be
-  // worse than no total at all.
-  const grandTotals = useMemo(
-    () => (showGrandTotal ? computeGrandTotals(columns, data) : []),
-    [showGrandTotal, columns, data],
-  );
+  const totalsEnabled = showGrandTotal ?? showTotals;
 
-  const grandTotalRow = useMemo(
-    () =>
-      grandTotals.length
-        ? buildGrandTotalExportRow(getExportColumns(columns as TableExportColumn[]), grandTotals)
-        : null,
-    [columns, grandTotals],
-  );
+  /** One cell per column; the first labels the row and states how many entries it covers. */
+  const footerCells = useMemo<(React.ReactNode | null)[] | undefined>(() => {
+    if (!totalsEnabled || data.length === 0) return undefined;
+    if (!columns.some((column) => column.total && column.total !== 'none')) return undefined;
+
+    return columns.map((column, index) => {
+      if (column.total && column.total !== 'none') {
+        const value = aggregateColumn(column as TableExportColumn, data);
+        const formatted = column.totalRender
+          ? column.totalRender(value)
+          : column.totalFormat
+            ? column.totalFormat(value)
+          : formatTotalForDisplay(value);
+        return column.total === 'avg' ? <span>Avg {formatted}</span> : formatted;
+      }
+      if (index === 0) {
+        return <span>{`TOTAL · ${data.length.toLocaleString()} entries`}</span>;
+      }
+      return null;
+    });
+  }, [columns, data, totalsEnabled]);
 
   const subHeaderComponent =
     ENABLE_TABLE_EXPORT_UI && exportable && isAdmin ? (
@@ -285,26 +276,23 @@ const Table: React.FC<TableProps> = ({
         exportFileName={exportFileName}
         exportFormats={formats}
         exportPdfTitle={exportPdfTitle}
-        grandTotalRow={grandTotalRow}
       />
     ) : undefined;
 
   return (
-    <>
-      <GlobalDataTable
-        columns={normalizedColumns}
-        data={data}
-        loading={loading}
-        onRowClick={onRowClick}
-        paginate={paginate}
-        pageSize={pageSize}
-        noDataText={noDataText}
-        fixedHeader={fixedHeader}
-        fixedHeaderHeight={fixedHeaderHeight}
-        subHeaderComponent={subHeaderComponent}
-      />
-      {!loading && <GrandTotalBar totals={grandTotals} label={grandTotalLabel} />}
-    </>
+    <GlobalDataTable
+      columns={normalizedColumns}
+      data={data}
+      loading={loading}
+      onRowClick={onRowClick}
+      paginate={paginate}
+      pageSize={pageSize}
+      noDataText={noDataText}
+      fixedHeader={fixedHeader}
+      fixedHeaderHeight={fixedHeaderHeight}
+      subHeaderComponent={subHeaderComponent}
+      footerCells={footerCells}
+    />
   );
 };
 

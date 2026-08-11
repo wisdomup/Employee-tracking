@@ -162,6 +162,7 @@ const TasksPage: React.FC = () => {
       key: 'quantity',
       title: 'Quantity',
       render: (value: number) => value || '-',
+      total: 'sum' as const,
     },
     {
       key: 'actions',

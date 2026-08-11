@@ -91,6 +91,8 @@ function StockCountListPage() {
       title: 'Products counted',
       render: (_: unknown, row: StockCount) => String(row.lines.length),
       exportValue: (row: StockCount) => String(row.lines.length),
+      total: 'sum',
+      totalValue: (row: StockCount) => row.lines.length,
     },
     {
       key: 'diffSellable',
@@ -105,6 +107,9 @@ function StockCountListPage() {
         );
       },
       exportValue: (row: StockCount) => String(netDiff(row, 'sellable')),
+      total: 'sum',
+      totalValue: (row: StockCount) => netDiff(row, 'sellable'),
+      totalRender: (value: number) => (value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString()),
     },
     {
       key: 'diffDamaged',
@@ -114,6 +119,9 @@ function StockCountListPage() {
         return diff === 0 ? '—' : diff > 0 ? `+${diff}` : String(diff);
       },
       exportValue: (row: StockCount) => String(netDiff(row, 'damaged')),
+      total: 'sum',
+      totalValue: (row: StockCount) => netDiff(row, 'damaged'),
+      totalRender: (value: number) => (value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString()),
     },
     {
       key: 'status',

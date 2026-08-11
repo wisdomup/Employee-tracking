@@ -105,14 +105,24 @@ function StockInListPage() {
       title: 'Lines',
       render: (value: unknown[]) => String(value?.length ?? 0),
       exportValue: (row: StockReceipt) => String(row.products?.length ?? 0),
+      total: 'sum',
+      totalValue: (row: StockReceipt) => row.products?.length ?? 0,
     },
-    { key: 'totalPieces', title: 'Pieces', render: (v: number) => formatPieces(v ?? 0) },
+    {
+      key: 'totalPieces',
+      title: 'Pieces',
+      render: (v: number) => formatPieces(v ?? 0),
+      total: 'sum',
+      totalRender: (value: number) => formatPieces(value),
+    },
     ...(showMoney
       ? [
           {
             key: 'totalAmount',
             title: 'Value',
             render: (v: number) => formatRsExact(v ?? 0),
+            total: 'sum' as const,
+            totalRender: (value: number) => formatRsExact(value),
           },
         ]
       : []),

@@ -58,6 +58,75 @@
   }
 }
 
+/* KPI tiles that drill into `/reports/[metric]`. */
+.kpiCardLink {
+  display: block;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #2563eb;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18);
+    transform: translateY(-1px);
+  }
+
+  &:hover .kpiCardHint,
+  &:focus-visible .kpiCardHint {
+    opacity: 1;
+  }
+}
+
+.kpiCardHint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  font-style: normal;
+  color: #2563eb;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.detailHeader {
+  margin-bottom: 1rem;
+
+  h1 {
+    margin: 0.4rem 0 0;
+    font-size: 1.8rem;
+    color: var(--admin-primary);
+  }
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #2563eb;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.detailDescription {
+  margin: 0.35rem 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.truncatedNote {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #fcd34d;
+  border-radius: 0.5rem;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.85rem;
+}
+
 .section {
   background: #fff;
   border: 1px solid #d1d5db;
