@@ -217,14 +217,14 @@ const AnalyticsPage: React.FC = () => {
         totalRender: (value: number) => `${value.toLocaleString()} done`,
       },
       {
-        key: 'avgVisitMinutes', total: 'none' as const,
+        key: 'avgVisitMinutes',
         title: 'Avg Time At Store',
         render: (value: number | null) => (value == null ? '-' : `${value} min`),
         total: 'avg' as const,
         totalRender: (value: number) => `${Math.round(value * 10) / 10} min`,
       },
       {
-        key: 'strikeRatePercent', total: 'none' as const,
+        key: 'strikeRatePercent',
         title: 'Strike Rate',
         render: (value: number) => (
           <span title="Share of completed visits that produced an order">{value}%</span>

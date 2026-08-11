@@ -8,7 +8,7 @@ export interface TableExportColumn {
   omitFromExport?: boolean;
   exportValue?: (row: unknown) => string;
   /** Grand-total treatment; mirrors `TableColumnConfig` so exports carry the same footer row. */
-  total?: 'sum' | 'avg' | 'count';
+  total?: 'sum' | 'avg' | 'count' | 'none';
   totalValue?: (row: any) => number;
   totalRender?: (value: number) => unknown;
 }
@@ -81,10 +81,10 @@ export function getExportTableData(
 
 /** The exported footer, or `null` when no visible column declares a total. */
 function buildTotalsRow(exportCols: TableExportColumn[], data: unknown[]): string[] | null {
-  if (!data.length || !exportCols.some((col) => col.total)) return null;
+  if (!data.length || !exportCols.some((col) => col.total && col.total !== 'none')) return null;
 
   return exportCols.map((col, index) => {
-    if (col.total) {
+    if (col.total && col.total !== 'none') {
       const value = aggregateColumn(col, data);
       // `totalRender` may return JSX for the screen; only a plain string is usable in a file.
       const rendered = col.totalRender ? col.totalRender(value) : undefined;

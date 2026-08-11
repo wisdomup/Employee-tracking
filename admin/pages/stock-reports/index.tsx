@@ -202,7 +202,7 @@ const StockReportsPage: React.FC = () => {
       total: 'sum',
     },
     {
-      key: 'unitPrice', total: 'none' as const,
+      key: 'unitPrice',
       title: 'Unit Price',
       render: (v) => formatCurrency(v),
       // A sum of unit prices is meaningless; the held value is what an admin actually wants.
@@ -231,7 +231,7 @@ const StockReportsPage: React.FC = () => {
       total: 'sum',
     },
     {
-      key: 'unitPrice', total: 'none' as const,
+      key: 'unitPrice',
       title: 'Unit Price',
       render: (v) => formatCurrency(v),
       total: 'sum',
