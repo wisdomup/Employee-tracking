@@ -117,5 +117,7 @@ visitSchema.index({ isTrashed: 1, trashedAt: -1 });
 visitSchema.index({ overstayFlagged: 1, isTrashed: 1, completedAt: -1 });
 // Shop photo gallery lookups (all gallery entries for one dealer, newest first)
 visitSchema.index({ dealerId: 1, galleryUpdatedAt: -1 });
+// "Last visit" on the client profile — newest completed checkout for one dealer
+visitSchema.index({ dealerId: 1, status: 1, completedAt: -1 });
 
 export const VisitModel = model<IVisit>('Visit', visitSchema);

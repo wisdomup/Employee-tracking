@@ -32,6 +32,11 @@ export interface DayRow extends SaleTotals {
 }
 
 export interface RegionTotalsReport {
+  /** Start of the window (`YYYY-MM-DD`). Equals `to` for a single-day view. */
+  from: string;
+  /** End of the window (`YYYY-MM-DD`). */
+  to: string;
+  /** Legacy alias for `to`, kept for callers written against the single-day API. */
   date: string;
   timezone: string;
   totals: SaleTotals;
@@ -39,6 +44,9 @@ export interface RegionTotalsReport {
 }
 
 export interface RegionSalesmenReport {
+  from: string;
+  to: string;
+  /** Legacy alias for `to`. */
   date: string;
   timezone: string;
   regionKey: string;
@@ -101,19 +109,38 @@ export function formatDayLabel(day: string): string {
 /** The literal the API expects for the no-city bucket (an empty key isn't URL-safe). */
 const UNASSIGNED_PATH = 'unassigned';
 
+/** An inclusive `YYYY-MM-DD` window. A single day is `from === to`. */
+export interface SaleWindow {
+  from: string;
+  to: string;
+}
+
+function windowParams(window?: Partial<SaleWindow>): URLSearchParams {
+  const params = new URLSearchParams();
+  if (window?.from) params.append('from', window.from);
+  if (window?.to) params.append('to', window.to);
+  return params;
+}
+
+/** "31 Jul 2026" for one day, "01 Jul 2026 – 31 Jul 2026" for a span. */
+export function formatWindowLabel(from: string, to: string): string {
+  return from === to ? formatDayLabel(to) : `${formatDayLabel(from)} – ${formatDayLabel(to)}`;
+}
+
 export const regionSalesService = {
-  async getRegions(date?: string): Promise<RegionTotalsReport> {
-    const params = new URLSearchParams();
-    if (date) params.append('date', date);
-    const response = await api.get(`/region-sales/regions?${params.toString()}`);
+  async getRegions(window?: Partial<SaleWindow>): Promise<RegionTotalsReport> {
+    const response = await api.get(`/region-sales/regions?${windowParams(window).toString()}`);
     return response.data;
   },
 
-  async getRegionSalesmen(regionKey: string, date?: string): Promise<RegionSalesmenReport> {
-    const params = new URLSearchParams();
-    if (date) params.append('date', date);
+  async getRegionSalesmen(
+    regionKey: string,
+    window?: Partial<SaleWindow>,
+  ): Promise<RegionSalesmenReport> {
     const segment = regionKey === '' ? UNASSIGNED_PATH : encodeURIComponent(regionKey);
-    const response = await api.get(`/region-sales/regions/${segment}/salesmen?${params.toString()}`);
+    const response = await api.get(
+      `/region-sales/regions/${segment}/salesmen?${windowParams(window).toString()}`,
+    );
     return response.data;
   },
 

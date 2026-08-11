@@ -9,6 +9,7 @@ import StatusBadge from '../../../components/UI/StatusBadge';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import WarehouseModuleNav from '../../../components/Warehouse/WarehouseModuleNav';
+import ReasonModal from '../../../components/Warehouse/ReasonModal';
 import { stockInService, StockReceipt } from '../../../services/stockInService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
@@ -29,6 +30,11 @@ function StockInListPage() {
   const [endDate, setEndDate] = useState('');
 
   const showMoney = can(user?.role, 'stock:set-low-level'); // admin-only, same gate as cost data
+  // Admin-only keys — deliberately in no permission Set, so `can()` is an exact admin test.
+  const canEdit = can(user?.role, 'stock-in:edit');
+  const canDelete = can(user?.role, 'stock-in:delete');
+  const [pendingDelete, setPendingDelete] = useState<StockReceipt | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const fetchReceipts = useCallback(async () => {
     setLoading(true);
@@ -50,6 +56,22 @@ function StockInListPage() {
   useEffect(() => {
     fetchReceipts();
   }, [fetchReceipts]);
+
+  const handleDelete = async (reason: string) => {
+    if (!pendingDelete) return;
+    setDeleteBusy(true);
+    try {
+      await stockInService.deleteReceipt(pendingDelete._id, reason || undefined);
+      toast.success('Receipt deleted and its stock reversed');
+      setPendingDelete(null);
+      fetchReceipts();
+    } catch (err) {
+      // Refused when the pieces have already left the warehouse — the API says which product.
+      toast.error(getApiErrorMessage(err, 'Failed to delete the receipt'));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   const activeFilterLabels = useMemo(() => {
     const labels: string[] = [];
@@ -119,6 +141,28 @@ function StockInListPage() {
           >
             View
           </button>
+          {canEdit && row.status === 'posted' && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/warehouse/stock-in/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPendingDelete(row);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -189,6 +233,24 @@ function StockInListPage() {
           </div>
         </div>
       </div>
+
+      <ReasonModal
+        open={pendingDelete !== null}
+        title={
+          pendingDelete?.documentNo
+            ? `Delete receipt #${String(pendingDelete.documentNo).padStart(5, '0')}`
+            : 'Delete this receipt'
+        }
+        description="The stock is reversed and the receipt disappears from every list and report. The row is kept underneath so the stock ledger still has something to point at. If the pieces have already been transferred or sold, the deletion will be refused."
+        label="Reason (optional)"
+        required={false}
+        confirmLabel="Delete receipt"
+        busy={deleteBusy}
+        onClose={() => {
+          if (!deleteBusy) setPendingDelete(null);
+        }}
+        onConfirm={handleDelete}
+      />
     </Layout>
   );
 }

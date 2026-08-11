@@ -8,7 +8,9 @@ import {
   updateWarehouseSchema,
   postOpeningStockSchema,
   createStockReceiptSchema,
+  updateStockReceiptSchema,
   reasonSchema,
+  optionalReasonSchema,
   resyncMirrorSchema,
   createTransferSchema,
   receiveTransferSchema,
@@ -287,6 +289,77 @@ router.patch(
   requireRoles('admin'),
   validate(reasonSchema),
   controller.cancelStockReceipt,
+);
+
+/**
+ * @openapi
+ * /api/warehouse/stock-receipts/{id}:
+ *   put:
+ *     tags: [Warehouse]
+ *     summary: Correct a wrong Stock In receipt [Admin]
+ *     description: >
+ *       Replaces the receipt's whole line set, keeping the document number. Underneath, the
+ *       original ledger posting is fully reversed and the new one applied, so a corrected rate
+ *       drops out of the product's weighted-average cost and the new rate enters it. Refused if
+ *       the pieces have already left the Main warehouse — a receipt whose goods have been sold
+ *       or transferred cannot be rewritten. `reason` is mandatory.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [receiptDate, products, reason]
+ *             properties:
+ *               receiptDate: { type: string, format: date }
+ *               supplierName: { type: string }
+ *               notes: { type: string }
+ *               reason: { type: string, description: Why the receipt is being corrected }
+ *               products:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     productId: { type: string }
+ *                     quantity: { type: integer, minimum: 1 }
+ *                     rate: { type: number, minimum: 0 }
+ *     responses:
+ *       200: { description: Receipt corrected and the ledger re-posted }
+ *       400: { description: Cancelled receipt, duplicate product line, or the stock has already moved on }
+ *       403: { description: Forbidden — admin only }
+ *       404: { description: Receipt or product not found }
+ */
+router.put(
+  '/stock-receipts/:id',
+  requireRoles('admin'),
+  validate(updateStockReceiptSchema),
+  controller.updateStockReceipt,
+);
+
+/**
+ * @openapi
+ * /api/warehouse/stock-receipts/{id}:
+ *   delete:
+ *     tags: [Warehouse]
+ *     summary: Delete a wrong Stock In receipt [Admin]
+ *     description: >
+ *       Reverses the receipt's stock and removes the row from every list and report. A soft
+ *       delete — the ledger movements reference this document, so the row is trashed rather
+ *       than dropped, keeping the audit trail intact. Refused if the pieces have already left
+ *       the Main warehouse. An already-cancelled receipt is trashed without a second reversal.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Receipt deleted and its stock reversed }
+ *       400: { description: The stock has already moved on }
+ *       403: { description: Forbidden — admin only }
+ *       404: { description: Receipt not found }
+ */
+router.delete(
+  '/stock-receipts/:id',
+  requireRoles('admin'),
+  validate(optionalReasonSchema),
+  controller.deleteStockReceipt,
 );
 
 // ------------------------------------------------------------------ transfers

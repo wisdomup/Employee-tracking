@@ -63,8 +63,37 @@ export const createStockReceiptSchema = Joi.object({
   warehouseId: objectId.optional(),
 });
 
+/**
+ * Editing a receipt replaces its whole line set, so the payload is the create payload plus a
+ * reason. `reason` is required: an edit to a posted stock document overwrites figures that were
+ * already printed on a slip, and "why" is the only thing that makes that defensible later.
+ */
+export const updateStockReceiptSchema = Joi.object({
+  receiptDate: Joi.date().required(),
+  supplierName: Joi.string().trim().max(200).optional().allow(''),
+  notes: Joi.string().trim().max(1000).optional().allow(''),
+  reason: reason.required(),
+  products: Joi.array()
+    .items(
+      Joi.object({
+        productId: objectId.required(),
+        quantity: pieces.required(),
+        rate: rate.required(),
+      }),
+    )
+    .min(1)
+    .required(),
+  // Ignored, as on create: a receipt never moves warehouse.
+  warehouseId: objectId.optional(),
+});
+
 export const reasonSchema = Joi.object({
   reason: reason.required(),
+});
+
+/** Delete carries an optional note — the row is trashed either way. */
+export const optionalReasonSchema = Joi.object({
+  reason: reason.optional(),
 });
 
 export const createTransferSchema = Joi.object({

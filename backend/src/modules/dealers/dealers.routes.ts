@@ -2,7 +2,11 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { requireRoles } from '../../middleware/roles.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createDealerSchema, updateDealerSchema } from './dto/dealers.schemas';
+import {
+  createDealerSchema,
+  updateDealerSchema,
+  updateDealerLocationSchema,
+} from './dto/dealers.schemas';
 import * as controller from './dealers.controller';
 
 const router = Router();
@@ -187,6 +191,58 @@ router.get('/:id', requireRoles('admin', 'sales_manager', 'employee', 'order_tak
  *       404: { description: Dealer not found }
  */
 router.put('/:id', requireRoles('admin', 'employee'), validate(updateDealerSchema), controller.update);
+
+/**
+ * @openapi
+ * /api/dealers/{id}/location:
+ *   patch:
+ *     tags: [Dealers]
+ *     summary: Correct a client's pin and address [Admin, Employee, Order Taker]
+ *     description: >
+ *       The narrow correction path for field staff, who are the only people standing outside the
+ *       shop. Accepts the address and the lat/lng pair and nothing else — phone, category, route
+ *       and status stay on the full update. Riders are city-scoped exactly as they are on read.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               latitude: { type: number }
+ *               longitude: { type: number }
+ *               address:
+ *                 type: object
+ *                 properties:
+ *                   street: { type: string }
+ *                   city: { type: string }
+ *                   state: { type: string }
+ *                   country: { type: string }
+ *                   postalCode: { type: string }
+ *     responses:
+ *       200:
+ *         description: Client location updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Dealer'
+ *       400: { description: Validation error — send latitude and longitude together }
+ *       401: { description: Unauthorized }
+ *       404: { description: Dealer not found or out of your city }
+ */
+router.patch(
+  '/:id/location',
+  requireRoles('admin', 'employee', 'order_taker'),
+  validate(updateDealerLocationSchema),
+  controller.updateLocation,
+);
 
 /**
  * @openapi

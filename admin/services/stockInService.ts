@@ -3,8 +3,10 @@ import api from './api';
 /**
  * Stock In receipts and one-time opening stock — the two ways stock enters the system.
  *
- * Stock In always lands in the Main warehouse, so there is no destination to choose. Receipts are
- * cancelled with a reason, never deleted.
+ * Stock In always lands in the Main warehouse, so there is no destination to choose. A wrong
+ * receipt has three admin-only exits: cancel (keeps the row), edit (rewrites the lines, keeps the
+ * document number) and delete (reverses and hides it). All three refuse if the pieces have
+ * already left Main.
  */
 
 export interface StockReceiptLine {
@@ -28,6 +30,11 @@ export interface StockReceipt {
   cancelledBy?: any;
   cancelledAt?: string;
   cancelReason?: string;
+  /** Correction trail — set once an admin has edited the receipt. */
+  lastEditedBy?: any;
+  lastEditedAt?: string;
+  editReason?: string;
+  editCount?: number;
   createdBy?: any;
   createdAt: string;
   updatedAt: string;
@@ -127,6 +134,33 @@ export const stockInService = {
     products: { productId: string; quantity: number; rate: number }[];
   }): Promise<StockReceipt> {
     const response = await api.post('/warehouse/stock-receipts', data);
+    return response.data;
+  },
+
+  /**
+   * Correct a posted receipt. The whole line set is replaced and the ledger is reversed and
+   * re-posted underneath, so a corrected rate leaves the product's average cost. Admin only,
+   * and `reason` is mandatory — the old figures were already printed on a slip.
+   */
+  async updateReceipt(
+    id: string,
+    data: {
+      receiptDate: string;
+      supplierName?: string;
+      notes?: string;
+      reason: string;
+      products: { productId: string; quantity: number; rate: number }[];
+    },
+  ): Promise<StockReceipt> {
+    const response = await api.put(`/warehouse/stock-receipts/${id}`, data);
+    return response.data;
+  },
+
+  /** Reverse a wrong receipt and hide it. Admin only. */
+  async deleteReceipt(id: string, reason?: string): Promise<{ message: string }> {
+    const response = await api.delete(`/warehouse/stock-receipts/${id}`, {
+      data: reason ? { reason } : {},
+    });
     return response.data;
   },
 

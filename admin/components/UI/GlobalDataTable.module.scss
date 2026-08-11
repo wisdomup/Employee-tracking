@@ -74,3 +74,58 @@
     cursor: not-allowed;
   }
 }
+
+/* ---- Grand total bar (report tables) ------------------------------------- */
+
+/*
+ * Sits directly under the table rather than inside it: react-data-table-component has no
+ * footer row, and a faked one would drift out of alignment the moment a column resized.
+ * This reads as a summary strip, which is unambiguous at any width.
+ */
+.grandTotalBar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+}
+
+.grandTotalLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--admin-primary);
+  white-space: nowrap;
+}
+
+.grandTotalItems {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.grandTotalItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.grandTotalItemTitle {
+  font-size: 0.7rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.grandTotalItemValue {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}

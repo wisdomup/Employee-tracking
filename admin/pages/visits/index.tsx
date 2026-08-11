@@ -76,6 +76,39 @@ const VisitsPage: React.FC = () => {
     }
   }, [isAdmin]);
 
+  /**
+   * Seed the filters from the URL so other pages can link straight into a filtered view —
+   * `/visits?status=completed&view=list` is what the dashboard's Completed Visits card opens.
+   *
+   * Applied once the router has resolved the query, and only from keys that are actually
+   * present, so a normal visit to `/visits` still lands on the default calendar.
+   */
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { status, view: viewParam, startDate: from, endDate: to, employeeId, clientId, overstay } =
+      router.query as Record<string, string | undefined>;
+
+    if (status) setStatusFilter(status);
+    if (from) setStartDate(from);
+    if (to) setEndDate(to);
+    if (employeeId) setEmployeeFilter(employeeId);
+    if (clientId) setClientFilter(clientId);
+    if (overstay === 'true') setOverstayOnly(true);
+
+    if (viewParam === 'list' || viewParam === 'calendar' || viewParam === 'day') {
+      setView(viewParam);
+    } else if (status || from || to || employeeId || clientId || overstay) {
+      // A filtered link means "show me these rows"; the calendar cannot express a status
+      // filter, so anything filtered lands on the list.
+      setView('list');
+    }
+    // Keyed on the URL, not on the filter state: editing a filter in the UI changes state
+    // without touching the URL, so this cannot fight the user's input — but arriving from a
+    // second dashboard card while already on this page does re-apply, which keying on
+    // `isReady` alone would have missed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.asPath]);
+
   useEffect(() => {
     if (!user || view !== 'list') return;
     fetchVisits();

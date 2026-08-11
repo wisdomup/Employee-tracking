@@ -98,6 +98,15 @@ export interface Visit {
   updatedAt: string;
 }
 
+/**
+ * "Last visit" for a client profile. `visit` is null and `daysAgo` is null when the shop has
+ * never had a completed visit.
+ */
+export interface DealerLastVisit {
+  visit: Visit | null;
+  daysAgo: number | null;
+}
+
 export const visitService = {
   async getVisits(filters?: {
     clientId?: string;
@@ -211,6 +220,15 @@ export const visitService = {
   /** All shop photos / notes recorded for a client, with the rider who added them. */
   async getDealerGallery(dealerId: string): Promise<DealerGalleryEntry[]> {
     const response = await api.get(`/visits/gallery?dealerId=${encodeURIComponent(dealerId)}`);
+    return response.data;
+  },
+
+  /**
+   * The most recent completed visit to a client. `visit` is null when the shop has never been
+   * visited — that is a normal answer, not an error.
+   */
+  async getDealerLastVisit(dealerId: string): Promise<DealerLastVisit> {
+    const response = await api.get(`/visits/last?dealerId=${encodeURIComponent(dealerId)}`);
     return response.data;
   },
 };

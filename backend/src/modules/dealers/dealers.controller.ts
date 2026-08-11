@@ -64,6 +64,22 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function updateLocation(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Same scope as the read path — a rider may only correct a client they can already see.
+    const cityScope = await resolveCityScope(req.user!.userId, req.user!.role);
+    const dealer = await dealersService.updateDealerLocation(
+      req.params.id,
+      req.body,
+      req.user?.userId,
+      cityScope,
+    );
+    res.json(dealer);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await dealersService.deleteDealer(req.params.id, req.user?.userId);

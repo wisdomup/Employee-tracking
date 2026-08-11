@@ -8,6 +8,96 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-11 — Client corrections, stock-in edits, report totals & dashboard rework
+
+Seven client-requested items. The two with real depth are the Stock In correction path and the
+region-sales date range; the rest are additive.
+
+### Added
+- **Order takers can correct a client's pin and address.** New `PATCH /api/dealers/:id/location`,
+  open to `admin`, `employee` and `order_taker`, plus a **Fix Location** button and map dialog on
+  the client profile. Deliberately narrow: it accepts the address and the lat/lng pair and nothing
+  else, because the rider standing outside the shop is the only person who can see the pin is
+  wrong, while phone, category, route and status stay office decisions on the full admin form.
+  Riders are city-scoped exactly as they are on read, so a client they cannot open is a client
+  they cannot relocate. New permission key `dealers:fix-location`.
+- **Admin can edit or delete a wrong Stock In receipt** — `PUT` and `DELETE` on
+  `/api/warehouse/stock-receipts/:id`, both admin-only, with an edit form at
+  `/warehouse/stock-in/[id]/edit` and a Delete action on the list and detail pages. See
+  [warehouse-and-stock.md](./warehouse-and-stock.md#the-three-exits-from-a-wrong-receipt).
+- **Grand total under every report.** The shared `Table` component gained `showGrandTotal`, wired
+  into all sixteen report tables across `/reports`, `/stock-reports`, `/warehouse/reports`,
+  `/region-sales` and `/analytics`. Totals cover the whole dataset rather than the visible page,
+  and are carried into CSV and PDF exports as a footer row.
+- **Last visit on the client profile.** `GET /api/visits/last?dealerId=…` returns the most recent
+  *completed* visit and how many days ago it was; the profile opens with a banner showing the date,
+  the gap ("yesterday", "12 days ago"), the rider and the route. It turns amber past a fortnight.
+  Backed by a new `{ dealerId, status, completedAt }` index.
+- **Date ranges on the region-sales dashboard.** `/api/region-sales/regions` and its salesmen
+  drill-down now take `from`/`to` alongside the original `date`, capped at 366 days. One shared
+  range spans all three drill-down levels, with Today / Yesterday / Last 7 / Last 30 / This month
+  presets. See [region-sales-dashboard.md](./region-sales-dashboard.md).
+- **`GET /api/dashboard/my-stats`** — the signed-in user's own visit, task and sale counts for one
+  day, aggregated in the database.
+- **A "Today" card row on the admin dashboard** (completed visits, visits still open, orders today,
+  delivered and booked sale) and a **"My Day" row on the salesman dashboard** (completed visits,
+  visits to do, own sale, tasks). Every card deep-links into the list it counts.
+- **`/visits` reads its filters from the URL** (`status`, `startDate`, `endDate`, `employeeId`,
+  `clientId`, `overstay`, `view`), which is what lets the Completed Visits cards open a filtered
+  list. A filtered link lands on the list view, since the calendar cannot express a status filter.
+
+### Fixed
+- **The admin dashboard's Completed Tasks map never showed shop pins.** The page read
+  `task.clientLocation` while the API only ever sent `dealerLocation`. The API now returns both
+  names for the same object.
+- **The salesman dashboard's task cards counted the rider's entire history** while the visit cards
+  next to them counted today, so two rows of numbers silently answered different questions. Both
+  are now day-scoped server-side aggregates instead of `.filter()` over fetched lists.
+
+### Caught in review
+
+Six defects found reviewing the above before it shipped, each now covered by a test:
+
+- **The correction dialog refused any client with a blank address field.** The shared
+  `addressSchema` is built from bare `Joi.string()`, which rejects `''`; the create form only gets
+  away with it because it strips empty entries before posting. The dialog shows all five fields
+  pre-filled, so a client with no State recorded posted `state: ''` and was refused — for a field
+  the rider never touched. It now has its own schema that allows `''`, which also gives the rider
+  the only way to *clear* a wrong value.
+- **"Last visit" said "today" for a visit that happened yesterday.** The gap was counted in UTC
+  calendar days; Pakistan is UTC+5, so between midnight and 05:00 PKT the UTC date is still
+  yesterday's. It now buckets with `localDayKey` in `REPORT_TIMEZONE`, the same helper the
+  region-sales dashboard uses.
+- **A rolled-back receipt edit could double stock on the retry.** The edit's idempotency scope is
+  derived from the receipt's `updatedAt`. A failed attempt restores the original stock but saves
+  nothing, so a retry reused the stamp — the reversal was then treated as a replay and moved no
+  stock, while the re-apply added its pieces on top of the restored ones (proved: 130 where 80 was
+  correct). The rolled-back attempt is now recorded in `lastEditFailedAt`, which moves `updatedAt`
+  on so the retry gets a fresh stamp. Replay protection for a genuinely double-submitted edit is
+  unchanged, and both directions are now tested.
+- **`findPostedMovementIds` had no sort.** Harmless while a document posted one ledger row per
+  product, which stopped being true the moment a receipt could be edited and re-posted against the
+  same `refId` — the winning row became whichever the query planner returned first. Now ordered by
+  `_id` so the newest row deterministically wins.
+- **Dashboard visit cards did not match the lists they open.** The counts mixed `completedAt` with
+  `visitDate` and used *local* midnight, while `/visits` filters `visitDate` on *UTC* day bounds —
+  so "completed" could exceed "scheduled", and both could disagree with the list. All three counts
+  now share one window on `visitDate` computed exactly as `findAll` does, and the response carries
+  the day so the card links to precisely the rows it counted.
+- **`/api/dashboard/my-stats` accepted any string as a date.** An unparseable one became an Invalid
+  Date that matched nothing and reported a blank day as real; `2026-02-30` is well-formed and JS
+  quietly rolls it to March 2. It now validates with the shared `isValidDayKey`.
+
+### Changed
+- `getRegionTotals` / `getRegionSalesmen` take a window (`string | { from, to, date }`) instead of a
+  bare day string. A plain string still means that single day, so every existing caller is
+  unaffected; the responses gained `from` and `to` and kept `date` as an alias for `to`.
+- `stock-in:edit` and `stock-in:delete` join the admin-only permission keys that appear in no
+  permission Set — unlike `stock-in:cancel`, which `warehouse_manager` keeps. A cancel leaves the
+  wrong figures visible in the record; an edit rewrites them and a delete hides the document.
+
+---
+
 ## 2026-08-06 — Warehouse & stock management
 
 Full detail in [warehouse-and-stock.md](./warehouse-and-stock.md). Stock used to be a single

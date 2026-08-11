@@ -223,6 +223,30 @@ export async function cancelStockReceipt(req: Request, res: Response, next: Next
   }
 }
 
+export async function updateStockReceipt(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(
+      await stockReceiptsService.updateStockReceipt(req.params.id, req.body, req.user!.userId),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteStockReceipt(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(
+      await stockReceiptsService.deleteStockReceipt(
+        req.params.id,
+        (req.body as { reason?: string })?.reason,
+        req.user!.userId,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getMainWarehouse(_req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await stockReceiptsService.getMainWarehouse());

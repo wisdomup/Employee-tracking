@@ -92,6 +92,54 @@ text. Every receipt lands in the **Main** warehouse and stock is transferred out
 document number is allocated *after* the stock moves, so a failed receipt never punches a permanent
 gap in the printed series.
 
+#### The three exits from a wrong receipt
+
+All three are guarded by the same `$inc` predicate, so **any of them is refused once the pieces
+have been sold or transferred out of Main** — there is nothing left to take back, and the correct
+answer is to raise a damage claim or a new receipt rather than rewrite history.
+
+| Exit | Who | What happens |
+|---|---|---|
+| **Cancel** | admin, `warehouse_manager` | Stock reversed, row kept and marked `cancelled` with a reason. |
+| **Edit** | admin only | Lines replaced, ledger reversed and re-posted, document number unchanged. |
+| **Delete** | admin only | Stock reversed, row trashed and gone from every list and report. |
+
+**Edit is a reverse-and-repost, not a quantity diff.** Moving only the difference per product is
+the obvious implementation and it is wrong the moment a *rate* changes: the weighted average is
+rebuilt from the live `stock_in` rows, so leaving the original row in place would keep the wrong
+rate weighting the cost for ever. Reversing every original row — each carrying its `reversalOf`
+pointer — drops them all out of the average, and the new rows enter it at the corrected rates. A
+quantity-only edit takes the same path.
+
+It is necessarily **two ledger calls**. `normaliseLines` merges lines by
+(warehouse, product, bucket) regardless of type, so a −10 reversal and a +12 re-post of the same
+product inside one call would collapse into a single +2 row and lose the reversal pointer. The
+reversal goes first, because it is the one that can legitimately fail; if the re-post then fails
+anyway, the original lines are put back under an `edit-restore:` scope before the error surfaces.
+The idempotency scope carries the receipt's pre-edit `updatedAt`, which is unique per edit and
+identical across retries of the same one.
+
+**The rollback must burn the stamp.** A restored attempt saves nothing, so `updatedAt` has not
+moved and a retry would reuse the same scope — at which point `edit-reverse:<stamp>` is a *replay*,
+short-circuits, and moves no stock, while the re-apply lands on top of the pieces the rollback just
+put back and doubles them. `lastEditFailedAt` is written for exactly this reason (the audit value
+is a bonus): saving it moves `updatedAt` on, so the retry reverses for real. A genuinely
+double-submitted *successful* edit still short-circuits as it should. Both directions are pinned by
+`warehouse.flow.test.ts`.
+
+One consequence for the shared ledger helper: `findPostedMovementIds` now sorts by `_id`. A
+document used to post one row per (product, bucket), so the map it builds had a single candidate;
+a receipt that can be edited posts several against the same `refId`, and without the sort the
+winner was whichever row the query planner happened to return first.
+
+**Delete is a soft delete.** Every `StockMovement` this receipt made references it by `refId`, so
+dropping the document would leave the audit trail pointing at nothing. `isTrashed` hides it from
+the list, the reports and the slip; the ledger stays explainable.
+
+`editCount`, `lastEditedBy`, `lastEditedAt` and `editReason` on the receipt record the correction
+trail, and the reason is mandatory on edit — the old figures were already printed on a slip that
+went out with the goods.
+
 ### Transfers — stock leaves the source at APPROVAL
 
 This is the design decision worth remembering. Between approval and receipt the goods are on a

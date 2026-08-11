@@ -7,6 +7,9 @@ import { UserModel } from '../../models/user.model';
 import * as routeAssignmentsService from '../route-assignments/route-assignments.service';
 import * as dealersService from '../dealers/dealers.service';
 import { resolveCityScope } from '../users/users.service';
+// The business-timezone day key, shared with the region-sales dashboard so "which day did
+// this happen on" has one answer across the app.
+import { localDayKey } from '../region-sales/region-sales.rules';
 import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
@@ -1071,6 +1074,57 @@ export async function findDealerGallery(dealerId: string) {
     .populate('dealerId', 'name shopName')
     .sort({ galleryUpdatedAt: -1 })
     .exec();
+}
+
+/**
+ * Whole days between two `YYYY-MM-DD` keys. Plain calendar arithmetic — the keys already
+ * carry the zone, so no offset is involved here.
+ */
+function daysBetweenDayKeys(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / MS_PER_DAY);
+}
+
+/**
+ * The last time anybody actually stood in this shop, plus how long ago that was.
+ *
+ * "Completed" is the only status that means a rider was physically there and checked out;
+ * a `todo` visit that was generated and never worked is not a visit to the shopkeeper.
+ * `completedAt` is the checkout stamp and is the figure the client profile shows.
+ *
+ * The gap is counted in **calendar days in the report timezone**, not elapsed hours and not
+ * UTC days. Elapsed hours would call a 23:00 checkout "0 days ago" the next morning; UTC days
+ * are worse still, because Pakistan is UTC+5 — between midnight and 05:00 PKT the UTC date is
+ * still yesterday's, so a visit that really happened yesterday afternoon read as "today".
+ * `localDayKey` is the same helper the region-sales dashboard buckets its days with.
+ *
+ * Returns `null` when the shop has never been visited, so the caller can say "Never visited"
+ * rather than render a missing date.
+ */
+export async function findLastVisitForDealer(dealerId: string) {
+  const visit = await VisitModel.findOne({
+    dealerId: new Types.ObjectId(dealerId),
+    isTrashed: { $ne: true },
+    status: 'completed',
+    completedAt: { $ne: null },
+  })
+    .select('dealerId employeeId routeId visitDate completedAt durationMinutes status')
+    .populate('employeeId', 'username fullName userID role')
+    .populate('routeId', 'name')
+    .sort({ completedAt: -1 })
+    .lean()
+    .exec();
+
+  if (!visit || !visit.completedAt) return null;
+
+  const daysAgo = Math.max(
+    0,
+    daysBetweenDayKeys(localDayKey(new Date(visit.completedAt)), localDayKey(new Date())),
+  );
+
+  return { visit, daysAgo };
 }
 
 export async function restoreVisit(id: string, actorId?: string) {

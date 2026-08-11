@@ -10,6 +10,16 @@ export async function getStats(_req: Request, res: Response, next: NextFunction)
   }
 }
 
+export async function getMyStats(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { date } = req.query as Record<string, string>;
+    // Always the caller's own figures — there is no employeeId parameter to widen the scope.
+    res.json(await dashboardService.getMyDashboardStats(req.user!.userId, date));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getReports(req: Request, res: Response, next: NextFunction) {
   try {
     const { startDate, endDate, groupBy, viewBy } = req.query as Record<string, string>;
