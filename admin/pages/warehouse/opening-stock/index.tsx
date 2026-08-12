@@ -812,18 +812,35 @@ function OpeningStockPage() {
                     <tbody>
                       {visibleProducts.map((product) => {
                         const locked = postedIds.has(product._id);
+                        const existingRow = locked
+                          ? postedByKey.get(cellKey(warehouseId, product._id))
+                          : undefined;
                         const draft = drafts[product._id] ?? emptyDraft();
+                        const displaySellable = locked
+                          ? existingRow?.sellableQty ?? 0
+                          : Number(draft.sellableQty || 0);
+                        const displayDamaged = locked
+                          ? existingRow?.damagedQty ?? 0
+                          : Number(draft.damagedQty || 0);
+                        const displayRate = locked
+                          ? existingRow?.rate ?? 0
+                          : Number(draft.rate || 0);
                         const value =
-                          (Number(draft.sellableQty || 0) + Number(draft.damagedQty || 0)) *
-                          Number(draft.rate || 0);
+                          (displaySellable + displayDamaged) * displayRate;
 
                         return (
-                          <tr key={product._id} style={locked ? { opacity: 0.5 } : undefined}>
+                          <tr key={product._id} style={locked ? { opacity: 0.6 } : undefined}>
                             <td style={td}>{product.name}</td>
                             <td style={td}>{product.barcode}</td>
                             <td style={td}>
                               {locked ? (
-                                <em>already entered</em>
+                                <input
+                                  type="number"
+                                  readOnly
+                                  className={formStyles.input}
+                                  style={{ margin: 0, cursor: 'default' }}
+                                  value={displaySellable}
+                                />
                               ) : (
                                 <input
                                   type="number"
@@ -839,7 +856,15 @@ function OpeningStockPage() {
                               )}
                             </td>
                             <td style={td}>
-                              {!locked && (
+                              {locked ? (
+                                <input
+                                  type="number"
+                                  readOnly
+                                  className={formStyles.input}
+                                  style={{ margin: 0, cursor: 'default' }}
+                                  value={displayDamaged}
+                                />
+                              ) : (
                                 <input
                                   type="number"
                                   min={0}
@@ -854,7 +879,15 @@ function OpeningStockPage() {
                               )}
                             </td>
                             <td style={td}>
-                              {!locked && (
+                              {locked ? (
+                                <input
+                                  type="number"
+                                  readOnly
+                                  className={formStyles.input}
+                                  style={{ margin: 0, cursor: 'default' }}
+                                  value={displayRate}
+                                />
+                              ) : (
                                 <input
                                   type="number"
                                   min={0}
