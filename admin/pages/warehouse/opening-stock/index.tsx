@@ -407,7 +407,7 @@ function OpeningStockPage() {
 
     const edits = changedCells.filter((c) => c.isEdit).length;
     const fresh = changedCells.length - edits;
-    const unpriced = changedCells.filter((c) => c.rate <= 0).length;
+    const unpriced = changedCells.filter((c) => (c.rate ?? 0) <= 0).length;
 
     const message =
       `Save ${changedCells.length} cell(s)?\n\n` +
