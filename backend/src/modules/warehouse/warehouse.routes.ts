@@ -7,6 +7,8 @@ import {
   createWarehouseSchema,
   updateWarehouseSchema,
   postOpeningStockSchema,
+  saveOpeningStockMatrixSchema,
+  updateOpeningStockSchema,
   createStockReceiptSchema,
   updateStockReceiptSchema,
   reasonSchema,
@@ -249,11 +251,85 @@ router.post(
 );
 
 router.get('/opening-stock', requireRoles('admin'), controller.findAllOpeningStock);
+
+/**
+ * @openapi
+ * /api/warehouse/opening-stock/matrix:
+ *   get:
+ *     tags: [Warehouse]
+ *     summary: Every posted opening-stock cell, for the product × warehouse grid [Admin]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: '[{ _id, warehouseId, productId, sellableQty, damagedQty, rate }]' }
+ *   post:
+ *     tags: [Warehouse]
+ *     summary: Save the opening-stock grid — enter new cells, correct existing ones [Admin]
+ *     description: >
+ *       Send only the cells that were touched. A cell with no entry yet is posted; one that already
+ *       has an entry is corrected by reversing its movement and re-posting. Cells that would change
+ *       nothing are skipped, and a cell whose stock cannot move is reported in `failed` without
+ *       abandoning the rest of the save.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [cells]
+ *             properties:
+ *               effectiveAt: { type: string, format: date }
+ *               reason: { type: string, maxLength: 500 }
+ *               cells:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [warehouseId, productId, sellableQty, damagedQty]
+ *                   properties:
+ *                     warehouseId: { type: string }
+ *                     productId: { type: string }
+ *                     sellableQty: { type: integer, minimum: 0 }
+ *                     damagedQty: { type: integer, minimum: 0 }
+ *                     rate: { type: number, minimum: 0 }
+ *     responses:
+ *       200: { description: '{ created, updated, skipped, failed }' }
+ */
+router.get('/opening-stock/matrix', requireRoles('admin'), controller.getOpeningStockMatrix);
+router.post(
+  '/opening-stock/matrix',
+  requireRoles('admin'),
+  validate(saveOpeningStockMatrixSchema),
+  controller.saveOpeningStockMatrix,
+);
+
 router.get(
   '/opening-stock/status/:warehouseId',
   requireRoles(...WAREHOUSE_VIEWERS),
   controller.getOpeningStockStatus,
 );
+
+/**
+ * @openapi
+ * /api/warehouse/opening-stock/{id}:
+ *   put:
+ *     tags: [Warehouse]
+ *     summary: Correct one opening-stock entry's figures [Admin]
+ *     description: >
+ *       Reverses the movement the entry had applied and re-posts the new figures against the same
+ *       row, so a corrected rate follows through to the product's average cost. Both quantities may
+ *       be zero — the row stays posted and keeps its slot; cancel is what frees it.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: The updated entry }
+ *       400: { description: The entry is cancelled, or the correction would drive a bucket negative }
+ */
+router.put(
+  '/opening-stock/:id',
+  requireRoles('admin'),
+  validate(updateOpeningStockSchema),
+  controller.updateOpeningStock,
+);
+
 router.patch(
   '/opening-stock/:id/cancel',
   requireRoles('admin'),

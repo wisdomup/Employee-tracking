@@ -99,6 +99,26 @@ export interface OpeningStockStatus {
   postedProductIds: string[];
 }
 
+/** One posted (warehouse, product) figure, as the all-warehouse grid needs it. */
+export interface OpeningStockCell {
+  _id: string;
+  warehouseId: string;
+  productId: string;
+  sellableQty: number;
+  damagedQty: number;
+  rate: number;
+  effectiveAt?: string;
+}
+
+export interface OpeningStockMatrixResult {
+  message: string;
+  created: number;
+  updated: number;
+  skipped: number;
+  /** Cells whose stock could not move. The rest of the save still landed. */
+  failed: { warehouseId: string; productId?: string; message: string }[];
+}
+
 export const stockInService = {
   async getReceipts(filters?: {
     startDate?: string;
@@ -193,6 +213,43 @@ export const stockInService = {
     lines: { productId: string; sellableQty: number; damagedQty?: number; rate?: number }[];
   }): Promise<{ message: string; count: number }> {
     const response = await api.post('/warehouse/opening-stock', data);
+    return response.data;
+  },
+
+  /** Every posted cell, for the product × warehouse grid. */
+  async getOpeningStockMatrix(): Promise<OpeningStockCell[]> {
+    const response = await api.get('/warehouse/opening-stock/matrix');
+    return response.data;
+  },
+
+  /**
+   * Save the grid. Send only the cells that were touched — the API decides per cell whether that
+   * means a first entry or a correction, and reports anything it could not apply in `failed`.
+   */
+  async saveOpeningStockMatrix(data: {
+    effectiveAt?: string;
+    reason?: string;
+    cells: {
+      warehouseId: string;
+      productId: string;
+      sellableQty: number;
+      damagedQty: number;
+      rate?: number;
+    }[];
+  }): Promise<OpeningStockMatrixResult> {
+    const response = await api.post('/warehouse/opening-stock/matrix', data);
+    return response.data;
+  },
+
+  /**
+   * Correct one entry's figures. The old movement is reversed and the new one posted, so a
+   * corrected rate carries through to the product's average cost.
+   */
+  async updateOpeningStock(
+    id: string,
+    data: { sellableQty: number; damagedQty: number; rate?: number; reason?: string },
+  ): Promise<OpeningStockEntry> {
+    const response = await api.put(`/warehouse/opening-stock/${id}`, data);
     return response.data;
   },
 

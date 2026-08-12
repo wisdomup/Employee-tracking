@@ -44,6 +44,35 @@ export const postOpeningStockSchema = Joi.object({
     .required(),
 });
 
+/**
+ * The all-warehouse grid saves whole cells, so `damagedQty` is required here where the
+ * single-warehouse form leaves it optional: a cell sent without it means "set damaged to zero",
+ * not "leave damaged alone", and the two must not be spelled the same way.
+ */
+export const saveOpeningStockMatrixSchema = Joi.object({
+  effectiveAt: Joi.date().optional(),
+  reason: Joi.string().trim().max(500).optional().allow(''),
+  cells: Joi.array()
+    .items(
+      Joi.object({
+        warehouseId: objectId.required(),
+        productId: objectId.required(),
+        sellableQty: piecesOrZero.required(),
+        damagedQty: piecesOrZero.required(),
+        rate: rate.optional(),
+      }),
+    )
+    .min(1)
+    .required(),
+});
+
+export const updateOpeningStockSchema = Joi.object({
+  sellableQty: piecesOrZero.required(),
+  damagedQty: piecesOrZero.required(),
+  rate: rate.optional(),
+  reason: Joi.string().trim().max(500).optional().allow(''),
+});
+
 export const createStockReceiptSchema = Joi.object({
   receiptDate: Joi.date().required(),
   supplierName: Joi.string().trim().max(200).optional().allow(''),

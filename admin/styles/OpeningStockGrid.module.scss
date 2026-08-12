@@ -1,0 +1,279 @@
+// Product × warehouse entry grid on the Opening Stock screen.
+//
+// Every warehouse contributes a pair of columns (sellable / damaged), so the table is wide by
+// design: it scrolls horizontally inside `.tableScroll` while the product column stays pinned, and
+// the page itself never scrolls sideways.
+
+// ─── Mode switch ──────────────────────────────────────────────────────────────
+
+.modeSwitch {
+  display: inline-flex;
+  padding: 0.2rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.6rem;
+  background: #f9fafb;
+  gap: 0.2rem;
+}
+
+.modeButton {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    color: #111827;
+  }
+}
+
+.modeButtonActive {
+  background: white;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+// ─── Toolbar ──────────────────────────────────────────────────────────────────
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.searchBox {
+  position: relative;
+  flex: 1 1 260px;
+  max-width: 360px;
+
+  svg {
+    position: absolute;
+    left: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.6rem 0.75rem 0.6rem 2.1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: white;
+    color: #1f2937;
+
+    &:focus {
+      outline: none;
+      border-color: var(--admin-primary);
+      box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+    }
+  }
+}
+
+.entryCount {
+  font-size: 0.875rem;
+  color: #6b7280;
+
+  strong {
+    color: #111827;
+  }
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+
+.tableScroll {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: white;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+
+  th {
+    background: #fafaf9;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7280;
+    white-space: nowrap;
+    border-bottom: 1px solid #e5e7eb;
+  }
+}
+
+.warehouseHead {
+  text-align: center;
+}
+
+/** The main warehouse leads the grid and is called out — it is where Stock In lands. */
+.mainHead {
+  color: #111827;
+}
+
+.warehouseSub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #9ca3af;
+}
+
+.bucketHead {
+  text-align: center;
+  font-size: 0.65rem;
+}
+
+.rateHead {
+  text-align: center;
+}
+
+/** Separates one warehouse's pair of columns from the previous warehouse's. */
+.groupEdge {
+  border-left: 1px solid #e5e7eb;
+}
+
+// ─── Sticky product column ────────────────────────────────────────────────────
+
+.productHead,
+.productCell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  text-align: left;
+  min-width: 220px;
+}
+
+.productCell {
+  background: white;
+  padding: 0.6rem 0.75rem;
+}
+
+.productName {
+  font-weight: 600;
+  color: #111827;
+}
+
+.productSku {
+  margin-top: 0.15rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+// ─── Body ─────────────────────────────────────────────────────────────────────
+
+.grid tbody tr + tr td {
+  border-top: 1px solid #f3f4f6;
+}
+
+.cell {
+  padding: 0.5rem 0.6rem;
+  text-align: center;
+}
+
+.qtyInput,
+.rateInput {
+  width: 5.5rem;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  border: 1px solid #d1d5db;
+  border-radius: 0.4rem;
+  font-size: 0.875rem;
+  background: white;
+  color: #1f2937;
+  appearance: textfield;
+  -moz-appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+  }
+}
+
+.rateInput {
+  width: 6.5rem;
+}
+
+/** Already posted. Typing over it corrects the entry rather than creating one. */
+.existing {
+  border-color: #a7c4b5;
+  background: #f6faf8;
+}
+
+/** Differs from what is stored — this cell is part of the next save. */
+.dirty {
+  border-color: #b45309;
+  background: #fffbeb;
+  font-weight: 600;
+}
+
+.emptyRow td {
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────────
+
+.gridActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legendSwatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 0.2rem;
+  border: 1px solid #d1d5db;
+}
+
+@media (max-width: 600px) {
+  .productHead,
+  .productCell {
+    min-width: 160px;
+  }
+}

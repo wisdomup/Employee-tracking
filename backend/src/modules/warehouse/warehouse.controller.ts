@@ -174,6 +174,32 @@ export async function getOpeningStockStatus(req: Request, res: Response, next: N
   }
 }
 
+export async function getOpeningStockMatrix(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await openingStockService.getOpeningStockMatrix());
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function saveOpeningStockMatrix(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await openingStockService.saveOpeningStockMatrix(req.body, req.user!.userId));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateOpeningStock(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(
+      await openingStockService.updateOpeningStock(req.params.id, req.body, req.user!.userId),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function cancelOpeningStock(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(

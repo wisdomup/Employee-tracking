@@ -3,9 +3,10 @@ import { Schema, model, Document, Types } from 'mongoose';
 /**
  * One-time starting stock, entered per warehouse per product when the module goes live.
  *
- * "One-time" is enforced by the database: a unique partial index on posted rows means a second
- * posting for the same warehouse+product fails outright. Cancelling a row frees the slot, which
- * is the only supported way to correct a bad entry.
+ * "One-time" means one ROW per warehouse+product, enforced by a unique partial index on posted
+ * rows — a second posting for the same pair fails outright. The figures on that row can still be
+ * corrected: an edit reverses the old movement and re-posts the new one, so the ledger keeps both
+ * halves and the correction trail below records who changed it. Cancelling frees the slot entirely.
  */
 export interface IOpeningStock extends Document {
   _id: Types.ObjectId;
@@ -20,6 +21,16 @@ export interface IOpeningStock extends Document {
   cancelledBy?: Types.ObjectId;
   cancelledAt?: Date;
   cancelReason?: string;
+  /** Correction trail — set once the figures have been edited. Mirrors `StockReceipt`. */
+  lastEditedBy?: Types.ObjectId;
+  lastEditedAt?: Date;
+  editReason?: string;
+  editCount?: number;
+  /**
+   * An edit that reversed the stock and then failed to re-apply it. Recorded so the next attempt
+   * gets a fresh `updatedAt` stamp — see the rollback branch in `updateOpeningStock`.
+   */
+  lastEditFailedAt?: Date;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +48,11 @@ const openingStockSchema = new Schema<IOpeningStock>(
     cancelledBy: { type: Schema.Types.ObjectId, ref: 'User' },
     cancelledAt: { type: Date },
     cancelReason: { type: String, trim: true, maxlength: 500 },
+    lastEditedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lastEditedAt: { type: Date },
+    editReason: { type: String, trim: true, maxlength: 500 },
+    editCount: { type: Number, default: 0 },
+    lastEditFailedAt: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

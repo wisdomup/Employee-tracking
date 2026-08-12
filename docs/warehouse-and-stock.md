@@ -185,6 +185,27 @@ is the counter's variance.
 A partial count stores the products it covered and the approval loop iterates *that* list, never the
 product catalogue, so an uncounted product is not read as "zero".
 
+### Manual adjustment — editing the figures in place
+
+`POST /api/warehouse/stock/adjust` backs the **Edit quantities** mode on a warehouse's detail page
+(`/warehouse/warehouses/:id`). It is the only write path in the module with no document and no
+approval behind it, so it is deliberately narrow:
+
+- **Admin only**, matching who may approve a stock count.
+- A **reason is mandatory** and is written onto every ledger row the correction produces.
+- **Sellable and damaged only.** `in_transit` is owned by the transfer documents — editing it by hand
+  would leave a transfer that can never be received. Use `resolve-mismatch` for a stuck transfer.
+- Quantities in the payload are **absolute** ("what it should be"), and the service posts the
+  difference as `manual_adjustment` movements through `applyStockMovements`. Buckets that already
+  match are dropped rather than posted as zero deltas, which is also what makes a double-submitted
+  form harmless — the second attempt finds nothing to change and 400s.
+
+There is no document to key replays on, so each request gets a fresh `refId`; the "already matches"
+check is the real replay guard, not the idempotency key.
+
+The monthly stock count is still the routine correction path. This one is for fixing an obvious data
+error without opening a sheet and waiting for approval.
+
 ### Sales
 
 The source warehouse is resolved from the salesman's `address.city`, matched against
