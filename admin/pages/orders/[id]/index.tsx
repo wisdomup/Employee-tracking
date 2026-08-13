@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
@@ -125,9 +126,13 @@ const OrderDetailPage: React.FC = () => {
   if (loading) return <Layout><Loader /></Layout>;
   if (!order) return <Layout><div>Order not found</div></Layout>;
 
+  const lineDiscountOf = (item: { quantity: number; price: number; discount?: number }) =>
+    Math.min(Math.max(item.discount ?? 0, 0), item.quantity * item.price);
   const totalPrice = order.products?.reduce((sum, item) => sum + item.quantity * item.price, 0) ?? 0;
+  const itemsDiscountTotal =
+    order.products?.reduce((sum, item) => sum + lineDiscountOf(item), 0) ?? 0;
   const discount = order.discount ?? 0;
-  const grandTotal = order.grandTotal ?? totalPrice - discount;
+  const grandTotal = order.grandTotal ?? totalPrice - itemsDiscountTotal - discount;
 
   return (
     <Layout>
@@ -184,7 +189,18 @@ const OrderDetailPage: React.FC = () => {
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Client:</span>
-                <span className={styles.value}>{order.dealerId?.name || '-'}</span>
+                <span className={styles.value}>
+                  {typeof order.dealerId === 'object' && order.dealerId?._id ? (
+                    <Link
+                      href={`/clients/${order.dealerId._id}`}
+                      style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
+                    >
+                      {order.dealerId?.name || '-'}
+                    </Link>
+                  ) : (
+                    order.dealerId?.name || '-'
+                  )}
+                </span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.label}>Shop Name:</span>
@@ -281,6 +297,7 @@ const OrderDetailPage: React.FC = () => {
                     <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Product</th>
                     <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Qty</th>
                     <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Unit Price</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Discount</th>
                     <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Subtotal</th>
                   </tr>
                 </thead>
@@ -297,25 +314,38 @@ const OrderDetailPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center', color: '#1f2937' }}>{item.quantity}</td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#1f2937' }}>Rs. {item.price.toFixed(2)}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
+                        {lineDiscountOf(item) > 0 ? `-Rs. ${lineDiscountOf(item).toFixed(2)}` : '—'}
+                      </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 500, color: '#1f2937' }}>
-                        Rs. {(item.quantity * item.price).toFixed(2)}
+                        Rs. {(item.quantity * item.price - lineDiscountOf(item)).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={3} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>
+                    <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>
                       Subtotal:
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#1f2937' }}>
                       Rs. {totalPrice.toFixed(2)}
                     </td>
                   </tr>
+                  {itemsDiscountTotal > 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                        Item Discounts:
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
+                        -Rs. {itemsDiscountTotal.toFixed(2)}
+                      </td>
+                    </tr>
+                  )}
                   {discount > 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
-                        Discount:
+                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                        Order Discount:
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
                         -Rs. {discount.toFixed(2)}
@@ -323,7 +353,7 @@ const OrderDetailPage: React.FC = () => {
                     </tr>
                   )}
                   <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                    <td colSpan={3} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#374151' }}>
+                    <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#374151' }}>
                       Grand Total:
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#1d4ed8' }}>
@@ -332,7 +362,7 @@ const OrderDetailPage: React.FC = () => {
                   </tr>
                   {order.paidAmount !== undefined && (
                     <tr>
-                      <td colSpan={3} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
                         Paid:
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
@@ -342,7 +372,7 @@ const OrderDetailPage: React.FC = () => {
                   )}
                   {order.paidAmount !== undefined && (
                     <tr>
-                      <td colSpan={3} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>
+                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>
                         Balance Due:
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>

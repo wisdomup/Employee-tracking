@@ -426,7 +426,15 @@ export async function getPerformance(
           _id: '$createdBy',
           invoicedTotal: { $sum: { $ifNull: ['$grandTotal', 0] } },
           collectedTotal: { $sum: { $ifNull: ['$paidAmount', 0] } },
-          discountTotal: { $sum: { $ifNull: ['$discount', 0] } },
+          // Order-level discount plus the per-line discounts stored on each product row.
+          discountTotal: {
+            $sum: {
+              $add: [
+                { $ifNull: ['$discount', 0] },
+                { $sum: { $ifNull: ['$products.discount', []] } },
+              ],
+            },
+          },
           creditOrders: { $sum: { $cond: [{ $eq: ['$paymentType', 'credit'] }, 1, 0] } },
           cancelledOrders: { $sum: 0 },
           distinctDealers: { $addToSet: '$dealerId' },

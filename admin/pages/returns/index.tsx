@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -104,7 +105,18 @@ const ReturnsPage: React.FC = () => {
     {
       key: 'dealerId',
       title: 'Client',
-      render: (value: any) => value?.name || '-',
+      render: (value: any) =>
+        value?._id ? (
+          <Link
+            href={`/clients/${value._id}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
+          >
+            {value.name || '-'}
+          </Link>
+        ) : (
+          value?.name || '-'
+        ),
     },
     {
       key: 'returnType',

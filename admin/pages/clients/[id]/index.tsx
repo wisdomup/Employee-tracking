@@ -10,6 +10,7 @@ import StartVisitButton from '../../../components/Visits/StartVisitButton';
 import ClientLocationCorrection from '../../../components/Clients/ClientLocationCorrection';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import { clientService, Client } from '../../../services/clientService';
+import { orderService, Order } from '../../../services/orderService';
 import {
   visitService,
   Visit,
@@ -123,6 +124,7 @@ const ClientDetailPage: React.FC = () => {
    */
   const canCorrectLocation = can(user?.role, 'dealers:fix-location');
   const [client, setClient] = useState<Client | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [visitFilterDate, setVisitFilterDate] = useState<string>(() => {
     const d = new Date();
@@ -141,6 +143,7 @@ const ClientDetailPage: React.FC = () => {
       fetchClient();
       fetchGallery();
       fetchLastVisit();
+      fetchOrders();
     }
   }, [id]);
 
@@ -197,6 +200,21 @@ const ClientDetailPage: React.FC = () => {
     }
   };
 
+  /**
+   * Everything ever billed to this shop, newest first. The server auto-scopes the list for
+   * order_takers, so a rider looking at a client still only sees the orders they punched.
+   */
+  const fetchOrders = async () => {
+    if (!id) return;
+    try {
+      const data = await orderService.getOrders({ clientId: id as string });
+      setOrders(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to fetch order history');
+      setOrders([]);
+    }
+  };
+
   const handleEdit = () => {
     router.push(`/clients/${id}/edit`);
   };
@@ -227,6 +245,48 @@ const ClientDetailPage: React.FC = () => {
 
   const handleVisitRowClick = (row: Visit) => {
     router.push(`/visits/${row._id}`);
+  };
+
+  const orderColumns = [
+    {
+      key: 'invoiceNumber',
+      title: 'Invoice No',
+      render: (value: number | undefined, row: Order) =>
+        value != null && Number.isFinite(value)
+          ? `INV-${String(Math.floor(value)).padStart(6, '0')}`
+          : row._id.slice(-8).toUpperCase(),
+    },
+    {
+      key: 'createdAt',
+      title: 'Order Date',
+      render: (value: string) => (value ? format(new Date(value), 'MMM dd, yyyy') : '-'),
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      render: (value: string) => <StatusBadge status={value as Order['status']} />,
+    },
+    {
+      key: 'paymentType',
+      title: 'Payment Type',
+      render: (value: string) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : '-'),
+    },
+    {
+      key: 'createdBy',
+      title: 'Created By',
+      render: (value: any) => (value ? value.username ?? value.userID ?? '-' : '-'),
+    },
+    {
+      key: 'grandTotal',
+      title: 'Grand Total',
+      render: (value: number) => (value != null ? `Rs. ${Number(value).toFixed(2)}` : '-'),
+      total: 'sum' as const,
+      totalRender: (value: number) => `Rs. ${value.toFixed(2)}`,
+    },
+  ];
+
+  const handleOrderRowClick = (row: Order) => {
+    router.push(`/orders/${row._id}`);
   };
 
   if (loading) {
@@ -560,6 +620,27 @@ const ClientDetailPage: React.FC = () => {
             ) : (
               <p style={{ color: '#6b7280', marginTop: '1rem' }}>
                 No visits for the selected date.
+              </p>
+            )}
+          </div>
+
+          <div className={styles.section}>
+            <h2>Orders ({orders.length})</h2>
+            {orders.length > 0 ? (
+              <div style={{ marginTop: '1rem' }}>
+                <Table
+                  columns={orderColumns}
+                  data={orders}
+                  loading={false}
+                  onRowClick={handleOrderRowClick}
+                />
+                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                  Click on a row to view the order
+                </p>
+              </div>
+            ) : (
+              <p style={{ color: '#6b7280', marginTop: '1rem' }}>
+                No orders placed for this client yet.
               </p>
             )}
           </div>

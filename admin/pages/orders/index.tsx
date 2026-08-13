@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -138,7 +139,10 @@ const OrdersPage: React.FC = () => {
     const stored = value ?? row.grandTotal ?? row.totalPrice;
     if (stored !== undefined && stored !== null) return Number(stored);
     const fromProducts = row.products?.reduce(
-      (sum, p) => sum + (p.quantity ?? 0) * (typeof p.price === 'number' ? p.price : 0),
+      (sum, p) =>
+        sum +
+        (p.quantity ?? 0) * (typeof p.price === 'number' ? p.price : 0) -
+        (typeof p.discount === 'number' ? p.discount : 0),
       0,
     );
     return fromProducts == null ? null : fromProducts - (row.discount ?? 0);
@@ -153,7 +157,18 @@ const OrdersPage: React.FC = () => {
     {
       key: 'dealerId',
       title: 'Client',
-      render: (value: any) => value?.name || '-',
+      render: (value: any) =>
+        value?._id ? (
+          <Link
+            href={`/clients/${value._id}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
+          >
+            {value.name || '-'}
+          </Link>
+        ) : (
+          value?.name || '-'
+        ),
     },
     {
       key: 'grandTotal',

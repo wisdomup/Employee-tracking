@@ -25,6 +25,8 @@ interface LineItem {
   productId: string;
   quantity: number;
   price: number;
+  /** Flat Rs. off this line's subtotal. */
+  discount: number;
 }
 
 const CreateOrderPage: React.FC = () => {
@@ -41,7 +43,7 @@ const CreateOrderPage: React.FC = () => {
   const [sourceWarehouseId, setSourceWarehouseId] = useState('');
   const [warehouseStock, setWarehouseStock] = useState<Record<string, number>>({});
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { productId: '', quantity: 1, price: 0 },
+    { productId: '', quantity: 1, price: 0, discount: 0 },
   ]);
   const [formData, setFormData] = useState({
     clientId: '',
@@ -103,7 +105,7 @@ const CreateOrderPage: React.FC = () => {
     value: string | number,
   ) => {
     const updated = [...lineItems];
-    if (field === 'quantity' || field === 'price') {
+    if (field === 'quantity' || field === 'price' || field === 'discount') {
       updated[index][field] = Number(value);
     } else {
       updated[index][field] = value as string;
@@ -116,16 +118,23 @@ const CreateOrderPage: React.FC = () => {
     setLineItems(updated);
   };
 
-  const addLineItem = () => setLineItems([...lineItems, { productId: '', quantity: 1, price: 0 }]);
+  const addLineItem = () =>
+    setLineItems([...lineItems, { productId: '', quantity: 1, price: 0, discount: 0 }]);
 
   const removeLineItem = (index: number) => {
     if (lineItems.length === 1) return;
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  const totalPrice = lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const lineSubtotal = (item: LineItem) => item.quantity * item.price;
+  /** Same clamp the server applies, so the form's totals match what gets stored. */
+  const effectiveLineDiscount = (item: LineItem) =>
+    Math.min(Math.max(item.discount || 0, 0), lineSubtotal(item));
+
+  const totalPrice = lineItems.reduce((sum, item) => sum + lineSubtotal(item), 0);
+  const itemsDiscountTotal = lineItems.reduce((sum, item) => sum + effectiveLineDiscount(item), 0);
   const discount = parseFloat(formData.discount) || 0;
-  const grandTotal = totalPrice - discount;
+  const grandTotal = totalPrice - itemsDiscountTotal - discount;
 
   /**
    * Stock available to this order.
@@ -184,6 +193,16 @@ const CreateOrderPage: React.FC = () => {
       toast.error(`Please set a unit price greater than 0 for "${product?.name ?? 'the selected product'}"`);
       return;
     }
+    const badDiscountItem = validItems.find(
+      (item) => (item.discount || 0) < 0 || (item.discount || 0) > lineSubtotal(item),
+    );
+    if (badDiscountItem) {
+      const product = products.find((p) => p._id === badDiscountItem.productId);
+      toast.error(
+        `Discount for "${product?.name ?? 'the selected product'}" must be between 0 and the line subtotal (Rs. ${lineSubtotal(badDiscountItem).toFixed(2)}).`,
+      );
+      return;
+    }
     const exceeded = getStockExceededError();
     if (exceeded) {
       toast.error(
@@ -201,6 +220,7 @@ const CreateOrderPage: React.FC = () => {
           productId: item.productId,
           quantity: item.quantity,
           price: item.price,
+          ...(item.discount > 0 ? { discount: item.discount } : {}),
         })),
         discount: discount || undefined,
         paidAmount: formData.paidAmount ? parseFloat(formData.paidAmount) : undefined,
@@ -294,6 +314,9 @@ const CreateOrderPage: React.FC = () => {
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 120 }}>
                       Unit Price *
                     </th>
+                    <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 110 }}>
+                      Discount (Rs.)
+                    </th>
                     <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 100 }}>
                       Subtotal
                     </th>
@@ -358,8 +381,20 @@ const CreateOrderPage: React.FC = () => {
                       <td style={{ padding: '0.5rem', color: '#1f2937' }}>
                         <span style={{ fontWeight: 500 }}>Rs. {item.price.toFixed(2)}</span>
                       </td>
+                      <td style={{ padding: '0.5rem' }}>
+                        <input
+                          type="number"
+                          value={item.discount}
+                          onChange={(e) => handleLineItemChange(idx, 'discount', e.target.value)}
+                          className={styles.input}
+                          style={{ margin: 0 }}
+                          min={0}
+                          step="0.01"
+                          placeholder="0.00"
+                        />
+                      </td>
                       <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 500, color: '#1f2937' }}>
-                        Rs. {(item.quantity * item.price).toFixed(2)}
+                        Rs. {(lineSubtotal(item) - effectiveLineDiscount(item)).toFixed(2)}
                       </td>
                       <td style={{ padding: '0.5rem', textAlign: 'center' }}>
                         <button
@@ -376,7 +411,7 @@ const CreateOrderPage: React.FC = () => {
                 </tbody>
                 <tfoot style={{ color: '#1f2937' }}>
                   <tr>
-                    <td colSpan={4} style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>
+                    <td colSpan={5} style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>
                       Total:
                     </td>
                     <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 700, color: '#1f2937' }}>
@@ -384,10 +419,21 @@ const CreateOrderPage: React.FC = () => {
                     </td>
                     <td />
                   </tr>
+                  {itemsDiscountTotal > 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '0.5rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                        Item Discounts:
+                      </td>
+                      <td style={{ padding: '0.5rem', textAlign: 'right', color: '#047857' }}>
+                        -Rs. {itemsDiscountTotal.toFixed(2)}
+                      </td>
+                      <td />
+                    </tr>
+                  )}
                   {discount > 0 && (
                     <tr>
-                      <td colSpan={4} style={{ padding: '0.5rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
-                        Discount:
+                      <td colSpan={5} style={{ padding: '0.5rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                        Order Discount:
                       </td>
                       <td style={{ padding: '0.5rem', textAlign: 'right', color: '#047857' }}>
                         -Rs. {discount.toFixed(2)}
@@ -396,7 +442,7 @@ const CreateOrderPage: React.FC = () => {
                     </tr>
                   )}
                   <tr style={{ background: '#f9fafb' }}>
-                    <td colSpan={4} style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 700, color: '#374151' }}>
+                    <td colSpan={5} style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 700, color: '#374151' }}>
                       Grand Total:
                     </td>
                     <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 700, color: '#1d4ed8' }}>
@@ -444,12 +490,25 @@ const CreateOrderPage: React.FC = () => {
                           min={1}
                         />
                       </div>
+                      <div>
+                        <label className={styles.lineItemFieldLabel}>Discount (Rs.)</label>
+                        <input
+                          type="number"
+                          value={item.discount}
+                          onChange={(e) => handleLineItemChange(idx, 'discount', e.target.value)}
+                          className={styles.input}
+                          style={{ margin: 0 }}
+                          min={0}
+                          step="0.01"
+                          placeholder="0.00"
+                        />
+                      </div>
                       <div className={styles.lineItemMeta}>
                         <div>
                           Unit Price: <strong>Rs. {item.price.toFixed(2)}</strong>
                         </div>
                         <div>
-                          Subtotal: <strong>Rs. {(item.quantity * item.price).toFixed(2)}</strong>
+                          Subtotal: <strong>Rs. {(lineSubtotal(item) - effectiveLineDiscount(item)).toFixed(2)}</strong>
                         </div>
                         {item.productId ? (
                           <>
@@ -502,9 +561,15 @@ const CreateOrderPage: React.FC = () => {
                   <span>Total</span>
                   <strong>Rs. {totalPrice.toFixed(2)}</strong>
                 </div>
+                {itemsDiscountTotal > 0 && (
+                  <div>
+                    <span>Item Discounts</span>
+                    <strong>-Rs. {itemsDiscountTotal.toFixed(2)}</strong>
+                  </div>
+                )}
                 {discount > 0 && (
                   <div>
-                    <span>Discount</span>
+                    <span>Order Discount</span>
                     <strong>-Rs. {discount.toFixed(2)}</strong>
                   </div>
                 )}
@@ -560,7 +625,7 @@ const CreateOrderPage: React.FC = () => {
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
-              <label htmlFor="discount">Discount</label>
+              <label htmlFor="discount">Order Discount</label>
               <input
                 type="number"
                 id="discount"

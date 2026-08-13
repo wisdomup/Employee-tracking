@@ -7,6 +7,7 @@ import { notFound, badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextOrderInvoiceNumber } from './order-invoice-counter';
 import { sanitizeOrderTermsHtml } from './order-terms-sanitize';
+import { computeOrderTotals } from './orders.totals';
 import {
   applyStockMovements,
   StockMovementLine,
@@ -200,7 +201,7 @@ async function resolveOrderRouteId(
 
 export async function createOrder(
   data: {
-    products: { productId: string; quantity: number; price: number }[];
+    products: { productId: string; quantity: number; price: number; discount?: number }[];
     totalPrice?: number;
     discount?: number;
     grandTotal?: number;
@@ -222,8 +223,10 @@ export async function createOrder(
   const routeIdProvided = Object.prototype.hasOwnProperty.call(data, 'routeId');
   const resolvedRouteId = await resolveOrderRouteId(dealerId, routeId, routeIdProvided);
 
-  const totalPrice = products.reduce((sum, p) => sum + p.quantity * p.price, 0);
-  const grandTotal = totalPrice - (discount ?? 0);
+  const { totalPrice, itemsDiscountTotal, grandTotal, lineDiscounts } = computeOrderTotals(
+    products,
+    discount,
+  );
 
   const byProduct = aggregateQuantityByProduct(products);
 
@@ -253,10 +256,12 @@ export async function createOrder(
       discount: discount ?? 0,
       totalPrice,
       grandTotal,
-      products: products.map((p) => ({
+      products: products.map((p, i) => ({
         productId: new Types.ObjectId(p.productId),
         quantity: p.quantity,
         price: p.price,
+        // Clamped per-line discount (never negative, never more than the line subtotal).
+        discount: lineDiscounts[i],
         // Cost SNAPSHOT at the moment stock moved. Without it the P&L multiplies by the live
         // weighted-average cost, which now shifts on every goods receipt — so a closed period would
         // silently restate itself.
@@ -479,6 +484,7 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
       productId: new Types.ObjectId(p.productId),
       quantity: p.quantity,
       price: p.price,
+      ...(typeof p.discount === 'number' && p.discount > 0 ? { discount: p.discount } : {}),
       ...(existingCosts.get(String(p.productId)) !== undefined
         ? { unitCost: existingCosts.get(String(p.productId)) }
         : {}),
@@ -496,9 +502,16 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
     order.routeId = nextRouteId as Types.ObjectId | undefined;
   }
 
-  const totalPrice = order.products.reduce((sum, p) => sum + p.quantity * p.price, 0);
-  order.totalPrice = totalPrice;
-  order.grandTotal = totalPrice - (order.discount ?? 0);
+  const totals = computeOrderTotals(order.products, order.discount);
+  order.totalPrice = totals.totalPrice;
+  order.grandTotal = totals.grandTotal;
+  // Store the clamped amounts back so a discount typed past its line subtotal is persisted
+  // as the subtotal, matching what grandTotal was computed with.
+  order.products = order.products.map((line, i) =>
+    line.discount !== totals.lineDiscounts[i]
+      ? ({ ...line, discount: totals.lineDiscounts[i] } as typeof line)
+      : line,
+  ) as typeof order.products;
 
   if (previousStatus === 'pending' && order.status === 'approved' && actorId) {
     order.approvedBy = new Types.ObjectId(actorId);

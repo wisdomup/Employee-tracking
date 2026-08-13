@@ -8,6 +8,9 @@ const orderProductSchema = Joi.object({
   // passes the stock pre-check and then *increments* stock on the guarded update.
   quantity: Joi.number().integer().min(1).required(),
   price: Joi.number().min(0).required(),
+  // Flat Rs. off this line's subtotal. Clamped to the subtotal in the service so a line
+  // can never go negative.
+  discount: Joi.number().min(0).optional(),
 });
 
 export const createOrderSchema = Joi.object({

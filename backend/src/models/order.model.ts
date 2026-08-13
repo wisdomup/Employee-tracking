@@ -4,6 +4,8 @@ export interface IOrderProduct {
   productId: Types.ObjectId;
   quantity: number;
   price: number;
+  /** Flat discount (Rs.) taken off this line's `quantity * price` subtotal. */
+  discount?: number;
   /**
    * Cost per piece SNAPSHOT, taken when the stock actually moved. Without it the P&L report
    * multiplies by the live `Product.purchasePrice`, which now shifts on every goods receipt —
@@ -48,6 +50,7 @@ const orderProductSchema = new Schema<IOrderProduct>(
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
     quantity: { type: Number, required: true },
     price: { type: Number, required: true },
+    discount: { type: Number, min: 0 },
     unitCost: { type: Number, min: 0 },
   },
   { _id: false },

@@ -782,20 +782,22 @@ export async function buildOrderInvoicePdfBlob(order: Order): Promise<Blob> {
   y += billBoxH + 6;
 
   // ── LINE ITEMS TABLE ───────────────────────────────────────────────────
-  const head = [['Sr#', 'Item Code', 'Description', 'Unit Price', 'Qty', 'Total Price']];
+  const head = [['Sr#', 'Item Code', 'Description', 'Unit Price', 'Qty', 'Discount', 'Total Price']];
   const body: string[][] = [];
   const products = order.products ?? [];
   products.forEach((item, idx) => {
     const p = (item.productId || {}) as Record<string, unknown>;
     const code = typeof p.barcode === 'string' ? p.barcode : '—';
     const name = typeof p.name === 'string' ? p.name : '—';
-    const lineTotal = item.quantity * item.price;
+    const lineDiscount = Math.min(Math.max(item.discount ?? 0, 0), item.quantity * item.price);
+    const lineTotal = item.quantity * item.price - lineDiscount;
     body.push([
       String(idx + 1),
       code,
       name,
       formatRs(item.price),
       String(item.quantity),
+      lineDiscount > 0 ? formatRs(lineDiscount) : '—',
       formatRs(lineTotal),
     ]);
   });
@@ -822,11 +824,12 @@ export async function buildOrderInvoicePdfBlob(order: Order): Promise<Blob> {
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 26, halign: 'center' },
-      2: { cellWidth: 68 },
-      3: { cellWidth: 30, halign: 'right' },
-      4: { cellWidth: 12, halign: 'center' },
-      5: { cellWidth: 36, halign: 'right' },
+      1: { cellWidth: 24, halign: 'center' },
+      2: { cellWidth: 58 },
+      3: { cellWidth: 26, halign: 'right' },
+      4: { cellWidth: 10, halign: 'center' },
+      5: { cellWidth: 24, halign: 'right' },
+      6: { cellWidth: 30, halign: 'right' },
     },
     margin: { left: M, right: M, bottom: 20 },
     tableLineColor: [180, 180, 180],
@@ -849,7 +852,12 @@ export async function buildOrderInvoicePdfBlob(order: Order): Promise<Blob> {
   // ── TOTALS (template: bordered stack, square corners; Net Balance = black bar) ─
   const totalPrice =
     order.totalPrice ?? products.reduce((s, it) => s + it.quantity * it.price, 0);
-  const discount = order.discount ?? 0;
+  const itemsDiscountTotal = products.reduce(
+    (s, it) => s + Math.min(Math.max(it.discount ?? 0, 0), it.quantity * it.price),
+    0,
+  );
+  // Combined: per-line discounts plus the order-level discount.
+  const discount = itemsDiscountTotal + (order.discount ?? 0);
   const grandTotal = order.grandTotal ?? totalPrice - discount;
 
   const totalsBlockW = 80;

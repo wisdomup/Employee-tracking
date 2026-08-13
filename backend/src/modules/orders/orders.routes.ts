@@ -33,8 +33,9 @@ router.use(authMiddleware);
  *                     productId: { type: string }
  *                     quantity: { type: number }
  *                     price: { type: number }
+ *                     discount: { type: number, description: Flat Rs. off this line's subtotal (clamped to the subtotal) }
  *               totalPrice: { type: number }
- *               discount: { type: number }
+ *               discount: { type: number, description: Order-level discount, applied on top of any per-line discounts }
  *               grandTotal: { type: number }
  *               paidAmount: { type: number }
  *               dealerId: { type: string }

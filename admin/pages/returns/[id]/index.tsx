@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
@@ -119,7 +120,18 @@ const ReturnDetailPage: React.FC = () => {
               {/* Client */}
               <div className={styles.infoItem}>
                 <span className={styles.label}>Client:</span>
-                <span className={styles.value}>{returnItem.dealerId?.name || '-'}</span>
+                <span className={styles.value}>
+                  {typeof returnItem.dealerId === 'object' && returnItem.dealerId?._id ? (
+                    <Link
+                      href={`/clients/${returnItem.dealerId._id}`}
+                      style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
+                    >
+                      {returnItem.dealerId?.name || '-'}
+                    </Link>
+                  ) : (
+                    returnItem.dealerId?.name || '-'
+                  )}
+                </span>
               </div>
               {returnItem.dealerId?.phone && (
                 <div className={styles.infoItem}>

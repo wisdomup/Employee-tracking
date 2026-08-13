@@ -8,6 +8,27 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-13 — Item-wise discounts on orders
+
+### Added
+- **Per-line discounts while punching an order.** Every product row on the create/edit order
+  forms now takes a flat Rs. discount, stored on the order line, alongside the existing
+  order-level field. Discounts are clamped to each line's subtotal server-side, so a row can
+  never go below zero, and `grandTotal` = gross total − item discounts − order discount.
+  Create, edit, detail and list pages all show the breakdown (Total → Item Discounts →
+  Order Discount → Grand Total), the printed sale invoice gained a per-line Discount column
+  with net line totals, and the analytics "Discount" column now sums line discounts on top of
+  the order-level one. Money math lives in a new pure module `orders/orders.totals.ts`,
+  covered by `npm run test:orders:totals`.
+
+- **Client names are clickable, and the client profile gained an Orders History.** On the
+  orders list, order detail, returns list and return detail, the client name now links to
+  `/clients/[id]` (same style as the activity-logs entity links; it doesn't trigger the row's
+  own navigation). The profile itself gained an **Orders table** below Visits — invoice
+  number, date, status, payment type, who punched it and grand total with a summed footer —
+  fetched per client and auto-scoped by the server, so an order_taker viewing a client still
+  only sees the orders they punched. Rows open the order.
+
 ## 2026-08-11 — Client corrections, stock-in edits, report totals & dashboard rework
 
 Seven client-requested items. The two with real depth are the Stock In correction path and the

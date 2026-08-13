@@ -4,6 +4,8 @@ export interface OrderProduct {
   productId: any;
   quantity: number;
   price: number;
+  /** Flat Rs. off this line's subtotal. */
+  discount?: number;
 }
 
 export interface Order {
