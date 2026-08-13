@@ -99,21 +99,30 @@ export interface OpeningStockStatus {
   postedProductIds: string[];
 }
 
-/** One posted (warehouse, product) figure, as the all-warehouse grid needs it. */
+/**
+ * One (warehouse, product) box in the all-warehouse grid.
+ *
+ * The quantities are the stock ON HAND, not the opening-stock row — most pairs on a running system
+ * were stocked by Stock In and have no opening row at all. `hasOpening` says whether one exists,
+ * which is what the API uses to decide whether an edit corrects that row or adjusts the balance.
+ */
 export interface OpeningStockCell {
-  _id: string;
   warehouseId: string;
   productId: string;
   sellableQty: number;
   damagedQty: number;
   rate: number;
-  effectiveAt?: string;
+  hasOpening: boolean;
 }
 
 export interface OpeningStockMatrixResult {
   message: string;
+  /** New opening-stock entries. */
   created: number;
+  /** Existing opening-stock entries whose figures were corrected. */
   updated: number;
+  /** Balances reconciled by a stock adjustment, because the pair had already moved. */
+  adjusted: number;
   skipped: number;
   /** Cells whose stock could not move. The rest of the save still landed. */
   failed: { warehouseId: string; productId?: string; message: string }[];

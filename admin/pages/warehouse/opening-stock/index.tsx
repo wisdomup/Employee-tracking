@@ -90,7 +90,7 @@ function OpeningStockPage() {
   const [gridLoading, setGridLoading] = useState(true);
   const [gridSaving, setGridSaving] = useState(false);
 
-  /** Fill the grid from what is posted, and seed a rate for everything else from the product. */
+  /** Fill the grid with the stock on hand, and seed a rate for everything else from the product. */
   const seedGrid = useCallback(
     (rows: OpeningStockCell[], productList: Product[], warehouseList: Warehouse[]) => {
       const mainId = warehouseList.find((w) => w.isMain)?._id;
@@ -104,8 +104,9 @@ function OpeningStockPage() {
         };
         // The grid carries ONE rate per product, but the database stores it per warehouse. When
         // they disagree, Main's rate is the one shown — it is where the stock actually arrives.
-        if (nextRates[row.productId] === undefined || row.warehouseId === mainId) {
-          nextRates[row.productId] = String(row.rate ?? 0);
+        // A pair with no opening row carries no rate of its own, so it must not claim the slot.
+        if (row.rate > 0 && (nextRates[row.productId] === undefined || row.warehouseId === mainId)) {
+          nextRates[row.productId] = String(row.rate);
         }
       }
 
@@ -311,6 +312,7 @@ function OpeningStockPage() {
         const damagedQty = Number(draft?.damaged || 0);
 
         if (!prior) {
+          // Nothing on hand and no opening row: only a typed quantity is worth sending.
           if (sellableQty > 0 || damagedQty > 0) {
             out.push({
               warehouseId: warehouse._id,
@@ -324,7 +326,8 @@ function OpeningStockPage() {
           continue;
         }
 
-        const rateChanged = rateTyped && prior.rate !== rate;
+        // A rate only means anything where an opening row exists to carry it.
+        const rateChanged = rateTyped && prior.hasOpening && prior.rate !== rate;
         if (
           prior.sellableQty !== sellableQty ||
           prior.damagedQty !== damagedQty ||
@@ -407,14 +410,18 @@ function OpeningStockPage() {
 
     const edits = changedCells.filter((c) => c.isEdit).length;
     const fresh = changedCells.length - edits;
-    const unpriced = changedCells.filter((c) => (c.rate ?? 0) <= 0).length;
+    // Only a NEW entry can be left unpriced — an edit that did not touch the rate sends none, and
+    // the rate already stored stands.
+    const unpriced = changedCells.filter((c) => !c.isEdit && (c.rate ?? 0) <= 0).length;
 
     const message =
       `Save ${changedCells.length} cell(s)?\n\n` +
-      `• ${fresh} new opening-stock entr${fresh === 1 ? 'y' : 'ies'}\n` +
-      `• ${edits} correction(s) to figures already posted\n\n` +
-      'A correction reverses the stock that entry had applied and re-posts the new figures, so a ' +
-      'changed rate carries through to the average cost.' +
+      `• ${fresh} pair(s) with nothing on hand — entered as opening stock\n` +
+      `• ${edits} correction(s) to a figure that already has stock\n\n` +
+      'Every box is an absolute figure: saving makes the warehouse hold exactly that many pieces. ' +
+      'Where the pair has only ever had opening stock the opening entry itself is corrected; once ' +
+      'Stock In, a sale or a transfer has moved it, the balance is adjusted instead and the ' +
+      'opening record is left alone.' +
       (unpriced > 0
         ? `\n\n${unpriced} cell(s) have no rate. Those pieces will carry no cost basis until the ` +
           'first Stock In, so stock value and profit will understate them.'
@@ -478,9 +485,11 @@ function OpeningStockPage() {
         <WarehouseModuleNav active="opening-stock" />
 
         <p className={listStyles.filterSummary}>
-          Enter the stock physically present in each warehouse today, split into sellable and
-          damaged / claim pieces, with the rate you paid. The rate seeds each product&apos;s average
-          cost, so it is worth getting right.
+          Enter the stock physically present in each warehouse, split into sellable and damaged /
+          claim pieces, with the rate you paid. Every box is an absolute figure and starts out
+          showing what the warehouse currently holds — change it to what is really on the shelf. The
+          rate seeds a product&apos;s average cost when it has no stock history yet, so it is worth
+          getting right.
         </p>
 
         <div className={gridStyles.modeSwitch} role="tablist" aria-label="Entry mode">
@@ -517,7 +526,7 @@ function OpeningStockPage() {
                 />
               </div>
               <span className={gridStyles.entryCount}>
-                <strong>{rowsWithEntries}</strong> row(s) have entries
+                <strong>{rowsWithEntries}</strong> row(s) have stock
                 {changedCells.length > 0 && (
                   <>
                     {' · '}
@@ -609,7 +618,7 @@ function OpeningStockPage() {
                               isChanged ? gridStyles.dirty : isPosted ? gridStyles.existing : ''
                             }`;
                             const hint = isPosted
-                              ? `Already entered at ${warehouse.name} — saving corrects it`
+                              ? `On hand at ${warehouse.name} — saving corrects it to the number you type`
                               : undefined;
 
                             return (
@@ -675,7 +684,7 @@ function OpeningStockPage() {
                       className={`${gridStyles.legendSwatch} ${gridStyles.existing}`}
                       aria-hidden="true"
                     />
-                    Already entered — typing over it corrects the entry
+                    Stock already on hand — typing over it corrects the figure
                   </span>
                   <span className={gridStyles.legendItem}>
                     <span
@@ -688,7 +697,7 @@ function OpeningStockPage() {
 
                 <div className={reportStyles.plGrid} style={{ marginTop: 16 }}>
                   <div className={reportStyles.plCard}>
-                    <span>Rows with entries</span>
+                    <span>Rows with stock</span>
                     <strong>{rowsWithEntries}</strong>
                   </div>
                   <div className={reportStyles.plCard}>
@@ -696,7 +705,7 @@ function OpeningStockPage() {
                     <strong>{changedCells.length}</strong>
                   </div>
                   <div className={reportStyles.plCard}>
-                    <span>Total opening value</span>
+                    <span>Total value (at shown rates)</span>
                     <strong>{formatRsExact(gridValue)}</strong>
                   </div>
                 </div>
