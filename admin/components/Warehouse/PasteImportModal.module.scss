@@ -1,11 +1,36 @@
+/**
+ * The dialog is a column that never outgrows the viewport: header and action buttons stay put and
+ * only the middle scrolls. The overlay adds 1rem of padding on each side, hence the 2rem.
+ */
 .wide {
   max-width: 60rem;
   width: 100%;
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.5rem;
+  margin-right: -0.5rem;
+}
+
+.actions {
+  flex-shrink: 0;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
 }
 
 .textarea {
   width: 100%;
-  min-height: 11rem;
+  min-height: 7rem;
   padding: 0.625rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
@@ -106,9 +131,18 @@
   cursor: pointer;
 }
 
+/* No scroll of its own — the dialog body is the single scroll region, so the review list cannot
+   end up as a small pane inside an already-scrolling box. */
 .rows {
-  max-height: 22rem;
-  overflow-y: auto;
+  overflow: visible;
+}
+
+/* Column labels stay put while the list under them scrolls past. */
+.stickyHeading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
 }
 
 .row {

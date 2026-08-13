@@ -203,6 +203,9 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
 
       <div className={styles.productCell}>
         <ProductCombobox
+          /* `initialQuery` seeds state on mount only. Keying on the text forces a fresh box when
+             the pasted sheet changes, so a row cannot keep the query from an earlier paste. */
+          key={row.rawProduct}
           index={index}
           value={row.productId}
           onChange={(productId) => patch(row.key, { productId })}
@@ -266,7 +269,7 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
   );
 
   const headings = (
-    <div className={`${styles.row} ${styles.rowHeading}`}>
+    <div className={`${styles.row} ${styles.rowHeading} ${styles.stickyHeading}`}>
       <span>Pasted text</span>
       <span>Product</span>
       <span>Pieces</span>
@@ -288,6 +291,7 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
           <h2>Paste from Excel</h2>
         </div>
 
+        <div className={styles.body}>
         <div className={modal.formGroup}>
           <label htmlFor="paste-import-text">
             Copy the rows out of the supplier&apos;s sheet and paste them here
@@ -403,8 +407,9 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
             )}
           </>
         )}
+        </div>
 
-        <div className={modal.modalActions}>
+        <div className={`${modal.modalActions} ${styles.actions}`}>
           <button type="button" className={modal.cancelButton} onClick={onClose}>
             Cancel
           </button>
