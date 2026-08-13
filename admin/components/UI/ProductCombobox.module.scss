@@ -1,0 +1,107 @@
+/* Portalled menu lives on document.body, so its classes cannot be nested under .wrap. */
+
+.wrap {
+  position: relative;
+  width: 100%;
+}
+
+.input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111827;
+  font-size: max(16px, 1rem);
+  line-height: 1.4;
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: #9ca3af;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+  }
+
+  &:disabled {
+    background: #f3f4f6;
+    cursor: not-allowed;
+  }
+}
+
+.inputFilled {
+  font-weight: 500;
+}
+
+.menu {
+  position: fixed;
+  z-index: 10000;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0;
+}
+
+.option {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  color: #111827;
+}
+
+.optionActive {
+  background: var(--admin-primary-muted, #e0f2fe);
+}
+
+.optionMain {
+  min-width: 0;
+}
+
+.optionName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionBarcode {
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+
+.optionMeta {
+  flex-shrink: 0;
+  text-align: right;
+  color: #6b7280;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.empty {
+  padding: 0.75rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .input {
+    font-size: max(18px, 1.125rem);
+    min-height: 3rem;
+  }
+}

@@ -1,9 +1,7 @@
 import { Types } from 'mongoose';
 import { OpeningStockModel } from '../../models/opening-stock.model';
-import { WarehouseStockModel } from '../../models/warehouse-stock.model';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
-import { adjustStock, AdjustStockLineInput } from './stock-adjustments.service';
 import {
   applyStockMovements,
   findPostedMovementIds,
@@ -403,77 +401,29 @@ export async function cancelOpeningStock(id: string, reason: string, actorId: st
 // ------------------------------------------------------------------ all-warehouse grid
 
 /**
- * What each (warehouse, product) box in the grid starts out holding.
+ * Every posted entry, flattened for the product × warehouse grid on the setup screen.
  *
- * The figure shown is the stock ACTUALLY ON HAND, not the opening-stock row — a warehouse that was
- * stocked by Stock In or a transfer has no opening-stock row at all, and a grid that showed only
- * those rows would come up empty on a live system. `hasOpening` says whether an opening-stock entry
- * also exists, which is what decides how an edit to the box is applied (see `saveOpeningStockMatrix`).
+ * Opening stock ONLY. Stock that arrived by Stock In or a transfer is deliberately not reflected
+ * here: opening stock is what the operator declares the warehouse started with, and pre-filling it
+ * from a balance the ledger already holds would invite re-posting figures that are counted.
  *
  * Deliberately unpopulated and id-keyed: the screen already holds the product and warehouse lists,
  * and populating them again for what can be hundreds of cells is wasted payload.
  */
 export async function getOpeningStockMatrix() {
-  const [entries, balances] = await Promise.all([
-    OpeningStockModel.find({ status: 'posted' })
-      .select('warehouseId productId sellableQty damagedQty rate')
-      .lean(),
-    WarehouseStockModel.find({
-      $or: [{ sellable: { $ne: 0 } }, { damaged: { $ne: 0 } }],
-    })
-      .select('warehouseId productId sellable damaged')
-      .lean(),
-  ]);
+  const rows = await OpeningStockModel.find({ status: 'posted' })
+    .select('warehouseId productId sellableQty damagedQty rate effectiveAt')
+    .lean();
 
-  interface Cell {
-    warehouseId: string;
-    productId: string;
-    sellableQty: number;
-    damagedQty: number;
-    rate: number;
-    hasOpening: boolean;
-  }
-
-  const byKey = new Map<string, Cell>();
-
-  for (const balance of balances) {
-    const warehouseId = String(balance.warehouseId);
-    const productId = String(balance.productId);
-    byKey.set(`${warehouseId}:${productId}`, {
-      warehouseId,
-      productId,
-      sellableQty: balance.sellable,
-      damagedQty: balance.damaged,
-      rate: 0,
-      hasOpening: false,
-    });
-  }
-
-  // The opening row contributes the rate and the flag. It must NOT overwrite the quantity: once
-  // stock has moved, the opening figure and the balance are different numbers and the box shows
-  // what is on hand.
-  for (const entry of entries) {
-    const warehouseId = String(entry.warehouseId);
-    const productId = String(entry.productId);
-    const key = `${warehouseId}:${productId}`;
-    const cell = byKey.get(key);
-
-    if (cell) {
-      cell.rate = entry.rate;
-      cell.hasOpening = true;
-    } else {
-      byKey.set(key, {
-        warehouseId,
-        productId,
-        sellableQty: entry.sellableQty,
-        damagedQty: entry.damagedQty,
-        rate: entry.rate,
-        hasOpening: true,
-      });
-    }
-  }
-
-  return [...byKey.values()];
+  return rows.map((r) => ({
+    _id: String(r._id),
+    warehouseId: String(r.warehouseId),
+    productId: String(r.productId),
+    sellableQty: r.sellableQty,
+    damagedQty: r.damagedQty,
+    rate: r.rate,
+    effectiveAt: r.effectiveAt,
+  }));
 }
 
 export interface OpeningStockCellInput {
@@ -485,26 +435,17 @@ export interface OpeningStockCellInput {
 }
 
 /**
- * Save the grid. Each box holds an ABSOLUTE figure — "this warehouse holds this many pieces" — and
- * the route that figure takes depends on what the pair already has:
+ * Save the grid: create the cells that have no entry yet, correct the ones whose figures changed.
  *
- *   • no opening row and nothing on hand  → post opening stock. The first entry for the pair, and
- *     the only one of the three that seeds a cost basis from the rate.
- *   • an opening row whose figures still match what is on hand → correct the opening row itself
- *     (`updateOpeningStock`), so the record of what the warehouse started with stays true.
- *   • anything else → a stock adjustment to the absolute figure. Once Stock In, a sale or a
- *     transfer has moved the pair, the opening row is history and rewriting it would move stock a
- *     second time.
- *
- * That last distinction is the whole point of taking the decision HERE rather than on the client:
- * opening stock ADDS to the ledger, so a grid pre-filled with stock on hand would double every
- * balance it re-posted.
+ * The client sends only the cells it touched, but the decision of what each one MEANS is taken
+ * here against the database — a stale grid must not be able to re-post a product that someone else
+ * entered in the meantime, nor silently blank one it never saw.
  *
  * One bad cell does not abandon the rest. A cell whose stock cannot move (a correction that would
  * drive a bucket negative, say) is collected into `failed` and the save carries on, because the
  * alternative — aborting a fifty-cell grid on the last row — leaves the operator guessing what
- * landed. Creates and adjustments are grouped per warehouse and stay all-or-nothing WITHIN that
- * warehouse, which is the same guarantee the single-warehouse screen gives.
+ * landed. Creates are grouped per warehouse and stay all-or-nothing WITHIN that warehouse, which is
+ * the same guarantee the single-warehouse screen gives.
  */
 export async function saveOpeningStockMatrix(
   data: { effectiveAt?: Date; reason?: string; cells: OpeningStockCellInput[] },
@@ -522,57 +463,28 @@ export async function saveOpeningStockMatrix(
     seen.add(key);
   }
 
-  const warehouseIds = [...new Set(data.cells.map((c) => c.warehouseId))];
-  const productIds = [...new Set(data.cells.map((c) => c.productId))];
-
-  const [existing, balances] = await Promise.all([
-    OpeningStockModel.find({
-      warehouseId: { $in: warehouseIds },
-      productId: { $in: productIds },
-      status: 'posted',
-    })
-      .select('warehouseId productId sellableQty damagedQty rate')
-      .lean(),
-    WarehouseStockModel.find({
-      warehouseId: { $in: warehouseIds.map((id) => new Types.ObjectId(id)) },
-      productId: { $in: productIds.map((id) => new Types.ObjectId(id)) },
-    })
-      .select('warehouseId productId sellable damaged')
-      .lean(),
-  ]);
+  const existing = await OpeningStockModel.find({
+    warehouseId: { $in: [...new Set(data.cells.map((c) => c.warehouseId))] },
+    productId: { $in: [...new Set(data.cells.map((c) => c.productId))] },
+    status: 'posted',
+  })
+    .select('warehouseId productId sellableQty damagedQty rate')
+    .lean();
 
   const priorByKey = new Map(
     existing.map((e) => [`${String(e.warehouseId)}:${String(e.productId)}`, e]),
   );
-  const onHandByKey = new Map(
-    balances.map((b) => [
-      `${String(b.warehouseId)}:${String(b.productId)}`,
-      { sellable: b.sellable, damaged: b.damaged },
-    ]),
-  );
 
   const creates = new Map<string, OpeningStockLineInput[]>();
-  const adjustments = new Map<string, AdjustStockLineInput[]>();
   const edits: { id: string; cell: OpeningStockCellInput }[] = [];
   let skipped = 0;
 
   for (const cell of data.cells) {
-    const key = `${cell.warehouseId}:${cell.productId}`;
-    const prior = priorByKey.get(key);
-    const onHand = onHandByKey.get(key) ?? { sellable: 0, damaged: 0 };
+    const prior = priorByKey.get(`${cell.warehouseId}:${cell.productId}`);
     const rate = cell.rate ?? prior?.rate ?? 0;
 
-    const qtyChanged =
-      onHand.sellable !== cell.sellableQty || onHand.damaged !== cell.damagedQty;
-    const rateChanged = prior !== undefined && cell.rate !== undefined && prior.rate !== cell.rate;
-
-    if (!qtyChanged && !rateChanged) {
-      skipped += 1;
-      continue;
-    }
-
-    // Never held, never entered: this is genuinely opening stock.
-    if (!prior && onHand.sellable === 0 && onHand.damaged === 0) {
+    if (!prior) {
+      // Nothing to record for an empty cell that never had an entry.
       if (cell.sellableQty <= 0 && cell.damagedQty <= 0) {
         skipped += 1;
         continue;
@@ -588,35 +500,20 @@ export async function saveOpeningStockMatrix(
       continue;
     }
 
-    // The opening row is still the whole of this pair's history, so correct it in place and let the
-    // rate follow through to the average cost.
     if (
-      prior &&
-      prior.sellableQty === onHand.sellable &&
-      prior.damagedQty === onHand.damaged
+      prior.sellableQty === cell.sellableQty &&
+      prior.damagedQty === cell.damagedQty &&
+      prior.rate === rate
     ) {
-      edits.push({ id: String(prior._id), cell: { ...cell, rate } });
+      skipped += 1;
       continue;
     }
-
-    // Stock has moved since. Reconcile the balance and leave the opening row alone.
-    if (qtyChanged) {
-      const group = adjustments.get(cell.warehouseId) ?? [];
-      group.push({
-        productId: cell.productId,
-        sellable: cell.sellableQty,
-        damaged: cell.damagedQty,
-      });
-      adjustments.set(cell.warehouseId, group);
-    } else {
-      skipped += 1;
-    }
+    edits.push({ id: String(prior._id), cell: { ...cell, rate } });
   }
 
   const failed: { warehouseId: string; productId?: string; message: string }[] = [];
   let created = 0;
   let updated = 0;
-  let adjusted = 0;
 
   for (const [warehouseId, lines] of creates) {
     try {
@@ -652,37 +549,18 @@ export async function saveOpeningStockMatrix(
     }
   }
 
-  for (const [warehouseId, lines] of adjustments) {
-    try {
-      const result = await adjustStock(
-        {
-          warehouseId,
-          reason: data.reason?.trim() || 'Corrected from the opening stock grid',
-          lines,
-        },
-        userId,
-      );
-      adjusted += result.adjustedProducts;
-    } catch (err) {
-      failed.push({
-        warehouseId,
-        message: err instanceof Error ? err.message : 'Could not adjust these products',
-      });
-    }
-  }
 
   logActivityAsync({
     employeeId: userId,
     module: 'opening_stock',
     entityId: 'matrix',
     action: 'updated',
-    meta: { created, updated, adjusted, skipped, failed: failed.length, reason: data.reason },
+    meta: { created, updated, skipped, failed: failed.length, reason: data.reason },
   });
 
   const parts: string[] = [];
   if (created > 0) parts.push(`${created} entered`);
-  if (updated > 0) parts.push(`${updated} opening entr${updated === 1 ? 'y' : 'ies'} corrected`);
-  if (adjusted > 0) parts.push(`${adjusted} stock figure(s) adjusted`);
+  if (updated > 0) parts.push(`${updated} updated`);
   if (failed.length > 0) parts.push(`${failed.length} failed`);
   if (parts.length === 0) parts.push('nothing changed');
 
@@ -690,7 +568,6 @@ export async function saveOpeningStockMatrix(
     message: `Opening stock saved — ${parts.join(', ')}`,
     created,
     updated,
-    adjusted,
     skipped,
     failed,
   };

@@ -8,6 +8,7 @@ import DatePickerFilter from '../../../../components/UI/DatePickerFilter';
 import StockLineItemsEditor, {
   StockLine,
   emptyStockLine,
+  toStockLine,
 } from '../../../../components/Warehouse/StockLineItemsEditor';
 import { stockInService, StockReceipt } from '../../../../services/stockInService';
 import { productService, Product } from '../../../../services/productService';
@@ -74,11 +75,13 @@ function EditStockInPage() {
         setSupplierName(data.supplierName ?? '');
         setNotes(data.notes ?? '');
         setLines(
-          data.products.map((line) => ({
-            productId: idOf(line.productId),
-            qty: line.quantity,
-            rate: line.rate,
-          })),
+          data.products.map((line) =>
+            toStockLine({
+              productId: idOf(line.productId),
+              qty: line.quantity,
+              rate: line.rate,
+            }),
+          ),
         );
       })
       .catch((err) => toast.error(getApiErrorMessage(err, 'Failed to load the receipt')))
