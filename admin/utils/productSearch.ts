@@ -35,6 +35,27 @@ interface IndexEntry {
   haystack: string;
 }
 
+/** Character bigrams, for the misspelling fallback. `juice` -> {ju, ui, ic, ce}. */
+function bigrams(value: string): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < value.length - 1; i += 1) out.add(value.slice(i, i + 2));
+  return out;
+}
+
+/** Sørensen–Dice: shared bigrams over total. 1 is identical, 0 shares nothing. */
+function diceSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let shared = 0;
+  for (const gram of a) if (b.has(gram)) shared += 1;
+  return (2 * shared) / (a.size + b.size);
+}
+
+/**
+ * Below this, a "closest match" is noise rather than a suggestion. Tuned so that a one or two
+ * letter slip (`Orange Juce`) still surfaces its product, while unrelated text offers nothing.
+ */
+const FUZZY_THRESHOLD = 0.34;
+
 export interface ProductIndex {
   products: Product[];
   entries: IndexEntry[];
@@ -42,12 +63,25 @@ export interface ProductIndex {
   byCode: Map<string, Product>;
   /** Normalized name -> product. First occurrence wins. */
   byName: Map<string, Product>;
+  /**
+   * Name with punctuation and spacing stripped -> the single product that owns it, or `null` when
+   * more than one product collapses onto the same key. A null is what stops `Cola-500` and
+   * `Cola 500` being treated as an unambiguous match for each other.
+   */
+  byLooseName: Map<string, Product | null>;
+  /**
+   * Per-entry name bigrams, built on the first misspelling lookup and kept afterwards. Lazy because
+   * most searches never reach the fuzzy tier, and building it eagerly would tax every page that
+   * only ever does exact lookups.
+   */
+  nameGrams: Set<string>[] | null;
 }
 
 export function buildProductIndex(products: Product[]): ProductIndex {
   const entries: IndexEntry[] = [];
   const byCode = new Map<string, Product>();
   const byName = new Map<string, Product>();
+  const byLooseName = new Map<string, Product | null>();
 
   for (const product of products) {
     const name = normalizeText(product.name ?? '');
@@ -56,9 +90,35 @@ export function buildProductIndex(products: Product[]): ProductIndex {
 
     if (code && !byCode.has(code)) byCode.set(code, product);
     if (name && !byName.has(name)) byName.set(name, product);
+
+    const loose = normalizeCode(product.name ?? '');
+    if (loose) byLooseName.set(loose, byLooseName.has(loose) ? null : product);
   }
 
-  return { products, entries, byCode, byName };
+  return { products, entries, byCode, byName, byLooseName, nameGrams: null };
+}
+
+/**
+ * Ranked near-misses for text that matched nothing outright — the misspelling tier.
+ *
+ * Kept strictly as a fallback rather than another scoring tier: it is the most expensive pass, and
+ * letting it compete with real matches would push an approximate hit above an exact one.
+ */
+function fuzzyMatches(index: ProductIndex, query: string, limit: number): Product[] {
+  if (!index.nameGrams) {
+    index.nameGrams = index.entries.map((entry) => bigrams(entry.name));
+  }
+
+  const queryGrams = bigrams(query);
+  const scored: { product: Product; score: number }[] = [];
+
+  for (let i = 0; i < index.entries.length; i += 1) {
+    const score = diceSimilarity(queryGrams, index.nameGrams[i]);
+    if (score >= FUZZY_THRESHOLD) scored.push({ product: index.entries[i].product, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((s) => s.product);
 }
 
 export const EMPTY_PRODUCT_INDEX: ProductIndex = buildProductIndex([]);
@@ -105,6 +165,12 @@ export function searchProducts(index: ProductIndex, rawQuery: string, limit = 50
     if (score > 0) scored.push({ product: entry.product, score, name: entry.name });
   }
 
+  if (scored.length === 0) {
+    // Nothing matched literally. A one or two character slip should still find its product, but
+    // only once there is enough text for the comparison to mean anything.
+    return query.length >= 3 ? fuzzyMatches(index, query, limit) : [];
+  }
+
   scored.sort((a, b) => (b.score - a.score) || a.name.localeCompare(b.name));
   return scored.slice(0, limit).map((s) => s.product);
 }
@@ -135,6 +201,11 @@ export function resolveProduct(index: ProductIndex, raw: string): ResolveResult 
 
   const byName = index.byName.get(normalizeText(text));
   if (byName) return { product: byName, confidence: 'exact', suggestions: [] };
+
+  /* Same name once punctuation and spacing are ignored — `Diet Cola 500ml.` against
+     `Diet Cola 500ml`. Only accepted when exactly one product owns that key. */
+  const loose = index.byLooseName.get(normalizeCode(text));
+  if (loose) return { product: loose, confidence: 'exact', suggestions: [] };
 
   const suggestions = searchProducts(index, text, 8);
   if (suggestions.length === 0) return { product: null, confidence: 'none', suggestions: [] };

@@ -55,6 +55,12 @@ interface PreparedRow {
   product: Product | null;
   /** True when the text matched a barcode or an exact name — importable without review. */
   autoMatched: boolean;
+  /**
+   * Ranked near-misses for text that did not match outright. Offered as one-click chips: showing
+   * the closest product is most of the work of correcting the row, but accepting it stays a
+   * decision the user makes, because Stock In writes into an append-only ledger.
+   */
+  suggestions: Product[];
   qtyValid: boolean;
   skipped: boolean;
   needsAttention: boolean;
@@ -130,6 +136,7 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
         productId,
         product,
         autoMatched,
+        suggestions: productId ? [] : resolution.suggestions.slice(0, 3),
         qtyValid,
         skipped,
         needsAttention: !skipped && (!productId || !qtyValid),
@@ -143,6 +150,18 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
 
   const patch = (key: number, next: RowOverride) =>
     setOverrides((prev) => ({ ...prev, [key]: { ...prev[key], ...next } }));
+
+  /** Rows whose text found a near-miss but no outright match — the "did you mean" population. */
+  const suggestable = prepared.filter((r) => !r.skipped && !r.productId && r.suggestions.length > 0);
+
+  const acceptAllSuggestions = () =>
+    setOverrides((prev) => {
+      const next = { ...prev };
+      for (const row of suggestable) {
+        next[row.key] = { ...next[row.key], productId: row.suggestions[0]._id };
+      }
+      return next;
+    });
 
   const handleImport = () => {
     /* Two spreadsheet rows for the same product would trip the receipt's one-line-per-product
@@ -182,14 +201,32 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
         <div className={styles.rawLine}>Row {row.key + (useHeader ? 2 : 1)}</div>
       </div>
 
-      <ProductCombobox
-        index={index}
-        value={row.productId}
-        onChange={(productId) => patch(row.key, { productId })}
-        initialQuery={row.productId ? undefined : row.rawProduct}
-        disabled={row.skipped}
-        placeholder="Pick the product…"
-      />
+      <div className={styles.productCell}>
+        <ProductCombobox
+          index={index}
+          value={row.productId}
+          onChange={(productId) => patch(row.key, { productId })}
+          initialQuery={row.productId ? undefined : row.rawProduct}
+          disabled={row.skipped}
+          placeholder="Pick the product…"
+        />
+        {!row.skipped && row.suggestions.length > 0 && (
+          <div className={styles.suggestions}>
+            <span className={styles.suggestionsLabel}>Closest:</span>
+            {row.suggestions.map((suggestion) => (
+              <button
+                key={suggestion._id}
+                type="button"
+                className={styles.suggestionChip}
+                title={`${suggestion.name} (${suggestion.barcode})`}
+                onClick={() => patch(row.key, { productId: suggestion._id })}
+              >
+                {suggestion.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <input
         className={`${styles.numberInput}${row.qtyValid ? '' : ` ${styles.inputError}`}`}
@@ -325,6 +362,15 @@ const PasteImportModalBody: React.FC<Omit<PasteImportModalProps, 'open'>> = ({
               <div className={styles.blocked}>
                 Nothing is imported until every row is matched to a product with a whole-number
                 quantity, or ticked as skipped.
+                {suggestable.length > 0 && (
+                  <>
+                    {' '}
+                    Each unmatched row below offers its closest products — click one to use it.
+                    <button type="button" className={styles.acceptAll} onClick={acceptAllSuggestions}>
+                      Use the closest match on all {suggestable.length}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
