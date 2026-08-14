@@ -3,7 +3,10 @@ import { OrderModel } from '../../models/order.model';
 import { ProductModel } from '../../models/product.model';
 import { DealerModel } from '../../models/dealer.model';
 import { UserModel } from '../../models/user.model';
-import { notFound, badRequest } from '../../utils/app-error';
+import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
+import { ROLES } from '../../constants/global';
+import { normalizeCityKey, UNASSIGNED_REGION_KEY } from '../region-sales/region-sales.rules';
+import { notFound, badRequest, conflict } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextOrderInvoiceNumber } from './order-invoice-counter';
 import { sanitizeOrderTermsHtml } from './order-terms-sanitize';
@@ -183,6 +186,35 @@ async function assertWarehouseHasStock(
   }
 }
 
+/**
+ * Validate a rider before an order is handed to them.
+ *
+ * The city check is the important half. `resolveCityScope` deliberately fails OPEN for a user
+ * with no city — right for narrowing a client list, catastrophic for money, because every
+ * collection that rider records would land in an untraceable "Unassigned" bucket and spec §4's
+ * "strictly city-wise segregated" would be quietly false. Refusing here makes it an admin's
+ * one-time data-entry problem instead of a rider's mid-shift blocker.
+ */
+async function assertAssignableRider(riderId: string) {
+  const rider = await UserModel.findOne({ _id: riderId, isTrashed: { $ne: true } })
+    .select('_id role isActive fullName username address.city')
+    .lean()
+    .exec();
+
+  if (!rider) throw notFound('Rider not found');
+  if (rider.role !== ROLES.DELIVERY_MAN) {
+    throw badRequest('Orders can only be assigned to a delivery boy.');
+  }
+  if (rider.isActive !== true) {
+    throw badRequest('That rider’s account is inactive.');
+  }
+  if (normalizeCityKey(rider.address?.city) === UNASSIGNED_REGION_KEY) {
+    const name = rider.fullName || rider.username;
+    throw badRequest(`No city is set for ${name}. Set a city on ${name} before assigning orders.`);
+  }
+  return rider;
+}
+
 /** When `routeId` is omitted from the body, use the dealer's assigned route. Explicit `''` / null clears route. */
 async function resolveOrderRouteId(
   dealerId: string,
@@ -315,6 +347,8 @@ export async function findAll(filters?: {
   routeId?: string;
   status?: string;
   createdBy?: string;
+  /** `'unassigned'` matches orders with no rider — the admin's "still to hand out" queue. */
+  assignedRiderId?: string;
   startDate?: string;
   endDate?: string;
 }) {
@@ -324,6 +358,11 @@ export async function findAll(filters?: {
   if (filters?.routeId) query.routeId = new Types.ObjectId(filters.routeId);
   if (filters?.status) query.status = filters.status;
   if (filters?.createdBy) query.createdBy = new Types.ObjectId(filters.createdBy);
+  if (filters?.assignedRiderId === 'unassigned') {
+    query.assignedRiderId = { $in: [null, undefined] };
+  } else if (filters?.assignedRiderId) {
+    query.assignedRiderId = new Types.ObjectId(filters.assignedRiderId);
+  }
 
   if (filters?.startDate || filters?.endDate) {
     query.createdAt = {} as Record<string, Date>;
@@ -350,6 +389,7 @@ export async function findAll(filters?: {
     .populate('routeId')
     .populate('createdBy', '-password')
     .populate('approvedBy', '-password')
+    .populate('assignedRiderId', '-password')
     .populate('products.productId')
     .sort({ createdAt: -1 })
     .exec();
@@ -361,6 +401,7 @@ export async function findById(id: string) {
     .populate('routeId')
     .populate('createdBy', '-password')
     .populate('approvedBy', '-password')
+    .populate('assignedRiderId', '-password')
     .populate('products.productId')
     .exec();
 
@@ -385,6 +426,13 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   delete data.invoiceNumber;
   delete data.approvedBy;
   delete data.approvedAt;
+  // Rider assignment and the delivery timestamps are owned by the collection module's own
+  // guarded transitions. Left writable here, an `employee` could PUT `{ status: 'delivered' }`
+  // and skip the collection entry entirely — the money would never be recorded.
+  delete data.assignedRiderId;
+  delete data.assignedAt;
+  delete data.packedAt;
+  delete data.deliveredAt;
 
   const previousStatus = order.status;
   const nextStatus = typeof data.status === 'string' ? data.status : undefined;
@@ -398,6 +446,21 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   // holding quantities it never reserved, so the transition is refused outright.
   if (previousStatus === 'cancelled' && nextStatus && nextStatus !== 'cancelled') {
     throw badRequest('A cancelled order cannot be re-opened. Create a new order instead.');
+  }
+
+  // `delivered` is terminal once a rider has collected against it. Moving it anywhere else —
+  // including to `cancelled` — would leave a DeliveryCollection holding money for an order that
+  // no longer claims to have been delivered. Void the collection entry first.
+  if (previousStatus === 'delivered' && nextStatus && nextStatus !== 'delivered') {
+    const live = await DeliveryCollectionModel.exists({
+      orderId: order._id,
+      voidedAt: { $exists: false },
+    });
+    if (live) {
+      throw conflict(
+        'This order has a collection entry recorded against it. Void that entry before changing the order status.',
+      );
+    }
   }
 
   // `delivered` goods have physically left the building — cancelling afterwards must not
@@ -599,7 +662,7 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
 export async function approveOrder(
   id: string,
   actorId?: string,
-  body: { termsAndConditions?: string } = {},
+  body: { termsAndConditions?: string; assignedRiderId?: string | null } = {},
 ) {
   const order = await OrderModel.findOne({ _id: id, isTrashed: { $ne: true } });
 
@@ -611,10 +674,20 @@ export async function approveOrder(
     throw badRequest(`Only pending orders can be approved. Current status is "${order.status}".`);
   }
 
+  // Validate the rider BEFORE the approval is saved, so a bad rider id leaves the order
+  // pending and re-approvable rather than approved-but-unassigned.
+  const riderProvided = Object.prototype.hasOwnProperty.call(body, 'assignedRiderId');
+  const riderId = riderProvided && body.assignedRiderId ? String(body.assignedRiderId) : undefined;
+  if (riderId) await assertAssignableRider(riderId);
+
   order.status = 'approved';
   if (actorId) {
     order.approvedBy = new Types.ObjectId(actorId);
     order.approvedAt = new Date();
+  }
+  if (riderId) {
+    order.assignedRiderId = new Types.ObjectId(riderId);
+    order.assignedAt = new Date();
   }
   if (Object.prototype.hasOwnProperty.call(body, 'termsAndConditions')) {
     const t = sanitizeOrderTermsHtml(body.termsAndConditions);
@@ -629,10 +702,61 @@ export async function approveOrder(
     entityId: String(order._id),
     action: 'status_changed',
     changes: { status: { from: 'pending', to: 'approved' } },
-    meta: { status: order.status, dealerId: String(order.dealerId) },
+    meta: {
+      status: order.status,
+      dealerId: String(order.dealerId),
+      ...(riderId ? { assignedRiderId: riderId } : {}),
+    },
   });
 
   // Return same populated shape as GET /orders/:id (client, route, products, etc.)
+  return findById(id);
+}
+
+/**
+ * Hand an order to a rider, move it between riders, or take it back (`riderId` null/'').
+ *
+ * Separate from `approveOrder` because reassignment is routine — a rider goes sick, a route is
+ * rebalanced at 11am — and must not require re-approving anything.
+ */
+export async function assignRider(id: string, riderId: string | null, actorId?: string) {
+  const order = await OrderModel.findOne({ _id: id, isTrashed: { $ne: true } });
+  if (!order) throw notFound('Order not found');
+
+  if (order.status === 'pending') {
+    throw badRequest('Approve the order before assigning it to a rider.');
+  }
+  if (order.status === 'cancelled') {
+    throw badRequest('A cancelled order cannot be assigned to a rider.');
+  }
+  // The DeliveryCollection already recorded WHICH rider collected the money. Moving the order
+  // to someone else afterwards would make the order disagree with its own collection entry.
+  if (order.status === 'delivered') {
+    throw conflict('This order has already been delivered and cannot be reassigned.');
+  }
+
+  const nextRiderId = riderId ? String(riderId) : null;
+  if (nextRiderId) await assertAssignableRider(nextRiderId);
+
+  const previous = order.assignedRiderId ? String(order.assignedRiderId) : null;
+  if (nextRiderId) {
+    order.assignedRiderId = new Types.ObjectId(nextRiderId);
+    order.assignedAt = new Date();
+  } else {
+    order.set('assignedRiderId', undefined);
+    order.set('assignedAt', undefined);
+  }
+  await order.save();
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'order',
+    entityId: String(order._id),
+    action: 'updated',
+    changes: { assignedRiderId: { from: previous, to: nextRiderId } },
+    meta: { status: order.status, dealerId: String(order.dealerId) },
+  });
+
   return findById(id);
 }
 
@@ -641,6 +765,20 @@ export async function deleteOrder(id: string, actorId?: string) {
 
   if (!order) {
     throw notFound('Order not found');
+  }
+
+  // Money outlives the order document. The collection report reads DeliveryCollection directly
+  // and never joins through Order, so trashing a delivered order does not erase the cash the
+  // rider is holding — it just hides the order behind it. Force the void first so the two
+  // records cannot disagree.
+  const liveCollection = await DeliveryCollectionModel.exists({
+    orderId: order._id,
+    voidedAt: { $exists: false },
+  });
+  if (liveCollection) {
+    throw conflict(
+      'This order has a collection entry recorded against it. Void that entry before moving the order to trash.',
+    );
   }
 
   if (!STOCK_SETTLED_STATUSES.includes(order.status)) {

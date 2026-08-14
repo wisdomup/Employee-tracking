@@ -58,4 +58,14 @@ export const updateOrderSchema = Joi.object({
 
 export const approveOrderSchema = Joi.object({
   termsAndConditions: termsAndConditionsField,
+  /**
+   * Rider to hand this order to. Optional — an admin may approve now and assign later via
+   * `PATCH /orders/:id/assign-rider`. An order with no rider is invisible to every rider.
+   */
+  assignedRiderId: Joi.string().hex().length(24).optional().allow(null, ''),
+});
+
+/** `null`/`''` unassigns; a 24-hex id assigns. Required so "assign" is never a silent no-op. */
+export const assignRiderSchema = Joi.object({
+  assignedRiderId: Joi.string().hex().length(24).required().allow(null, ''),
 });

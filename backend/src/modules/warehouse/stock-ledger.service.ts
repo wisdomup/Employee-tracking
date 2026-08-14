@@ -300,13 +300,15 @@ export async function syncProductQuantityMirror(
   for (const productId of unique) {
     const rows = await WarehouseStockModel.aggregate([
       { $match: { productId: new Types.ObjectId(productId) } },
-      { $group: { _id: null, total: { $sum: '$sellable' } } },
+      // Both mirrors come out of the SAME group — the damaged total costs no extra round trip.
+      { $group: { _id: null, total: { $sum: '$sellable' }, damaged: { $sum: '$damaged' } } },
     ]).session(session ?? null);
 
     const total = rows[0]?.total ?? 0;
+    const damaged = rows[0]?.damaged ?? 0;
     await ProductModel.updateOne(
       { _id: productId },
-      { $set: { quantity: Math.max(0, total) } },
+      { $set: { quantity: Math.max(0, total), damagedQuantity: Math.max(0, damaged) } },
       { session },
     );
   }
@@ -594,13 +596,16 @@ export interface IntegrityRow {
   productName?: string;
   warehouseId?: string;
   bucket?: string;
+  /** Which mirror drifted. Only set on `mirror_drift` rows. */
+  field?: 'quantity' | 'damagedQuantity';
   expected: number;
   actual: number;
 }
 
 /**
- * The drift detector. Two independent equalities must hold:
+ * The drift detector. Three independent equalities must hold:
  *   A. `Product.quantity === Σ WarehouseStock.sellable`
+ *   A'. `Product.damagedQuantity === Σ WarehouseStock.damaged`
  *   B. `WarehouseStock[bucket] === Σ StockMovement.delta` for that warehouse+product+bucket
  *
  * A non-empty result means some write path bypassed this service.
@@ -608,28 +613,64 @@ export interface IntegrityRow {
 export async function getIntegrityReport(): Promise<IntegrityRow[]> {
   const rows: IntegrityRow[] = [];
 
+  // Both mirrors are checked independently, so a report can say WHICH one drifted rather than
+  // just that the product is wrong — they have separate writers' worth of blast radius even
+  // though one function writes both today.
   const mirrorDrift = await WarehouseStockModel.aggregate([
-    { $group: { _id: '$productId', sellable: { $sum: '$sellable' } } },
+    {
+      $group: {
+        _id: '$productId',
+        sellable: { $sum: '$sellable' },
+        damaged: { $sum: '$damaged' },
+      },
+    },
     {
       $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'product' },
     },
     { $unwind: '$product' },
     {
       $match: {
-        $expr: { $ne: ['$sellable', { $ifNull: ['$product.quantity', 0] }] },
+        $expr: {
+          $or: [
+            { $ne: ['$sellable', { $ifNull: ['$product.quantity', 0] }] },
+            { $ne: ['$damaged', { $ifNull: ['$product.damagedQuantity', 0] }] },
+          ],
+        },
       },
     },
-    { $project: { productId: '$_id', productName: '$product.name', sellable: 1, mirror: { $ifNull: ['$product.quantity', 0] } } },
+    {
+      $project: {
+        productId: '$_id',
+        productName: '$product.name',
+        sellable: 1,
+        damaged: 1,
+        mirror: { $ifNull: ['$product.quantity', 0] },
+        damagedMirror: { $ifNull: ['$product.damagedQuantity', 0] },
+      },
+    },
   ]);
 
   for (const row of mirrorDrift) {
-    rows.push({
-      kind: 'mirror_drift',
-      productId: String(row.productId),
-      productName: row.productName,
-      expected: row.sellable,
-      actual: row.mirror,
-    });
+    if (row.sellable !== row.mirror) {
+      rows.push({
+        kind: 'mirror_drift',
+        productId: String(row.productId),
+        productName: row.productName,
+        field: 'quantity',
+        expected: row.sellable,
+        actual: row.mirror,
+      });
+    }
+    if (row.damaged !== row.damagedMirror) {
+      rows.push({
+        kind: 'mirror_drift',
+        productId: String(row.productId),
+        productName: row.productName,
+        field: 'damagedQuantity',
+        expected: row.damaged,
+        actual: row.damagedMirror,
+      });
+    }
   }
 
   const ledgerTotals = await StockMovementModel.aggregate([

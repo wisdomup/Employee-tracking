@@ -15,22 +15,35 @@ import { can } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import ApproveOrderTermsModal from '../../components/ApproveOrderTermsModal';
+import AssignRiderModal, { riderOptionLabel } from '../../components/Collection/AssignRiderModal';
 import styles from '../../styles/ListPage.module.scss';
 import { withDefaultInvoiceTerms } from '../../utils/defaultInvoiceTerms';
+
+/** Populated user refs come back as objects; fall back gracefully when only an id is present. */
+function riderName(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return value.fullName || value.username || value.userID || '';
+}
 
 const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [riders, setRiders] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  const [riderFilter, setRiderFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [approveModalId, setApproveModalId] = useState<string | null>(null);
   const [approveTermsDraft, setApproveTermsDraft] = useState('');
+  const [approveRiderDraft, setApproveRiderDraft] = useState('');
   const [approveBusy, setApproveBusy] = useState(false);
+  const [assignOrder, setAssignOrder] = useState<Order | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -49,10 +62,29 @@ const OrdersPage: React.FC = () => {
       const emp = employees.find((e) => e._id === employeeFilter);
       parts.push(`Employee: ${emp ? emp.username : employeeFilter}`);
     }
+    if (isAdmin && riderFilter) {
+      if (riderFilter === 'unassigned') parts.push('Rider: Unassigned');
+      else {
+        const rider = riders.find((r) => r._id === riderFilter);
+        parts.push(`Rider: ${rider ? rider.fullName || rider.username : riderFilter}`);
+      }
+    }
     if (startDate) parts.push(`From: ${startDate}`);
     if (endDate) parts.push(`To: ${endDate}`);
     return parts;
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, clients, employees, isOrderTaker]);
+  }, [
+    clientFilter,
+    statusFilter,
+    employeeFilter,
+    riderFilter,
+    startDate,
+    endDate,
+    clients,
+    employees,
+    riders,
+    isOrderTaker,
+    isAdmin,
+  ]);
 
   const exportPdfTitle = activeFilterLabels.length
     ? `Orders — Filtered by: ${activeFilterLabels.join(' · ')}`
@@ -67,13 +99,17 @@ const OrdersPage: React.FC = () => {
     if (!isOrderTaker) {
       employeeService.getEmployees().then(setEmployees).catch(() => {});
     }
-  }, [isOrderTaker]);
+    // Only an admin can assign, so only an admin needs the rider roster.
+    if (isAdmin) {
+      employeeService.getRiders().then(setRiders).catch(() => {});
+    }
+  }, [isOrderTaker, isAdmin]);
 
   useEffect(() => {
     if (!user) return;
     if (user.role === 'order_taker' && !user.id) return;
     fetchOrders();
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, user?.id, user?.role]);
+  }, [clientFilter, statusFilter, employeeFilter, riderFilter, startDate, endDate, user?.id, user?.role]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -85,6 +121,7 @@ const OrdersPage: React.FC = () => {
           user?.role === 'order_taker' && user.id
             ? user.id
             : employeeFilter || undefined,
+        assignedRiderId: isAdmin ? riderFilter || undefined : undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       });
@@ -110,29 +147,58 @@ const OrdersPage: React.FC = () => {
   const openApproveModal = (row: Order) => {
     setApproveModalId(row._id);
     setApproveTermsDraft(withDefaultInvoiceTerms(row.termsAndConditions));
+    setApproveRiderDraft(row.assignedRiderId?._id ?? '');
   };
 
   const closeApproveModal = () => {
     if (approveBusy) return;
     setApproveModalId(null);
     setApproveTermsDraft('');
+    setApproveRiderDraft('');
   };
 
   const handleApproveConfirm = async () => {
     if (!approveModalId) return;
     setApproveBusy(true);
     try {
-      await orderService.approveOrder(approveModalId, { termsAndConditions: approveTermsDraft });
-      toast.success('Order approved');
+      await orderService.approveOrder(approveModalId, {
+        termsAndConditions: approveTermsDraft,
+        // Omitted rather than sent empty when nobody was picked, so "assign later" stays a
+        // distinct choice from "unassign".
+        ...(approveRiderDraft ? { assignedRiderId: approveRiderDraft } : {}),
+      });
+      toast.success(approveRiderDraft ? 'Order approved and assigned' : 'Order approved');
       setApproveModalId(null);
       setApproveTermsDraft('');
+      setApproveRiderDraft('');
       fetchOrders();
     } catch (error: any) {
+      // The modal deliberately stays open: the rider choice and the terms draft are worth
+      // keeping when the server rejects (usually a rider with no city).
       toast.error(error.response?.data?.message || 'Failed to approve order');
     } finally {
       setApproveBusy(false);
     }
   };
+
+  const handleAssignRider = async (riderId: string) => {
+    if (!assignOrder) return;
+    setAssignBusy(true);
+    try {
+      await orderService.assignRider(assignOrder._id, riderId || null);
+      toast.success(riderId ? 'Rider assigned' : 'Rider removed');
+      setAssignOrder(null);
+      fetchOrders();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to assign rider');
+    } finally {
+      setAssignBusy(false);
+    }
+  };
+
+  /** Assignment is meaningless before approval and frozen once delivered. */
+  const canAssignRider = (row: Order) =>
+    isAdmin && !['pending', 'delivered', 'cancelled'].includes(row.status);
 
   /** Order value, falling back to line totals less discount when `grandTotal` was never stored. */
   const orderTotal = (row: Order, value?: number | null): number | null => {
@@ -205,6 +271,21 @@ const OrdersPage: React.FC = () => {
         value ? `${value.username ?? value.userID ?? '-'}${value.role ? ` (${value.role})` : ''}` : '-',
     },
     {
+      key: 'assignedRiderId',
+      title: 'Rider',
+      render: (value: any, row: Order) => {
+        const name = riderName(value);
+        if (name) return name;
+        // An approved order nobody is carrying is the actionable state worth highlighting.
+        return row.status === 'approved' ? (
+          <span style={{ color: '#b45309' }}>Unassigned</span>
+        ) : (
+          '-'
+        );
+      },
+      exportValue: (row: Order) => riderName(row.assignedRiderId),
+    },
+    {
       key: 'createdAt',
       title: 'Order Date',
       render: (value: string) => (value ? format(new Date(value), 'MMM dd, yyyy') : '-'),
@@ -223,6 +304,17 @@ const OrdersPage: React.FC = () => {
               }}
             >
               Approve
+            </button>
+          )}
+          {canAssignRider(row) && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                setAssignOrder(row);
+              }}
+            >
+              {row.assignedRiderId ? 'Reassign' : 'Assign'}
             </button>
           )}
           <button
@@ -317,6 +409,21 @@ const OrdersPage: React.FC = () => {
                   ]}
                 />
               )}
+              {isAdmin && (
+                <SearchableSelect
+                  name="riderFilter"
+                  value={riderFilter}
+                  onChange={(e) => setRiderFilter(e.target.value)}
+                  className={styles.searchSelect}
+                  style={{ maxWidth: 200 }}
+                  placeholder="All Riders"
+                  options={[
+                    { value: '', label: 'All Riders' },
+                    { value: 'unassigned', label: 'Unassigned' },
+                    ...riders.map((r) => ({ value: r._id, label: riderOptionLabel(r) })),
+                  ]}
+                />
+              )}
               <DatePickerFilter
                 value={startDate}
                 onChange={setStartDate}
@@ -355,6 +462,34 @@ const OrdersPage: React.FC = () => {
         onClose={closeApproveModal}
         onApprove={handleApproveConfirm}
         busy={approveBusy}
+        riders={
+          isAdmin
+            ? riders.map((r) => ({
+                _id: r._id,
+                label: riderOptionLabel(r),
+                city: r.address?.city?.trim() ?? '',
+              }))
+            : undefined
+        }
+        assignedRiderId={approveRiderDraft}
+        onRiderChange={isAdmin ? setApproveRiderDraft : undefined}
+      />
+      <AssignRiderModal
+        open={!!assignOrder}
+        orderLabel={
+          assignOrder
+            ? `${assignOrder.invoiceNumber ? `#${assignOrder.invoiceNumber}` : assignOrder._id.slice(-8).toUpperCase()} — ${
+                assignOrder.dealerId?.name ?? 'Client'
+              }`
+            : ''
+        }
+        riders={riders}
+        currentRiderId={assignOrder?.assignedRiderId?._id ?? ''}
+        busy={assignBusy}
+        onClose={() => {
+          if (!assignBusy) setAssignOrder(null);
+        }}
+        onSubmit={handleAssignRider}
       />
     </Layout>
   );

@@ -165,6 +165,30 @@ const ProductsPage: React.FC = () => {
       total: 'sum' as const,
     },
     {
+      // "Qty" above is SELLABLE only — that is what availability and low-stock alerts count.
+      // This column exists so damaged pieces are visible without being folded into that figure.
+      key: 'damagedQuantity',
+      title: 'On hand',
+      render: (_: number, row: Product) => {
+        const sellable = row.quantity ?? 0;
+        const damaged = row.damagedQuantity ?? 0;
+        if (sellable === 0 && damaged === 0) return '-';
+        return (
+          <span>
+            {sellable + damaged}
+            {damaged > 0 && (
+              <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#b45309' }}>
+                incl. {damaged} damaged
+              </span>
+            )}
+          </span>
+        );
+      },
+      total: 'sum' as const,
+      totalValue: (row: Product) => (row.quantity ?? 0) + (row.damagedQuantity ?? 0),
+      exportValue: (row: Product) => String((row.quantity ?? 0) + (row.damagedQuantity ?? 0)),
+    },
+    {
       key: 'createdBy',
       title: 'Created By',
       render: (value: any) =>

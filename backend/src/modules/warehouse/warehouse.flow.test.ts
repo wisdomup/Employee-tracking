@@ -76,7 +76,7 @@ async function resetStockState() {
     StockReceiptModel.deleteMany({}),
     OpeningStockModel.deleteMany({}),
   ]);
-  await ProductModel.updateMany({}, { $unset: { purchasePrice: '', lastPurchaseRate: '' }, $set: { quantity: 0 } });
+  await ProductModel.updateMany({}, { $unset: { purchasePrice: '', lastPurchaseRate: '' }, $set: { quantity: 0, damagedQuantity: 0 } });
 }
 
 async function main() {

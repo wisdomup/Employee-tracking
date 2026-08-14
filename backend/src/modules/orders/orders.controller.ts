@@ -28,7 +28,8 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
-    const { dealerId, routeId, status, createdBy, startDate, endDate } = req.query as Record<string, string>;
+    const { dealerId, routeId, status, createdBy, assignedRiderId, startDate, endDate } =
+      req.query as Record<string, string>;
     let effectiveCreatedBy = createdBy;
     if (req.user?.role === 'order_taker') {
       effectiveCreatedBy = req.user.userId;
@@ -38,6 +39,7 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
       routeId,
       status,
       createdBy: effectiveCreatedBy,
+      assignedRiderId,
       startDate,
       endDate,
     });
@@ -92,6 +94,17 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 export async function approve(req: Request, res: Response, next: NextFunction) {
   try {
     const order = await ordersService.approveOrder(req.params.id, req.user?.userId, req.body);
+    res.json(serializeOrderForRole(order, req.user?.role));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function assignRider(req: Request, res: Response, next: NextFunction) {
+  try {
+    const raw = req.body?.assignedRiderId;
+    const riderId = raw === '' || raw === null || raw === undefined ? null : String(raw);
+    const order = await ordersService.assignRider(req.params.id, riderId, req.user?.userId);
     res.json(serializeOrderForRole(order, req.user?.role));
   } catch (err) {
     next(err);

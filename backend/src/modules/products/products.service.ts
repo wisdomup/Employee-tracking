@@ -99,8 +99,9 @@ export async function updateProduct(id: string, data: Record<string, unknown>, a
 
   // The single worst mirror-drift path in the old code: the admin edit form re-sent the quantity
   // it had read at page load, so saving an unrelated field minutes later reset stock to a stale
-  // number. Both fields are derived — reject them regardless of what the client sends.
+  // number. All three fields are derived — reject them regardless of what the client sends.
   delete data.quantity;
+  delete data.damagedQuantity;
   delete data.lastPurchaseRate;
 
   const { extras, ...rest } = data;

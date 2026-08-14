@@ -21,6 +21,17 @@ export interface IProduct extends Document {
    * list, the dashboard) keeps working unchanged.
    */
   quantity?: number;
+  /**
+   * DERIVED MIRROR of total DAMAGED / claim stock = Σ `WarehouseStock.damaged` across all
+   * warehouses. Same rule as `quantity` — never write this directly, only
+   * `stock-ledger.service.ts#syncProductQuantityMirror` may.
+   *
+   * It exists so a list screen can show "on hand" (sellable + damaged) without a per-row
+   * aggregate. Deliberately SEPARATE from `quantity` rather than folded into it: order
+   * availability checks and the low-stock alerts count sellable pieces only, and damaged pieces
+   * are by definition not for sale. Do not add this into any availability calculation.
+   */
+  damagedQuantity?: number;
   /** Admin-set low-stock threshold, compared against the all-warehouse total. */
   survivalQuantity?: number;
   /** Rate on the most recent live Stock In. Shown as a reference when entering a new rate. */
@@ -45,6 +56,11 @@ const productSchema = new Schema<IProduct>(
     purchasePrice: { type: Number, min: 0 },
     onlinePrice: { type: Number, min: 0 },
     quantity: { type: Number, min: 0 },
+    // No `default: 0`, matching `quantity` — a product with no stock simply has no field, which
+    // every reader treats as zero. `min: 0` documents intent; the mirror writer clamps, because
+    // `updateOne` does not run validators but `save()` does, and a negative mirror would make the
+    // product permanently uneditable.
+    damagedQuantity: { type: Number, min: 0 },
     survivalQuantity: { type: Number, min: 0 },
     lastPurchaseRate: { type: Number, min: 0 },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },

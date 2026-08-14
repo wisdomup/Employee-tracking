@@ -163,3 +163,14 @@ export function regionLabel(rawCity?: string | null): string {
   const trimmed = typeof rawCity === 'string' ? rawCity.trim() : '';
   return trimmed === '' ? UNASSIGNED_REGION : trimmed;
 }
+
+/**
+ * Money is summed as floats; round once at the edge to avoid 0.1+0.2 artefacts.
+ *
+ * Lives here rather than in a service so every money-bearing module shares ONE definition.
+ * Two rounding rules eventually disagree, and when they do a grand total stops matching the
+ * sum of its own rows.
+ */
+export function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}

@@ -8,6 +8,7 @@ import {
   CurrencyCircleDollar,
   Fingerprint,
   Folders,
+  HandCoins,
   Hourglass,
   MapTrifold,
   Package,
@@ -40,6 +41,11 @@ import {
   getEmployeeLabel,
   getTodayLocalDate,
 } from '../services/attendanceService';
+import {
+  collectionService,
+  RiderOrdersResponse,
+  RiderBalance,
+} from '../services/collectionService';
 import { useAuth } from '../contexts/AuthContext';
 import { ALL_ROLES } from '../utils/permissions';
 import { formatRs } from '../utils/formatCurrency';
@@ -212,6 +218,7 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isOrderTaker = user?.role === 'order_taker';
+  const isRider = user?.role === 'delivery_man';
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [reports, setReports] = useState<DashboardReports | null>(null);
@@ -233,6 +240,8 @@ const Dashboard: React.FC = () => {
   const [orderTakerLocation, setOrderTakerLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [orderTakerLocationError, setOrderTakerLocationError] = useState('');
   const [orderTakerRoutePath, setOrderTakerRoutePath] = useState<[number, number][]>([]);
+  const [riderOrders, setRiderOrders] = useState<RiderOrdersResponse | null>(null);
+  const [riderBalance, setRiderBalance] = useState<RiderBalance | null>(null);
   const [isVisitsMapFullscreen, setIsVisitsMapFullscreen] = useState(false);
 
   useEffect(() => {
@@ -242,11 +251,29 @@ const Dashboard: React.FC = () => {
       fetchOrderTakerStats();
       setLoading(false);
       setReportLoading(false);
+    } else if (isRider && user?.id) {
+      fetchRiderSummary();
+      setLoading(false);
+      setReportLoading(false);
     } else {
       setLoading(false);
       setReportLoading(false);
     }
-  }, [isAdmin, isOrderTaker, user?.id]);
+  }, [isAdmin, isOrderTaker, isRider, user?.id]);
+
+  /** The rider's round and money in one pass, for the four cards on their home screen. */
+  const fetchRiderSummary = async () => {
+    try {
+      const [orders, balance] = await Promise.all([
+        collectionService.getMyOrders(),
+        collectionService.getMyBalance(),
+      ]);
+      setRiderOrders(orders);
+      setRiderBalance(balance);
+    } catch {
+      // non-critical — the cards fall back to links without counts
+    }
+  };
 
   /**
    * One aggregated call instead of pulling both lists and counting them in the browser.
@@ -940,6 +967,92 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  // Riders get their round and their money, not the near-empty fallback below. §12: the
+  // "Collection" button lives here as well as in the sidebar.
+  if (isRider) {
+    const todaysCollection = riderOrders
+      ? riderOrders.groups
+          .flatMap((g) => g.orders)
+          .reduce(
+            (sum, o) =>
+              sum + (o.collection ? o.collection.cash + o.collection.online + o.collection.credit : 0),
+            0,
+          )
+      : 0;
+
+    return (
+      <Layout>
+        <div className={styles.dashboard}>
+          <h1 className={styles.title}>Welcome, {user?.username}!</h1>
+          <p style={{ color: 'var(--text-secondary, #666)', marginBottom: '2rem' }}>
+            {riderOrders?.rider.city
+              ? `Your deliveries for today — ${riderOrders.rider.city}.`
+              : 'Your deliveries for today.'}
+          </p>
+
+          <AttendanceWidget
+            todayAttendance={todayAttendance}
+            loading={checkInOutLoading}
+            onCheckIn={handleCheckIn}
+            onCheckOut={handleCheckOut}
+          />
+
+          <div className={styles.statsGrid}>
+            <Link href="/collection" className={styles.statCard}>
+              <StatCardIcon Icon={Path} />
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>{riderOrders?.counts.pending ?? '—'}</div>
+                <div className={styles.statLabel}>Still to deliver</div>
+                <div className={styles.statSub}>
+                  {riderOrders?.counts.packed ?? 0} packed
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/collection" className={styles.statCard}>
+              <StatCardIcon Icon={CheckCircle} />
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>{riderOrders?.counts.delivered ?? '—'}</div>
+                <div className={styles.statLabel}>Delivered Today</div>
+                <div className={styles.statSub}>
+                  of {riderOrders?.counts.assigned ?? 0} assigned
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/collection/settlements" className={styles.statCard}>
+              <StatCardIcon Icon={CurrencyCircleDollar} />
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>
+                  {riderBalance ? formatRs(riderBalance.cash.inHand) : '—'}
+                </div>
+                <div className={styles.statLabel}>Cash in Hand</div>
+                <div className={styles.statSub}>
+                  {riderBalance && riderBalance.cash.pendingSettlement > 0
+                    ? `${formatRs(riderBalance.cash.pendingSettlement)} awaiting confirmation`
+                    : 'Tap to settle'}
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/collection/recovery" className={styles.statCard}>
+              <StatCardIcon Icon={HandCoins} />
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>{formatRs(todaysCollection)}</div>
+                <div className={styles.statLabel}>Collected Today</div>
+                <div className={styles.statSub}>
+                  {riderBalance
+                    ? `${formatRs(riderBalance.creditIssuedOutstanding)} credit outstanding`
+                    : 'Credit recovery'}
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -1158,6 +1271,16 @@ const Dashboard: React.FC = () => {
               <div className={styles.statSub}>
                 {formatRs(stats.stats.bookedSalesToday)} booked
               </div>
+            </div>
+          </Link>
+
+          {/* §12: the Collection entry point on the Main Dashboard, alongside the sidebar one. */}
+          <Link href="/collection/report" className={styles.statCard}>
+            <StatCardIcon Icon={HandCoins} />
+            <div className={styles.statContent}>
+              <div className={styles.statValue}>Collection</div>
+              <div className={styles.statLabel}>Rider Collection Report</div>
+              <div className={styles.statSub}>Cash / Online / Credit, city-wise</div>
             </div>
           </Link>
         </div>

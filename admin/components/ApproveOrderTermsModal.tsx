@@ -3,6 +3,13 @@ import dynamic from 'next/dynamic';
 
 const OrderTermsEditor = dynamic(() => import('./OrderTermsEditor'), { ssr: false });
 
+export interface ApproveRiderOption {
+  _id: string;
+  label: string;
+  /** Blank when the rider has no city set — the backend refuses to assign those. */
+  city: string;
+}
+
 export interface ApproveOrderTermsModalProps {
   open: boolean;
   /** Remount the rich editor when switching context (e.g. order id). */
@@ -12,6 +19,13 @@ export interface ApproveOrderTermsModalProps {
   onClose: () => void;
   onApprove: () => void | Promise<void>;
   busy?: boolean;
+  /**
+   * Rider picker. All three are optional so this modal stays usable from any page that only
+   * needs the terms editor (e.g. the order detail screen).
+   */
+  riders?: ApproveRiderOption[];
+  assignedRiderId?: string;
+  onRiderChange?: (riderId: string) => void;
 }
 
 const ApproveOrderTermsModal: React.FC<ApproveOrderTermsModalProps> = ({
@@ -22,8 +36,15 @@ const ApproveOrderTermsModal: React.FC<ApproveOrderTermsModalProps> = ({
   onClose,
   onApprove,
   busy = false,
+  riders,
+  assignedRiderId = '',
+  onRiderChange,
 }) => {
   if (!open) return null;
+
+  const showRiderPicker = Array.isArray(riders) && typeof onRiderChange === 'function';
+  const selectedRider = riders?.find((r) => r._id === assignedRiderId);
+  const riderHasNoCity = Boolean(selectedRider && !selectedRider.city);
 
   return (
     <div
@@ -60,10 +81,49 @@ const ApproveOrderTermsModal: React.FC<ApproveOrderTermsModalProps> = ({
             Approve order
           </h2>
           <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
-            Optional invoice terms &amp; conditions (shown on the printed invoice when filled).
+            {showRiderPicker
+              ? 'Hand the order to a delivery boy and optionally set the invoice terms.'
+              : 'Optional invoice terms & conditions (shown on the printed invoice when filled).'}
           </p>
         </div>
         <div style={{ padding: '1rem 1.5rem 1.5rem' }}>
+          {showRiderPicker && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label
+                htmlFor="approve-order-rider"
+                style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', color: '#374151', marginBottom: '0.5rem' }}
+              >
+                Delivery boy
+              </label>
+              <select
+                id="approve-order-rider"
+                value={assignedRiderId}
+                disabled={busy}
+                onChange={(e) => onRiderChange!(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: '0.875rem',
+                  background: '#fff',
+                  color: '#111827',
+                }}
+              >
+                <option value="">Assign later</option>
+                {riders!.map((rider) => (
+                  <option key={rider._id} value={rider._id}>
+                    {rider.label}
+                  </option>
+                ))}
+              </select>
+              <p style={{ margin: '0.375rem 0 0', fontSize: '0.75rem', color: riderHasNoCity ? '#b45309' : '#6b7280' }}>
+                {riderHasNoCity
+                  ? 'This rider has no city set. Set a city on their profile first — collections are tracked city-wise and this assignment will be refused.'
+                  : 'Only the assigned rider sees this order. You can assign or change it later from the orders list.'}
+              </p>
+            </div>
+          )}
           <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', color: '#374151', marginBottom: '0.5rem' }}>
             Terms &amp; conditions
           </label>

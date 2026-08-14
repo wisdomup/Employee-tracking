@@ -85,7 +85,14 @@ router.post('/', requireRoles('admin', 'employee', 'order_taker'), validate(crea
  *                 $ref: '#/components/schemas/Dealer'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findAll);
+// `delivery_man` is here because `resolveCityScope` already lists it in CITY_SCOPED_ROLES —
+// the scoping was written for riders but the route gate had locked them out. Riders need the
+// client list for the credit-recovery party picker.
+router.get(
+  '/',
+  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'delivery_man'),
+  controller.findAll,
+);
 
 /**
  * @openapi
@@ -149,7 +156,11 @@ router.get('/nearby', requireRoles('admin', 'sales_manager', 'employee', 'order_
  *       401: { description: Unauthorized }
  *       404: { description: Dealer not found }
  */
-router.get('/:id', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findOne);
+router.get(
+  '/:id',
+  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'delivery_man'),
+  controller.findOne,
+);
 
 /**
  * @openapi
@@ -239,7 +250,9 @@ router.put('/:id', requireRoles('admin', 'employee'), validate(updateDealerSchem
  */
 router.patch(
   '/:id/location',
-  requireRoles('admin', 'employee', 'order_taker'),
+  // Riders too: the delivery boy is the one standing outside the shop when the saved pin
+  // turns out to be wrong. Still city-scoped on write by `resolveCityScope`.
+  requireRoles('admin', 'employee', 'order_taker', 'delivery_man'),
   validate(updateDealerLocationSchema),
   controller.updateLocation,
 );

@@ -15,6 +15,12 @@ export interface Product {
    * everything after that through Stock In, transfers, sales and counts.
    */
   quantity?: number;
+  /**
+   * Read-only. Total DAMAGED / claim stock across every warehouse. Separate from `quantity`
+   * because damaged pieces are not for sale — never add the two together for an availability
+   * check. "On hand" (quantity + damagedQuantity) is a display figure only.
+   */
+  damagedQuantity?: number;
   /** Admin-set low-stock level, compared against the all-warehouse total. */
   survivalQuantity?: number;
   /** Read-only. Rate on the most recent Stock In — shown as a reference when entering a new one. */

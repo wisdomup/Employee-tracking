@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { requireRoles } from '../../middleware/roles.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { createOrderSchema, updateOrderSchema, approveOrderSchema } from './dto/orders.schemas';
+import {
+  createOrderSchema,
+  updateOrderSchema,
+  approveOrderSchema,
+  assignRiderSchema,
+} from './dto/orders.schemas';
 import * as controller from './orders.controller';
 
 const router = Router();
@@ -154,10 +159,11 @@ router.put(
  *             type: object
  *             properties:
  *               termsAndConditions: { type: string, description: Optional sanitized HTML for invoice terms }
+ *               assignedRiderId: { type: string, description: Optional delivery boy to hand the order to; may be assigned later instead }
  *     responses:
  *       200:
  *         description: Order approved; response includes populated `approvedBy` and `approvedAt` (server-set from JWT).
- *       400: { description: Order is not pending }
+ *       400: { description: Order is not pending, or the rider is invalid/inactive/has no city }
  *       404: { description: Order not found }
  */
 router.patch(
@@ -169,6 +175,44 @@ router.patch(
   },
   validate(approveOrderSchema),
   controller.approve,
+);
+
+/**
+ * @openapi
+ * /api/orders/{id}/assign-rider:
+ *   patch:
+ *     tags: [Orders]
+ *     summary: Assign, reassign or unassign the delivery boy for an order [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [assignedRiderId]
+ *             properties:
+ *               assignedRiderId:
+ *                 type: string
+ *                 nullable: true
+ *                 description: 24-hex id of a `delivery_man`, or null/'' to take the order back.
+ *     responses:
+ *       200: { description: Order updated; `assignedRiderId` is populated }
+ *       400: { description: Order still pending or cancelled, or the rider is invalid/inactive/has no city }
+ *       404: { description: Order or rider not found }
+ *       409: { description: Order already delivered — reassigning would contradict its collection entry }
+ */
+router.patch(
+  '/:id/assign-rider',
+  requireRoles('admin'),
+  validate(assignRiderSchema),
+  controller.assignRider,
 );
 
 /**

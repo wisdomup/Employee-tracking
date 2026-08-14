@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { saveFile } from '../../services/file-upload.service';
 
-const ALLOWED_CATEGORIES = ['profiles', 'shops', 'products', 'categories', 'general', 'completions'] as const;
+const ALLOWED_CATEGORIES = ['profiles', 'shops', 'products', 'categories', 'general', 'completions', 'settlements'] as const;
 
 export async function uploadImage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

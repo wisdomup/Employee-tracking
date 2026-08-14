@@ -29,6 +29,7 @@ import targetsRouter from './modules/targets/targets.routes';
 import analyticsRouter from './modules/analytics/analytics.routes';
 import performanceFlagsRouter from './modules/performance-flags/performance-flags.routes';
 import regionSalesRouter from './modules/region-sales/region-sales.routes';
+import collectionsRouter from './modules/collections/collections.routes';
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/targets', targetsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/performance-flags', performanceFlagsRouter);
 app.use('/api/region-sales', regionSalesRouter);
+app.use('/api/collections', collectionsRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({ message: 'GPS Tracking App backend is running' });

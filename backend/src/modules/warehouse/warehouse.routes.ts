@@ -160,6 +160,30 @@ router.get('/stock', requireRoles(...STOCK_READERS), controller.getStock);
 
 /**
  * @openapi
+ * /api/warehouse/stock/matrix:
+ *   get:
+ *     tags: [Warehouse]
+ *     summary: Live stock as a product × warehouse grid
+ *     description: >
+ *       Products down, warehouses across (Main first), Sellable / Damaged per warehouse, live
+ *       balances. Driven from the catalogue, so EVERY non-trashed product gets a row even when it
+ *       holds nothing anywhere — `cells` is sparse and an absent warehouse means zero. Inactive
+ *       warehouses are included (deactivating one does not empty it) and are read-only. Warehouse
+ *       staff get their own warehouse as the only column. `avgCost` is admin-only.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: search, schema: { type: string } }
+ *       - { in: query, name: categoryId, schema: { type: string } }
+ *       - { in: query, name: lowOnly, schema: { type: string, enum: ['true'] } }
+ *       - { in: query, name: nonZeroOnly, schema: { type: string, enum: ['true'] } }
+ *       - { in: query, name: limit, schema: { type: integer, default: 2000, maximum: 5000 } }
+ *     responses:
+ *       200: { description: '{ warehouses, products, generatedAt, truncated, scopedWarehouseId? }' }
+ */
+router.get('/stock/matrix', requireRoles(...STOCK_READERS), controller.getStockMatrix);
+
+/**
+ * @openapi
  * /api/warehouse/stock/movements:
  *   get:
  *     tags: [Warehouse]

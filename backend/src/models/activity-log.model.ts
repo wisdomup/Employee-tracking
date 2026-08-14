@@ -22,7 +22,10 @@ export type ActivityModule =
   | 'stock_transfer'
   | 'damage_claim'
   | 'stock_count'
-  | 'opening_stock';
+  | 'opening_stock'
+  | 'collection'
+  | 'credit_recovery'
+  | 'settlement';
 
 export type ActivityAction =
   | 'created'
@@ -43,7 +46,7 @@ export type ActivityAction =
 const ACTIVITY_MODULES: ActivityModule[] = [
   'task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee',
   'attendance', 'warehouse', 'stock', 'stock_receipt', 'stock_transfer', 'damage_claim',
-  'stock_count', 'opening_stock',
+  'stock_count', 'opening_stock', 'collection', 'credit_recovery', 'settlement',
 ];
 
 const ACTIVITY_ACTIONS: ActivityAction[] = [

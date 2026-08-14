@@ -154,6 +154,10 @@ const ReportsPage: React.FC = () => {
       <div className={styles.page}>
         <div className={styles.header}>
           <h1>Reports</h1>
+          {/* §12: "Collection" reachable from Reports & Insights as well as the dashboard. */}
+          <Link href="/collection/report" className={styles.kpiCardLink}>
+            Collection Report →
+          </Link>
         </div>
 
         <div className={styles.filters}>

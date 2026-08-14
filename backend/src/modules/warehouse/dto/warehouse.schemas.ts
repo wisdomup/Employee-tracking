@@ -219,7 +219,21 @@ export const adjustStockSchema = Joi.object({
         productId: objectId.required(),
         sellable: piecesOrZero.optional(),
         damaged: piecesOrZero.optional(),
-      }).or('sellable', 'damaged'),
+        /**
+         * Optimistic-concurrency baseline — the figure the client was SHOWING when the operator
+         * typed. Purely additive: omit them and this endpoint behaves exactly as it always has,
+         * which is why the per-warehouse adjust screen needed no change. Sent, the service
+         * refuses the whole correction when the warehouse no longer holds that figure.
+         *
+         * `.with(...)` because an expectation for a bucket that is not being corrected means
+         * nothing and is almost certainly a client bug.
+         */
+        expectedSellable: piecesOrZero.optional(),
+        expectedDamaged: piecesOrZero.optional(),
+      })
+        .or('sellable', 'damaged')
+        .with('expectedSellable', 'sellable')
+        .with('expectedDamaged', 'damaged'),
     )
     .min(1)
     .required(),

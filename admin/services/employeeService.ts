@@ -47,6 +47,16 @@ export const employeeService = {
     return response.data;
   },
 
+  /**
+   * Active delivery boys, for the rider pickers on the order and collection screens.
+   * A rider with no `address.city` cannot be assigned an order — the backend refuses it — so
+   * the callers surface `address.city` in the option label to make that visible up front.
+   */
+  async getRiders(): Promise<Employee[]> {
+    const response = await api.get('/users?role=delivery_man&isActive=true');
+    return response.data;
+  },
+
   async getEmployee(id: string) {
     const response = await api.get(`/users/${id}`);
     return response.data;

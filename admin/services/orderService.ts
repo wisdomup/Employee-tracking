@@ -35,6 +35,13 @@ export interface Order {
   /** Populated user who approved (set when status becomes approved from pending). */
   approvedBy?: any;
   approvedAt?: string;
+  /** Populated delivery boy this order was handed to. Riders see only their own. */
+  assignedRiderId?: any;
+  assignedAt?: string;
+  /** Set by the assigned rider on approved -> packed. */
+  packedAt?: string;
+  /** Set by the assigned rider on packed -> delivered, alongside the collection entry. */
+  deliveredAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +61,8 @@ export const orderService = {
     routeId?: string;
     status?: string;
     createdBy?: string;
+    /** A rider id, or the literal 'unassigned' for orders nobody is carrying yet. */
+    assignedRiderId?: string;
     startDate?: string;
     endDate?: string;
   }) {
@@ -62,6 +71,7 @@ export const orderService = {
     if (filters?.routeId) params.append('routeId', filters.routeId);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.createdBy) params.append('createdBy', filters.createdBy);
+    if (filters?.assignedRiderId) params.append('assignedRiderId', filters.assignedRiderId);
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
     const response = await api.get(`/orders?${params.toString()}`);
@@ -83,8 +93,14 @@ export const orderService = {
     return response.data;
   },
 
-  async approveOrder(id: string, body?: { termsAndConditions?: string }) {
+  async approveOrder(id: string, body?: { termsAndConditions?: string; assignedRiderId?: string }) {
     const response = await api.patch(`/orders/${id}/approve`, body ?? {});
+    return response.data;
+  },
+
+  /** Assign, reassign, or (with `null`) take the order back off a rider. */
+  async assignRider(id: string, assignedRiderId: string | null) {
+    const response = await api.patch(`/orders/${id}/assign-rider`, { assignedRiderId });
     return response.data;
   },
 

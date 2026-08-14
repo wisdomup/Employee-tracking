@@ -16,6 +16,7 @@ import {
   normalizeCityKey,
   regionLabel,
   todayDayKey,
+  round2,
 } from './region-sales.rules';
 
 /** Longest date range the day-wise report will serve, to bound the response size. */
@@ -456,11 +457,6 @@ export async function getSalesmanDaily(
 // ---------------------------------------------------------------------------
 // Small shared helpers
 // ---------------------------------------------------------------------------
-
-/** Money is summed as floats; round once at the edge to avoid 0.1+0.2 artefacts. */
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
 
 function zeroDay(date: string) {
   return { date, deliveredAmount: 0, bookedAmount: 0, totalAmount: 0, orderCount: 0 };

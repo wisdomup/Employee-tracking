@@ -14,6 +14,7 @@ import styles from '../../styles/StockReports.module.scss';
 export type WarehouseNavKey =
   | 'home'
   | 'warehouses'
+  | 'stock-matrix'
   | 'opening-stock'
   | 'stock-in'
   | 'transfers'
@@ -31,6 +32,9 @@ interface NavLinkDef {
 
 const LINKS: NavLinkDef[] = [
   { key: 'home', label: 'Overview', href: '/warehouse', permission: 'warehouse:view' },
+  // Live stock across every warehouse. Day-to-day, so it sits near the front — unlike Opening
+  // Stock, which is one-time setup and stays last.
+  { key: 'stock-matrix', label: 'Stock Matrix', href: '/warehouse/stock-matrix', permission: 'warehouse:view' },
   { key: 'warehouses', label: 'Warehouses', href: '/warehouse/warehouses', permission: 'warehouses:view' },
   { key: 'stock-in', label: 'Stock In', href: '/warehouse/stock-in', permission: 'stock-in:view' },
   { key: 'transfers', label: 'Transfers', href: '/warehouse/transfers', permission: 'transfers:view' },

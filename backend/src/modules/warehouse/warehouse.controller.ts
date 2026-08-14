@@ -98,6 +98,15 @@ export async function getStock(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+export async function getStockMatrix(req: Request, res: Response, next: NextFunction) {
+  try {
+    const filters = req.query as stockService.StockMatrixFilters;
+    res.json(await stockService.getStockMatrix(filters, viewer(req)));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getMovements(req: Request, res: Response, next: NextFunction) {
   try {
     const { productId, warehouseId, bucket, type, refType, startDate, endDate, limit } =

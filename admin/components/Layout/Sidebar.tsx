@@ -10,6 +10,7 @@ import {
   ChartLineUp,
   ClipboardText,
   Fingerprint,
+  HandCoins,
   MapPin,
   MapPinArea,
   Package,
@@ -77,6 +78,10 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: '/flags', label: 'Flags', Icon: WarningCircle, permission: 'analytics:view-own' },
   // Admin + sales managers only — an oversight view, not something riders need.
   { path: '/region-sales', label: 'Region Sales', Icon: MapPinArea, permission: 'region-sales:view' },
+  // One entry for the whole collection module, same constraint as /warehouse above: `isActive`
+  // uses startsWith, so a sibling /collection* entry would break the highlighting. Sub-pages
+  // are reached through CollectionModuleNav instead.
+  { path: '/collection', label: 'Collection', Icon: HandCoins, permission: 'collection:view' },
   { path: '/reports', label: 'Reports', Icon: PresentationChart, adminOnly: true },
   { path: '/stock-reports', label: 'Stock Reports', Icon: ChartBar, adminOnly: true },
   { path: '/trash', label: 'Trash', Icon: Trash, adminOnly: true },

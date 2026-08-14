@@ -271,6 +271,104 @@
   border: 1px solid #d1d5db;
 }
 
+/* --- live stock matrix ---------------------------------------------------- */
+
+/** The stored figure moved while this box was being edited — refused, not saved. */
+.conflict {
+  border-color: #b91c1c;
+  background: #fef2f2;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+/** A bucket that cannot be typed into: a viewer without `stock:adjust`, or an inactive warehouse. */
+.readonlyCell {
+  display: block;
+  padding: 0.3rem 0.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+}
+
+/** The per-row Sellable / Damaged / On hand totals, left of the warehouse columns. */
+.totalsCell {
+  padding: 0.3rem 0.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: #fafafa;
+}
+
+.totalsHead {
+  background: #f3f4f6;
+  white-space: nowrap;
+}
+
+.onHandCell {
+  font-weight: 700;
+  color: #111827;
+}
+
+.lowBadge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.35rem;
+  border-radius: 0.35rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/** In-transit pieces sitting against a cell — shown, never editable. */
+.transitChip {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.6875rem;
+  color: #6b7280;
+}
+
+.inactiveHead {
+  opacity: 0.65;
+}
+
+.stalenessNote {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.4rem;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.8125rem;
+}
+
+.saveBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.reasonInput {
+  flex: 1 1 260px;
+  min-width: 200px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.4rem;
+  font-size: 0.8125rem;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: #4b5563;
+}
+
 @media (max-width: 600px) {
   .productHead,
   .productCell {

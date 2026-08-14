@@ -65,7 +65,7 @@ async function mirrorOf(pid: string) {
 /** Put the fixture back to a known 100 sellable / 10 damaged at the test warehouse. */
 async function resetTo(sellable: number, damaged: number) {
   await Promise.all([WarehouseStockModel.deleteMany({}), StockMovementModel.deleteMany({})]);
-  await ProductModel.updateMany({}, { $set: { quantity: 0 } });
+  await ProductModel.updateMany({}, { $set: { quantity: 0, damagedQuantity: 0 } });
   await applyStockMovements(
     [
       { warehouseId, productId: productA, bucket: 'sellable', delta: sellable, type: 'opening_stock', unitCost: 50 },

@@ -39,6 +39,17 @@ export interface IOrder extends Document {
   /** Admin (or actor) who approved the order; set when status becomes `approved` from `pending`. */
   approvedBy?: Types.ObjectId;
   approvedAt?: Date;
+  /**
+   * Rider (`delivery_man`) who will deliver this order. Set by an admin at approve time or
+   * reassigned later. The rider's own order list filters on this and nothing else — an order
+   * with no rider is invisible to every rider.
+   */
+  assignedRiderId?: Types.ObjectId;
+  assignedAt?: Date;
+  /** Set by the assigned rider on `approved` -> `packed`. */
+  packedAt?: Date;
+  /** Set by the assigned rider on `packed` -> `delivered`, alongside the DeliveryCollection. */
+  deliveredAt?: Date;
   /** Sanitized HTML for invoice terms; admin-only writes. */
   termsAndConditions?: string;
   createdAt: Date;
@@ -82,6 +93,10 @@ const orderSchema = new Schema<IOrder>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     approvedAt: { type: Date },
+    assignedRiderId: { type: Schema.Types.ObjectId, ref: 'User' },
+    assignedAt: { type: Date },
+    packedAt: { type: Date },
+    deliveredAt: { type: Date },
     termsAndConditions: { type: String },
   },
   { timestamps: true },
@@ -97,5 +112,8 @@ orderSchema.index({ isTrashed: 1, createdAt: -1 });
 orderSchema.index({ isTrashed: 1, trashedAt: -1 });
 // Per-salesman sale over a date window — the shape every region-sales query uses.
 orderSchema.index({ createdBy: 1, status: 1, createdAt: -1 });
+// The rider's own delivery list — the hottest query in the collection module, hit on every
+// pull-to-refresh of the rider's home screen.
+orderSchema.index({ assignedRiderId: 1, status: 1, assignedAt: -1 });
 
 export const OrderModel = model<IOrder>('Order', orderSchema);

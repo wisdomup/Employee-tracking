@@ -243,6 +243,24 @@ const options: swaggerJsdoc.Options = {
       { name: 'Visits', description: 'Dealer visit tracking' },
       { name: 'Returns', description: 'Product returns and claims' },
       { name: 'Broadcast Notifications', description: 'Push broadcast notifications to target groups' },
+      {
+        name: 'Collections',
+        description:
+          'Delivery boy (rider) module — assigned orders, packed/delivered, the cash/online/credit ' +
+          'collection split, credit recovery, settlement, and the city-wise collection reports.',
+      },
+      {
+        name: 'Warehouse',
+        description:
+          'Warehouses, per-warehouse stock, the live stock matrix, opening stock, stock in, ' +
+          'transfers, damage/claim, stock counts, adjustments and ledger maintenance.',
+      },
+      { name: 'Attendance', description: 'Staff check-in / check-out' },
+      { name: 'Stock Reports', description: 'Sales-side stock reporting: current, hold, damage, P&L, low stock' },
+      { name: 'Analytics', description: 'Employee performance metrics and drill-downs' },
+      { name: 'Region Sales', description: 'Region-wise daily sale dashboard and salesman drill-down' },
+      { name: 'Targets', description: 'Monthly sales targets per employee' },
+      { name: 'Performance Flags', description: 'Automated and manual performance flags' },
     ],
   },
   apis: [
@@ -261,6 +279,17 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, '../modules/visits/visits.routes.ts'),
     path.join(__dirname, '../modules/returns/returns.routes.ts'),
     path.join(__dirname, '../modules/broadcast-notifications/broadcast-notifications.routes.ts'),
+    path.join(__dirname, '../modules/collections/collections.routes.ts'),
+    // This list is an ALLOWLIST, not a glob — a module absent from it is invisible in /api/docs
+    // no matter how well its routes are annotated, and nothing fails to warn you. The seven below
+    // had 52 annotated endpoints between them going undocumented for exactly that reason.
+    path.join(__dirname, '../modules/warehouse/warehouse.routes.ts'),
+    path.join(__dirname, '../modules/attendance/attendance.routes.ts'),
+    path.join(__dirname, '../modules/stock-reports/stock-reports.routes.ts'),
+    path.join(__dirname, '../modules/analytics/analytics.routes.ts'),
+    path.join(__dirname, '../modules/region-sales/region-sales.routes.ts'),
+    path.join(__dirname, '../modules/targets/targets.routes.ts'),
+    path.join(__dirname, '../modules/performance-flags/performance-flags.routes.ts'),
     // Also scan compiled JS in dist/ when running built app
     path.join(__dirname, '../modules/auth/auth.routes.js'),
     path.join(__dirname, '../modules/users/users.routes.js'),
@@ -277,6 +306,14 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, '../modules/visits/visits.routes.js'),
     path.join(__dirname, '../modules/returns/returns.routes.js'),
     path.join(__dirname, '../modules/broadcast-notifications/broadcast-notifications.routes.js'),
+    path.join(__dirname, '../modules/collections/collections.routes.js'),
+    path.join(__dirname, '../modules/warehouse/warehouse.routes.js'),
+    path.join(__dirname, '../modules/attendance/attendance.routes.js'),
+    path.join(__dirname, '../modules/stock-reports/stock-reports.routes.js'),
+    path.join(__dirname, '../modules/analytics/analytics.routes.js'),
+    path.join(__dirname, '../modules/region-sales/region-sales.routes.js'),
+    path.join(__dirname, '../modules/targets/targets.routes.js'),
+    path.join(__dirname, '../modules/performance-flags/performance-flags.routes.js'),
   ],
 };
 

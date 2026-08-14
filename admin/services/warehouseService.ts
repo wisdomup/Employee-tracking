@@ -89,6 +89,49 @@ export interface StockAdjustmentLine {
   productId: string;
   sellable?: number;
   damaged?: number;
+  /**
+   * The figure the screen was SHOWING when the operator typed. Optional — omit it and the API
+   * behaves exactly as it always has, which is why the per-warehouse adjust screen needed no
+   * change. Sent, the API refuses the whole correction when the warehouse no longer holds that
+   * figure, which is what stops a grid left open from silently reverting someone else's sale.
+   */
+  expectedSellable?: number;
+  expectedDamaged?: number;
+}
+
+// --- live stock matrix -------------------------------------------------------
+
+export interface StockMatrixCell {
+  sellable: number;
+  damaged: number;
+  /** Owned by the transfer documents, never adjustable. Absent when zero. */
+  inTransit?: number;
+}
+
+export interface StockMatrixProductRow {
+  productId: string;
+  name: string;
+  barcode: string;
+  categoryId?: string;
+  categoryName?: string;
+  survivalQuantity: number | null;
+  isLow: boolean;
+  totalSellable: number;
+  totalDamaged: number;
+  totalInTransit: number;
+  /** sellable + damaged. In-transit is excluded — those pieces are at no warehouse. */
+  totalOnHand: number;
+  avgCost?: number;
+  /** Sparse, keyed by warehouseId. An absent warehouse holds nothing. */
+  cells: Record<string, StockMatrixCell>;
+}
+
+export interface StockMatrix {
+  warehouses: { _id: string; name: string; city?: string; isMain: boolean; isActive: boolean }[];
+  products: StockMatrixProductRow[];
+  generatedAt: string;
+  truncated: boolean;
+  scopedWarehouseId?: string;
 }
 
 export interface StockAdjustmentResult {
@@ -169,6 +212,27 @@ export const warehouseService = {
     lines: StockAdjustmentLine[];
   }): Promise<StockAdjustmentResult> {
     const response = await api.post('/warehouse/stock/adjust', payload);
+    return response.data;
+  },
+
+  /**
+   * Live stock as a product × warehouse grid. Every non-trashed product gets a row even when it
+   * holds nothing anywhere, which is why this is a separate endpoint from `getStock`.
+   */
+  async getStockMatrix(filters?: {
+    search?: string;
+    categoryId?: string;
+    lowOnly?: boolean;
+    nonZeroOnly?: boolean;
+    limit?: number;
+  }): Promise<StockMatrix> {
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.categoryId) params.append('categoryId', filters.categoryId);
+    if (filters?.lowOnly) params.append('lowOnly', 'true');
+    if (filters?.nonZeroOnly) params.append('nonZeroOnly', 'true');
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    const response = await api.get(`/warehouse/stock/matrix?${params.toString()}`);
     return response.data;
   },
 

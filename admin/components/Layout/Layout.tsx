@@ -2,6 +2,7 @@ import React, { ReactNode, useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import OrderTakerBottomNav from './OrderTakerBottomNav';
+import RiderBottomNav from './RiderBottomNav';
 import { useAuth } from '../../contexts/AuthContext';
 import { BroadcastInboxProvider } from '../../contexts/BroadcastInboxContext';
 import styles from './Layout.module.scss';
@@ -16,6 +17,9 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user } = useAuth();
   const showOrderTakerBottomNav = user?.role === 'order_taker';
+  const showRiderBottomNav = user?.role === 'delivery_man';
+  // Either bar occupies the same strip, so the content padding is shared.
+  const hasBottomNav = showOrderTakerBottomNav || showRiderBottomNav;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsedView, setIsCollapsedView] = useState(false);
 
@@ -44,11 +48,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className={styles.mainContent}>
           <Header onMenuClick={toggleSidebar} showMenuButton={isCollapsedView} />
           <main
-            className={`${styles.content} ${showOrderTakerBottomNav ? styles.contentWithBottomNav : ''}`}
+            className={`${styles.content} ${hasBottomNav ? styles.contentWithBottomNav : ''}`}
           >
             {children}
           </main>
           <OrderTakerBottomNav />
+          <RiderBottomNav />
         </div>
       </BroadcastInboxProvider>
     </div>

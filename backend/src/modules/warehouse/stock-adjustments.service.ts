@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { WarehouseStockModel } from '../../models/warehouse-stock.model';
 import { ProductModel } from '../../models/product.model';
-import { badRequest, notFound } from '../../utils/app-error';
+import { badRequest, notFound, conflict } from '../../utils/app-error';
 import { applyStockMovements, StockMovementLine } from './stock-ledger.service';
 
 /**
@@ -27,6 +27,16 @@ export interface AdjustStockLineInput {
   /** New absolute figure for the bucket. Omit a bucket to leave it alone. */
   sellable?: number;
   damaged?: number;
+  /**
+   * Optimistic-concurrency baseline: the figure the CLIENT was showing when the operator typed.
+   *
+   * Optional, and omitting it gives byte-for-byte the old behaviour — the per-warehouse adjust
+   * screen passes nothing and is unaffected. Sent, the correction is refused when the warehouse
+   * no longer holds that figure, which is what stops a screen left open from silently reversing
+   * someone else's sale.
+   */
+  expectedSellable?: number;
+  expectedDamaged?: number;
 }
 
 export interface AdjustStockInput {
@@ -88,6 +98,7 @@ export async function adjustStock(
 
   const movementLines: StockMovementLine[] = [];
   const changes: AdjustStockResult['changes'] = [];
+  const conflicts: string[] = [];
 
   input.lines.forEach((line, index) => {
     // No balance row yet is a real state (a product the warehouse has never held), and it means
@@ -97,6 +108,19 @@ export async function adjustStock(
     for (const bucket of ['sellable', 'damaged'] as const) {
       const target = line[bucket];
       if (target === undefined) continue;
+
+      // The figures posted here are ABSOLUTE, so a screen opened before someone else sold a piece
+      // would quietly put that piece back — a reversal nobody reviewed, and invisible afterwards
+      // because the ledger stays perfectly consistent with it. When the caller tells us what it
+      // was showing, refuse rather than overwrite.
+      const expected = bucket === 'sellable' ? line.expectedSellable : line.expectedDamaged;
+      if (expected !== undefined && expected !== current[bucket]) {
+        conflicts.push(
+          `${productNames.get(line.productId) ?? line.productId} — ${bucket}: you were shown ` +
+            `${expected}, it is now ${current[bucket]}`,
+        );
+        continue;
+      }
 
       const delta = target - current[bucket];
       if (delta === 0) continue;
@@ -119,6 +143,19 @@ export async function adjustStock(
       });
     }
   });
+
+  // Ordered before the no-op check on purpose: a stale screen whose every line conflicts would
+  // otherwise be told "nothing to change", which reads as success and hides the reason.
+  // All-or-nothing per call — `adjustStock`'s atomicity is what the ledger's compensation
+  // guarantees, and partially applying would make "what actually landed" a long question.
+  if (conflicts.length > 0) {
+    const shown = conflicts.slice(0, 5).join('; ');
+    const more = conflicts.length > 5 ? ` …and ${conflicts.length - 5} more` : '';
+    throw conflict(
+      'The stock moved while you were editing, so NOTHING was corrected. Reload and check the ' +
+        `figures: ${shown}${more}`,
+    );
+  }
 
   if (movementLines.length === 0) {
     throw badRequest('Nothing to change — every figure already matches the current stock');
