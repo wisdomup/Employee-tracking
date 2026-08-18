@@ -33,6 +33,14 @@ export interface Employee {
   warehouseId?: string | null;
   /** When false, the nightly cron does not generate route visits for this user. */
   autoAssignVisits?: boolean;
+  /**
+   * Late-start freeze — separate from `isActive`. `isActive` is the admin's permanent
+   * on/off switch; this is the automatic lock for missing the first-visit deadline, and
+   * is lifted from the Frozen Accounts page. See `accountFreezeService`.
+   */
+  isFrozen?: boolean;
+  frozenAt?: string;
+  frozenReason?: string;
   createdAt: string;
   updatedAt: string;
 }

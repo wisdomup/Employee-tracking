@@ -20,12 +20,29 @@ import styles from '../../styles/Reports.module.scss';
 const TYPE_LABEL: Record<PerformanceFlagType, string> = {
   low_visit_completion: 'Low visit completion',
   overstay: 'Overstay',
+  late_start: 'Late start',
 };
+
+/** Amber for "review this", red for "this cost them their account for the day". */
+const TYPE_COLOURS: Record<PerformanceFlagType, { background: string; color: string }> = {
+  low_visit_completion: { background: '#fee2e2', color: '#b91c1c' },
+  overstay: { background: '#fef3c7', color: '#92400e' },
+  late_start: { background: '#dbeafe', color: '#1d4ed8' },
+};
+
+/** 750 → "12:30 PM". Minutes since local midnight, as stored on a late_start flag. */
+function minuteOfDayLabel(minutes: number): string {
+  const hour = Math.floor(minutes / 60) % 24;
+  const minute = minutes % 60;
+  const suffix = hour < 12 ? 'AM' : 'PM';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
 
 /**
  * The admin "needs review" feed: riders who dropped below the visit-completion pass
- * mark or stayed too long at a shop. Scoped server-side — a sales manager sees only
- * their own team, a rider only their own flags.
+ * mark, stayed too long at a shop, or started their day too late. Scoped server-side —
+ * a sales manager sees only their own team, a rider only their own flags.
  */
 const FlagsPage: React.FC = () => {
   const router = useRouter();
@@ -94,8 +111,7 @@ const FlagsPage: React.FC = () => {
               fontSize: '0.75rem',
               fontWeight: 600,
               whiteSpace: 'nowrap',
-              background: value === 'overstay' ? '#fef3c7' : '#fee2e2',
-              color: value === 'overstay' ? '#92400e' : '#b91c1c',
+              ...(TYPE_COLOURS[value] ?? TYPE_COLOURS.low_visit_completion),
             }}
           >
             {TYPE_LABEL[value] ?? value}
@@ -111,8 +127,15 @@ const FlagsPage: React.FC = () => {
       {
         key: 'value',
         title: 'Measured / Limit',
-        render: (_: unknown, row: PerformanceFlag) =>
-          row.value == null ? '-' : `${row.value} / ${row.threshold ?? '-'}`,
+        render: (_: unknown, row: PerformanceFlag) => {
+          // A late_start stores minutes since local midnight on both sides, which is the
+          // right thing to store and the wrong thing to show — "812 / 750" means nothing.
+          if (row.type === 'late_start') {
+            const arrived = row.value == null ? 'No show' : minuteOfDayLabel(row.value);
+            return `${arrived} / ${row.threshold == null ? '-' : minuteOfDayLabel(row.threshold)}`;
+          }
+          return row.value == null ? '-' : `${row.value} / ${row.threshold ?? '-'}`;
+        },
       },
       {
         key: 'resolved',
@@ -168,8 +191,9 @@ const FlagsPage: React.FC = () => {
         </div>
 
         <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
-          Riders who finished a day below the visit-completion pass mark, or who stayed
-          longer than allowed at a shop.
+          Riders who finished a day below the visit-completion pass mark, stayed longer
+          than allowed at a shop, or did not reach their first shop by the daily deadline.
+          A late start also freezes the account — lift it from Frozen Accounts.
           {openCount > 0 && (
             <strong style={{ color: '#b91c1c' }}> {openCount} open.</strong>
           )}
@@ -186,6 +210,7 @@ const FlagsPage: React.FC = () => {
               { value: '', label: 'All reasons' },
               { value: 'low_visit_completion', label: 'Low visit completion' },
               { value: 'overstay', label: 'Overstay' },
+              { value: 'late_start', label: 'Late start' },
             ]}
           />
           <SearchableSelect

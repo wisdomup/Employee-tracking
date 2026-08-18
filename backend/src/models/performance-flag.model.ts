@@ -5,8 +5,11 @@ import { Schema, model, Document, Types } from 'mongoose';
  * - `low_visit_completion` — they skipped a visit and finished the day below the
  *   required completion rate.
  * - `overstay` — they stayed at a shop longer than the allowed window.
+ * - `late_start` — they did not reach their first shop of the day by the deadline.
+ *   Unlike the other two this one also freezes the account (see `modules/account-freeze`),
+ *   so the flag is the audit trail for a lock the admin has to clear by hand.
  */
-export type PerformanceFlagType = 'low_visit_completion' | 'overstay';
+export type PerformanceFlagType = 'low_visit_completion' | 'overstay' | 'late_start';
 
 /**
  * An admin-facing flag raised against a rider.
@@ -42,7 +45,7 @@ const performanceFlagSchema = new Schema<IPerformanceFlag>(
     employeeId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     type: {
       type: String,
-      enum: ['low_visit_completion', 'overstay'],
+      enum: ['low_visit_completion', 'overstay', 'late_start'],
       required: true,
     },
     flagDate: { type: Date, required: true },

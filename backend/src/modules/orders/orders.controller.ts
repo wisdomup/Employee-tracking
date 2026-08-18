@@ -19,7 +19,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       // The source warehouse follows the salesman's city; only an admin may override it.
       delete req.body.warehouseId;
     }
-    const order = await ordersService.createOrder(req.body, req.user!.userId);
+    const order = await ordersService.createOrder(req.body, req.user!.userId, req.user?.role);
     res.status(201).json(serializeOrderForRole(order, req.user?.role));
   } catch (err) {
     next(err);

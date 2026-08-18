@@ -9,6 +9,14 @@ export interface AuthUser {
   role: string;
   /** Warehouse the caller is attached to, if any. Drives warehouse-module row-level scoping. */
   warehouseId?: string;
+  /**
+   * True while the account is frozen for a late start. Read by `blockFrozenWrites`, which
+   * refuses writes in the field modules. Resolved per-request from the database rather
+   * than the JWT, so an admin's unfreeze takes effect on the rider's very next call
+   * instead of when their 24h token expires.
+   */
+  isFrozen?: boolean;
+  frozenReason?: string;
 }
 
 declare global {
@@ -48,7 +56,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
       _id: userId,
       isTrashed: { $ne: true },
     })
-      .select('_id username role isActive warehouseId')
+      .select('_id username role isActive warehouseId isFrozen frozenReason')
       .lean()
       .exec();
 
@@ -61,6 +69,9 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
       username: currentUser.username,
       role: currentUser.role,
       ...(currentUser.warehouseId ? { warehouseId: String(currentUser.warehouseId) } : {}),
+      ...(currentUser.isFrozen === true
+        ? { isFrozen: true, ...(currentUser.frozenReason ? { frozenReason: currentUser.frozenReason } : {}) }
+        : {}),
     };
 
     next();

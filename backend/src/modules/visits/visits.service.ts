@@ -10,9 +10,11 @@ import { resolveCityScope } from '../users/users.service';
 // The business-timezone day key, shared with the region-sales dashboard so "which day did
 // this happen on" has one answer across the app.
 import { localDayKey } from '../region-sales/region-sales.rules';
-import { notFound, badRequest } from '../../utils/app-error';
+import { notFound, badRequest, forbidden } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
+import { OrderModel } from '../../models/order.model';
+import { enforceFirstCheckInDeadline } from '../account-freeze/account-freeze.service';
 import {
   CHECK_IN_RADIUS_METRES,
   VISIT_DURATION_LIMIT_MINUTES,
@@ -81,6 +83,91 @@ export async function bulkCreateVisits(
   return visits;
 }
 
+/**
+ * Orders punched during a visit, keyed by visit id.
+ *
+ * One batched query for a whole page of visits rather than a lookup per row — the visit
+ * list is the hottest read in the module and a per-row query would make it N+1.
+ *
+ * Cancelled orders are excluded from the money but still counted, so a visit whose only
+ * order was called off reports `Rs. 0` with a count rather than silently reading as
+ * "No Order" — the rider did take an order, and the report should not hide that.
+ */
+async function findOrderSummariesByVisit(
+  visitIds: Types.ObjectId[],
+): Promise<Map<string, VisitOrderSummary>> {
+  const summaries = new Map<string, VisitOrderSummary>();
+  if (visitIds.length === 0) return summaries;
+
+  const rows = await OrderModel.aggregate<{
+    _id: Types.ObjectId;
+    orderCount: number;
+    totalAmount: number;
+    cancelledCount: number;
+    orderIds: Types.ObjectId[];
+    invoiceNumbers: (number | null)[];
+  }>([
+    { $match: { visitId: { $in: visitIds }, isTrashed: { $ne: true } } },
+    {
+      $group: {
+        _id: '$visitId',
+        orderCount: { $sum: 1 },
+        totalAmount: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'cancelled'] }, 0, { $ifNull: ['$grandTotal', 0] }],
+          },
+        },
+        cancelledCount: {
+          $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] },
+        },
+        orderIds: { $push: '$_id' },
+        invoiceNumbers: { $push: '$invoiceNumber' },
+      },
+    },
+  ]);
+
+  for (const row of rows) {
+    summaries.set(String(row._id), {
+      orderCount: row.orderCount,
+      totalAmount: Math.round(row.totalAmount * 100) / 100,
+      cancelledCount: row.cancelledCount,
+      orderIds: row.orderIds.map(String),
+      invoiceNumbers: row.invoiceNumbers.filter((n): n is number => n != null),
+    });
+  }
+
+  return summaries;
+}
+
+/** What the visit report shows in its Order column. */
+export interface VisitOrderSummary {
+  orderCount: number;
+  /** Sum of `grandTotal`, excluding cancelled orders. */
+  totalAmount: number;
+  cancelledCount: number;
+  orderIds: string[];
+  invoiceNumbers: number[];
+}
+
+/**
+ * Attaches `orderSummary` to each visit for the report.
+ *
+ * Visits with no order are left WITHOUT the field rather than given a zeroed one — the UI
+ * distinguishes "no order taken" (renders "No Order") from "order worth Rs. 0", and a
+ * zero-filled default would erase that difference.
+ */
+async function withOrderSummaries<T extends { _id: Types.ObjectId; toObject: () => Record<string, unknown> }>(
+  visits: T[],
+): Promise<Record<string, unknown>[]> {
+  const summaries = await findOrderSummariesByVisit(visits.map((v) => v._id));
+  return visits.map((visit) => {
+    const plain = visit.toObject();
+    const summary = summaries.get(String(visit._id));
+    if (summary) plain.orderSummary = summary;
+    return plain;
+  });
+}
+
 export async function findAll(filters?: {
   dealerId?: string;
   employeeId?: string;
@@ -131,13 +218,15 @@ export async function findAll(filters?: {
     }
   }
 
-  return VisitModel.find(query)
+  const visits = await VisitModel.find(query)
     .populate('dealerId')
     .populate('employeeId', '-password')
     .populate('routeId')
     .populate('createdBy', '-password')
     .sort({ createdAt: -1 })
     .exec();
+
+  return withOrderSummaries(visits);
 }
 
 export async function findById(id: string, visibleEmployeeIds?: Types.ObjectId[] | null) {
@@ -157,7 +246,8 @@ export async function findById(id: string, visibleEmployeeIds?: Types.ObjectId[]
     throw notFound('Visit not found');
   }
 
-  return visit;
+  const [withSummary] = await withOrderSummaries([visit]);
+  return withSummary;
 }
 
 export async function updateVisit(id: string, data: Record<string, unknown>, actorId?: string) {
@@ -542,6 +632,22 @@ export async function checkInVisit(
           `You are currently ${Math.round(distanceMetres)} metres away.`,
       );
     }
+  }
+
+  // The late-start rule. A rider who has not reached ANY shop by the daily deadline is
+  // frozen the moment they try to start, and the check-in is refused — so the freeze
+  // lands even on days the sweep cron did not run. Riders already out on time, riders
+  // with no assigned visits, and non-rider roles all pass straight through.
+  // `userRole` is the ACTING user's role, so an admin checking in for someone is never
+  // caught by this; the rider's own late arrival still is, on their own next attempt.
+  const lateStartReason = await enforceFirstCheckInDeadline({
+    employeeId: new Types.ObjectId(userId),
+    role: userRole,
+    now: new Date(),
+    visitId: visit._id,
+  });
+  if (lateStartReason) {
+    throw forbidden(lateStartReason);
   }
 
   const previousStatus = visit.status;

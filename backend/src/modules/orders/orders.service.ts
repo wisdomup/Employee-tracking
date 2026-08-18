@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { OrderModel } from '../../models/order.model';
 import { ProductModel } from '../../models/product.model';
 import { DealerModel } from '../../models/dealer.model';
+import { VisitModel } from '../../models/visit.model';
 import { UserModel } from '../../models/user.model';
 import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
 import { ROLES } from '../../constants/global';
@@ -18,6 +19,55 @@ import {
 } from '../warehouse/stock-ledger.service';
 import { resolveWarehouseForUser } from '../warehouse/warehouse-resolver';
 import { notifyInsufficientStock } from '../warehouse/warehouse-notifications';
+
+/**
+ * Validates the visit an "Order Lena" order claims to have been taken during, and returns
+ * the id to store.
+ *
+ * The rider must be **checked in** at that shop right now. That is the whole point of the
+ * feature — the order is taken standing in the shop — and the check-in is the geofenced
+ * proof they were there. Accepting a `todo` or already-completed visit would let a rider
+ * attribute an order to a shop they never entered, which is exactly the claim the visit
+ * report is supposed to make trustworthy.
+ *
+ * The dealer must match too, so an order cannot be booked for shop A while checked in at B.
+ */
+async function resolveOrderVisitId(
+  visitId: string,
+  dealerId: string,
+  userId: string,
+  userRole?: string,
+): Promise<Types.ObjectId> {
+  if (!Types.ObjectId.isValid(visitId)) {
+    throw badRequest('Invalid visit id');
+  }
+
+  const visit = await VisitModel.findOne({ _id: visitId, isTrashed: { $ne: true } })
+    .select('employeeId dealerId status')
+    .lean()
+    .exec();
+
+  if (!visit) {
+    throw notFound('Visit not found');
+  }
+
+  // An admin may punch an order on a rider's behalf; nobody else may use someone else's visit.
+  if (userRole !== ROLES.ADMIN && String(visit.employeeId) !== String(userId)) {
+    throw badRequest('This visit is not assigned to you');
+  }
+
+  if (String(visit.dealerId) !== String(dealerId)) {
+    throw badRequest('The order client does not match the client of this visit');
+  }
+
+  if (visit.status !== 'checked_in') {
+    throw badRequest(
+      `You must be checked in at the store to take an order for this visit (visit is "${visit.status}")`,
+    );
+  }
+
+  return visit._id;
+}
 
 function aggregateQuantityByProduct(
   products: { productId: string; quantity: number; price: number }[],
@@ -245,12 +295,22 @@ export async function createOrder(
     deliveryDate?: Date;
     dealerId: string;
     routeId?: string;
+    /** Set when the order is punched from a shop visit the rider is checked in to. */
+    visitId?: string;
     /** Admin-only override of the auto-resolved source warehouse. */
     warehouseId?: string;
   },
   userId: string,
+  userRole?: string,
 ) {
-  const { products, dealerId, routeId, discount, termsAndConditions, warehouseId, ...rest } = data;
+  const { products, dealerId, routeId, discount, termsAndConditions, warehouseId, visitId, ...rest } =
+    data;
+
+  // Validated before any stock is reserved: a bad visit link must fail the whole order
+  // rather than leave stock committed against an order that never gets created.
+  const resolvedVisitId = visitId
+    ? await resolveOrderVisitId(visitId, dealerId, userId, userRole)
+    : undefined;
   const terms = sanitizeOrderTermsHtml(termsAndConditions);
   const routeIdProvided = Object.prototype.hasOwnProperty.call(data, 'routeId');
   const resolvedRouteId = await resolveOrderRouteId(dealerId, routeId, routeIdProvided);
@@ -301,6 +361,7 @@ export async function createOrder(
       })),
       dealerId: new Types.ObjectId(dealerId),
       ...(resolvedRouteId && { routeId: resolvedRouteId }),
+      ...(resolvedVisitId && { visitId: resolvedVisitId }),
       warehouseId: resolution.warehouseId,
       createdBy: new Types.ObjectId(userId),
     });
@@ -336,6 +397,7 @@ export async function createOrder(
       status: order.status,
       dealerId: String(order.dealerId),
       grandTotal: order.grandTotal,
+      ...(resolvedVisitId ? { visitId: String(resolvedVisitId), source: 'visit_check_in' } : {}),
     },
   });
 

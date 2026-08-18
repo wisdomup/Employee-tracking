@@ -9,7 +9,12 @@ import SearchableSelect from '../../components/UI/SearchableSelect';
 import VisitsMonthCalendar from '../../components/Visits/VisitsMonthCalendar';
 import AssignVisitsModal from '../../components/Visits/AssignVisitsModal';
 import VisitsDayView from '../../components/Visits/VisitsDayView';
-import { visitService, Visit, VISIT_DURATION_LIMIT_MINUTES } from '../../services/visitService';
+import {
+  visitService,
+  Visit,
+  formatVisitOrderAmount,
+  VISIT_DURATION_LIMIT_MINUTES,
+} from '../../services/visitService';
 import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -209,6 +214,37 @@ const VisitsPage: React.FC = () => {
       // Visits without a recorded duration sit out of the divisor, so they cannot drag it down.
       total: 'avg' as const,
       totalRender: (value: number) => `${Math.round(value * 10) / 10} min avg`,
+    },
+    {
+      key: 'orderSummary',
+      title: 'Order',
+      // The reporting ask: the order amount against the visit it was taken during, and an
+      // explicit "No Order" otherwise — never a blank cell, which reads as missing data.
+      render: (_: unknown, row: Visit) => {
+        const summary = row.orderSummary;
+        if (!summary || summary.orderCount === 0) {
+          return <span style={{ color: '#b45309', fontWeight: 600 }}>No Order</span>;
+        }
+        return (
+          <span
+            style={{ color: '#047857', fontWeight: 700, whiteSpace: 'nowrap' }}
+            title={
+              `${summary.orderCount} order(s) taken during this visit` +
+              (summary.invoiceNumbers.length ? ` — invoice #${summary.invoiceNumbers.join(', #')}` : '') +
+              (summary.cancelledCount > 0
+                ? ` · ${summary.cancelledCount} cancelled, excluded from the amount`
+                : '')
+            }
+          >
+            {formatVisitOrderAmount(summary)}
+            {summary.orderCount > 1 ? ` (${summary.orderCount})` : ''}
+          </span>
+        );
+      },
+      total: 'sum' as const,
+      totalValue: (row: Visit) => row.orderSummary?.totalAmount ?? 0,
+      totalRender: (value: number) =>
+        `Rs. ${value.toLocaleString('en-PK', { maximumFractionDigits: 2 })}`,
     },
     {
       key: 'createdBy',

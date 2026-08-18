@@ -67,6 +67,28 @@ export interface DealerGalleryEntry {
   galleryUpdatedAt?: string;
 }
 
+/**
+ * Orders punched during this visit via "Order Lena".
+ *
+ * **Absent means no order was taken** — that is what the report renders as "No Order".
+ * Do not default it to a zeroed object: a visit with a cancelled order legitimately has a
+ * summary with `totalAmount: 0`, and the two cases must stay distinguishable.
+ */
+export interface VisitOrderSummary {
+  orderCount: number;
+  /** Sum of `grandTotal`, excluding cancelled orders. */
+  totalAmount: number;
+  cancelledCount: number;
+  orderIds: string[];
+  invoiceNumbers: number[];
+}
+
+/** `Rs. 1,250` / `No Order` — the single source of the report's Order wording. */
+export function formatVisitOrderAmount(summary?: VisitOrderSummary): string {
+  if (!summary || summary.orderCount === 0) return 'No Order';
+  return `Rs. ${summary.totalAmount.toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
+}
+
 export interface Visit {
   _id: string;
   dealerId: any;
@@ -94,6 +116,8 @@ export interface Visit {
   visitNotes?: string;
   galleryUpdatedAt?: string;
   createdBy?: { _id: string; username?: string; userID?: string; role?: string };
+  /** Present only when at least one order was punched during this visit. */
+  orderSummary?: VisitOrderSummary;
   createdAt: string;
   updatedAt: string;
 }

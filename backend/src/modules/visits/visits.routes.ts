@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { requireRoles } from '../../middleware/roles.middleware';
+import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
   createVisitSchema,
@@ -17,6 +18,8 @@ import * as controller from './visits.controller';
 const router = Router();
 
 router.use(authMiddleware);
+// A frozen rider may still read their day, but records no work until an admin unfreezes them.
+router.use(blockFrozenWrites);
 
 /**
  * @openapi

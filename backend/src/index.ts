@@ -3,6 +3,7 @@ import { connectDatabase } from './config/database';
 import { ensureUploadDirectories } from './services/file-upload.service';
 import { startVisitGenerationCron } from './jobs/visit-generation.cron';
 import { startLowStockCron } from './jobs/low-stock.cron';
+import { startLateStartFreezeCron } from './jobs/late-start-freeze.cron';
 import { runWarehouseBootstrapOnStart } from './database/warehouse-bootstrap-on-start';
 import app from './app';
 
@@ -15,6 +16,7 @@ async function bootstrap() {
   ensureUploadDirectories();
   startVisitGenerationCron();
   startLowStockCron();
+  startLateStartFreezeCron();
 
   app.listen(PORT, () => {
     console.log(`Server for Tracking App running on http://localhost:${PORT}`);

@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import OrderTakerBottomNav from './OrderTakerBottomNav';
 import RiderBottomNav from './RiderBottomNav';
+import FrozenAccountBanner from './FrozenAccountBanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { BroadcastInboxProvider } from '../../contexts/BroadcastInboxContext';
 import styles from './Layout.module.scss';
@@ -50,6 +51,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <main
             className={`${styles.content} ${hasBottomNav ? styles.contentWithBottomNav : ''}`}
           >
+            {/* Above the page content on every screen — the freeze applies everywhere,
+                so a rider must not have to find the right page to learn about it. */}
+            <FrozenAccountBanner />
             {children}
           </main>
           <OrderTakerBottomNav />

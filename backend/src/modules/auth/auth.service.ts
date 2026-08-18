@@ -68,6 +68,12 @@ export async function login(data: { username: string; password: string }) {
       // The admin panel needs this to pre-select and lock the warehouse pickers for warehouse
       // roles. It is a UX convenience only — every endpoint still scopes server-side.
       warehouseId: user.warehouseId ?? null,
+      // A frozen rider is deliberately still allowed to sign in — the whole point is that
+      // they can read why they are locked out and who to contact. These three drive the
+      // banner; the actual enforcement is server-side in `blockFrozenWrites`.
+      isFrozen: user.isFrozen === true,
+      frozenAt: user.frozenAt ?? null,
+      frozenReason: user.frozenReason ?? null,
     },
   };
 }

@@ -20,6 +20,14 @@ export interface User {
    * warehouse pickers — never as a security boundary; every endpoint scopes server-side.
    */
   warehouseId?: string | null;
+  /**
+   * Late-start freeze state, carried so the banner can render on first paint without
+   * waiting for a round trip. Never a security boundary — the server refuses the writes.
+   * `FrozenAccountBanner` re-reads the live state from /account-freeze/me on mount.
+   */
+  isFrozen?: boolean;
+  frozenAt?: string | null;
+  frozenReason?: string | null;
   address?: {
     street?: string;
     city?: string;
@@ -40,6 +48,9 @@ export function mapApiUserToAuthUser(data: {
   userID?: string;
   profileImage?: string;
   warehouseId?: unknown;
+  isFrozen?: boolean;
+  frozenAt?: string | null;
+  frozenReason?: string | null;
   address?: User['address'];
 }): User {
   const id = data._id != null ? String(data._id) : String(data.id ?? '');
@@ -54,6 +65,9 @@ export function mapApiUserToAuthUser(data: {
     profileImage: data.profileImage,
     // May arrive as a raw id or a populated warehouse depending on the endpoint.
     warehouseId: normalizeWarehouseId(data.warehouseId),
+    isFrozen: data.isFrozen === true,
+    frozenAt: data.frozenAt ?? null,
+    frozenReason: data.frozenReason ?? null,
     address: data.address,
   };
 }

@@ -135,7 +135,8 @@ export interface PerformanceKpis {
   monthElapsedPercent: number;
 }
 
-export type PerformanceFlagType = 'low_visit_completion' | 'overstay';
+/** Mirrors `backend/src/models/performance-flag.model.ts` — keep the two in step. */
+export type PerformanceFlagType = 'low_visit_completion' | 'overstay' | 'late_start';
 
 export interface PerformanceFlag {
   _id: string;
@@ -157,6 +158,7 @@ export interface FlagSummary {
   total: number;
   lowVisitCompletion: number;
   overstay: number;
+  lateStart: number;
 }
 
 export interface PerformanceReport {

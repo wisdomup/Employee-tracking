@@ -18,6 +18,10 @@ export interface ProfileDocument {
   role: string;
   address?: ProfileAddress;
   profileImage?: string;
+  /** Late-start freeze state — see `accountFreezeService`. */
+  isFrozen?: boolean;
+  frozenAt?: string | null;
+  frozenReason?: string | null;
 }
 
 export interface ProfileUpdateBody {

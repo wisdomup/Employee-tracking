@@ -17,6 +17,7 @@ import {
   PresentationChart,
   ShoppingCart,
   Signpost,
+  Snowflake,
   SquaresFour,
   Storefront,
   Tag,
@@ -76,6 +77,8 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   // Everyone gets this: riders see their own scorecard, managers their team, admin all.
   { path: '/analytics', label: 'Performance', Icon: ChartLineUp, permission: 'analytics:view-own' },
   { path: '/flags', label: 'Flags', Icon: WarningCircle, permission: 'analytics:view-own' },
+  // The unfreeze queue. Admin-only: lifting a late-start freeze is the admin's call alone.
+  { path: '/frozen-accounts', label: 'Frozen Accounts', Icon: Snowflake, adminOnly: true },
   // Admin + sales managers only — an oversight view, not something riders need.
   { path: '/region-sales', label: 'Region Sales', Icon: MapPinArea, permission: 'region-sales:view' },
   // One entry for the whole collection module, same constraint as /warehouse above: `isActive`

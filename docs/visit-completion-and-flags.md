@@ -108,7 +108,7 @@ than having to scan visits.
 | Field | Notes |
 | --- | --- |
 | `employeeId` | the rider |
-| `type` | `low_visit_completion` or `overstay` |
+| `type` | `low_visit_completion`, `overstay` or `late_start` |
 | `flagDate` | UTC midnight of the day |
 | `message` | human-readable summary shown in the list |
 | `value` / `threshold` | e.g. `60` / `75` |
@@ -122,6 +122,12 @@ latest (worst) rate.
 The overstay path (>30 min at a shop) now writes into the same collection, so both
 problems appear in one feed. `visit.overstayFlagged` is kept as well, for the per-visit
 badge.
+
+The `late_start` type also writes here, but it is the odd one out: unlike these two it
+**freezes the account** rather than just raising a flag, so the row is the audit trail for
+a lock an admin has to clear by hand. Its `value`/`threshold` are minutes since local
+midnight rather than percentages or minutes-of-duration. See
+[rider-late-start-freeze.md](./rider-late-start-freeze.md).
 
 ### API
 

@@ -131,8 +131,29 @@ const EmployeesPage: React.FC = () => {
     {
       key: 'isActive',
       title: 'Status',
-      render: (value: boolean) => (
-        <StatusBadge status={value ? 'active' : 'inactive'} />
+      // A frozen rider is still "active" — the freeze is a separate, temporary lock, and
+      // showing only Active here would hide the reason they cannot record any work.
+      render: (value: boolean, row: Employee) => (
+        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+          <StatusBadge status={value ? 'active' : 'inactive'} />
+          {row.isFrozen && (
+            <span
+              title={row.frozenReason || 'Frozen for a late start'}
+              style={{
+                display: 'inline-block',
+                padding: '0.125rem 0.5rem',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                background: '#dbeafe',
+                color: '#1d4ed8',
+              }}
+            >
+              Frozen
+            </span>
+          )}
+        </div>
       ),
     },
     {

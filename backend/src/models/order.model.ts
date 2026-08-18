@@ -30,6 +30,12 @@ export interface IOrder extends Document {
   deliveryDate?: Date;
   dealerId: Types.ObjectId;
   routeId?: Types.ObjectId;
+  /**
+   * The shop visit this order was punched during, set when the rider used "Order Lena" while
+   * checked in at the store. Absent for orders raised from the normal Orders screen — which
+   * is why the visit report reads a missing/empty link as "No Order" rather than as an error.
+   */
+  visitId?: Types.ObjectId;
   /** Warehouse the stock was taken from. Resolved from the salesman's city; admin-overridable. */
   warehouseId?: Types.ObjectId;
   isTrashed?: boolean;
@@ -86,6 +92,7 @@ const orderSchema = new Schema<IOrder>(
     deliveryDate: { type: Date },
     dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
     routeId: { type: Schema.Types.ObjectId, ref: 'Route' },
+    visitId: { type: Schema.Types.ObjectId, ref: 'Visit' },
     warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
@@ -106,6 +113,9 @@ orderSchema.index({ invoiceNumber: 1 }, { unique: true, sparse: true });
 
 orderSchema.index({ dealerId: 1 });
 orderSchema.index({ routeId: 1 });
+// The visit report's "order taken during this visit?" lookup, batched over a page of visits.
+// Sparse: only visit-linked orders carry the field, and they are the minority.
+orderSchema.index({ visitId: 1 }, { sparse: true });
 orderSchema.index({ createdBy: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ isTrashed: 1, createdAt: -1 });

@@ -45,6 +45,15 @@ const CreateOrderPage: React.FC = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { productId: '', quantity: 1, price: 0, discount: 0 },
   ]);
+  /**
+   * "Order Lena" context. When the rider arrives from a visit they are checked in to, the
+   * order is bound to that visit and the client is locked — booking it against a different
+   * shop is exactly what the server refuses, so the form must not offer it.
+   */
+  const visitId = typeof router.query.visitId === 'string' ? router.query.visitId : '';
+  const returnTo = typeof router.query.returnTo === 'string' ? router.query.returnTo : '';
+  const fromVisit = !!visitId;
+
   const [formData, setFormData] = useState({
     clientId: '',
     routeId: '',
@@ -64,6 +73,23 @@ const CreateOrderPage: React.FC = () => {
       warehouseService.getWarehouses({ isActive: true }).then(setWarehouses).catch(() => {});
     }
   }, [isAdmin]);
+
+  /**
+   * Seed the client from `?clientId=` (the "Order Lena" entry point). Runs once the router
+   * has resolved and once the client list has landed, since the route is derived from the
+   * client record. Only fills an empty field, so it cannot stamp over the user's own pick.
+   */
+  useEffect(() => {
+    if (!router.isReady) return;
+    const seededClientId = typeof router.query.clientId === 'string' ? router.query.clientId : '';
+    if (!seededClientId || clients.length === 0) return;
+
+    setFormData((prev) => {
+      if (prev.clientId) return prev;
+      const client = clients.find((c) => c._id === seededClientId);
+      return { ...prev, clientId: seededClientId, routeId: getClientAssignedRouteId(client) };
+    });
+  }, [router.isReady, router.query.clientId, clients]);
 
   // Per-warehouse availability, so the form validates against the warehouse the order will actually
   // draw from rather than the all-warehouse total.
@@ -215,6 +241,9 @@ const CreateOrderPage: React.FC = () => {
       await orderService.createOrder({
         dealerId: formData.clientId,
         routeId: formData.routeId,
+        // Binds the order to the shop visit, which is what makes it show up in the visit
+        // report instead of reading as "No Order".
+        ...(visitId ? { visitId } : {}),
         paymentType: formData.paymentType || undefined,
         products: validItems.map((item) => ({
           productId: item.productId,
@@ -232,7 +261,8 @@ const CreateOrderPage: React.FC = () => {
         ...(isAdmin && sourceWarehouseId ? { warehouseId: sourceWarehouseId } : {}),
       });
       toast.success('Order created successfully');
-      router.push('/orders');
+      // Back to the visit the rider is still standing in, not to the orders list.
+      router.push(returnTo || '/orders');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to create order');
     } finally {
@@ -244,26 +274,69 @@ const CreateOrderPage: React.FC = () => {
     <Layout>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Create Order</h1>
-          <button className={styles.backButton} onClick={() => router.push('/orders')}>
+          <h1>{fromVisit ? 'Take Order — Order Lena' : 'Create Order'}</h1>
+          <button className={styles.backButton} onClick={() => router.push(returnTo || '/orders')}>
             ← Back
           </button>
         </div>
+
+        {fromVisit && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.625rem',
+              padding: '0.875rem 1rem',
+              marginBottom: '1rem',
+              borderRadius: '0.5rem',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              color: '#065f46',
+            }}
+          >
+            <span aria-hidden style={{ fontSize: '1.125rem', lineHeight: 1.2 }}>🛒</span>
+            <div>
+              <strong>Order for this shop visit</strong>
+              <div style={{ fontSize: '0.875rem', marginTop: '0.125rem' }}>
+                This order is linked to the visit you are checked in to and will show against
+                it in the visit report. The client is locked to that shop.
+              </div>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
             <label htmlFor="clientId">Client *</label>
-            <SearchableSelect
-              id="clientId"
-              name="clientId"
-              value={formData.clientId}
-              onChange={handleClientChange}
-              className={styles.select}
-              placeholder="Select a client"
-              options={[
-                { value: '', label: 'Select a client' },
-                ...clients.map((d) => ({ value: d._id, label: formatClientSelectLabel(d) })),
-              ]}
-            />
+            {fromVisit ? (
+              // Locked, not merely pre-filled: the server refuses an order whose client
+              // differs from the visit's, so an editable picker could only produce an error.
+              <input
+                id="clientId"
+                name="clientId"
+                className={styles.input}
+                value={
+                  clients.find((c) => c._id === formData.clientId)
+                    ? formatClientSelectLabel(clients.find((c) => c._id === formData.clientId)!)
+                    : 'Loading client…'
+                }
+                readOnly
+                disabled
+              />
+            ) : (
+              <SearchableSelect
+                id="clientId"
+                name="clientId"
+                value={formData.clientId}
+                onChange={handleClientChange}
+                className={styles.select}
+                placeholder="Select a client"
+                options={[
+                  { value: '', label: 'Select a client' },
+                  ...clients.map((d) => ({ value: d._id, label: formatClientSelectLabel(d) })),
+                ]}
+              />
+            )}
           </div>
 
           <div className={styles.formGroup}>

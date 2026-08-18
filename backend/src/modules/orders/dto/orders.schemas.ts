@@ -29,6 +29,8 @@ export const createOrderSchema = Joi.object({
   deliveryDate: Joi.date().optional(),
   dealerId: Joi.string().required(),
   routeId: Joi.string().optional().allow(null, ''),
+  /** Visit the rider is checked in to, when the order is punched via "Order Lena". */
+  visitId: Joi.string().hex().length(24).optional(),
   /**
    * Source warehouse. Normally resolved from the salesman's city; only an admin may override it, and
    * the controller strips it for every other role.

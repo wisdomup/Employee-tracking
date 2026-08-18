@@ -2,7 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import { addDays, subDays, format, isToday } from 'date-fns';
-import { visitService, Visit, VISIT_DURATION_LIMIT_MINUTES } from '../../services/visitService';
+import {
+  visitService,
+  Visit,
+  formatVisitOrderAmount,
+  VISIT_DURATION_LIMIT_MINUTES,
+} from '../../services/visitService';
 import { nearestNeighborOrder } from '../../utils/geo';
 import StatusBadge from '../UI/StatusBadge';
 import NavigateButton from '../Map/NavigateButton';
@@ -209,6 +214,28 @@ const VisitsDayView: React.FC<VisitsDayViewProps> = ({ employeeId }) => {
                         title="Extra visit you started yourself — not counted in today's 75% target"
                       >
                         Extra
+                      </span>
+                    )}
+                    {/* Only once the rider has actually been in the shop — showing
+                        "No Order" against a to-do visit would be nagging, not reporting. */}
+                    {(v.status === 'checked_in' || v.status === 'completed') && (
+                      <span
+                        style={{
+                          padding: '0.0625rem 0.375rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.6875rem',
+                          fontWeight: 700,
+                          whiteSpace: 'nowrap',
+                          background: v.orderSummary ? '#d1fae5' : '#fef3c7',
+                          color: v.orderSummary ? '#065f46' : '#92400e',
+                        }}
+                        title={
+                          v.orderSummary
+                            ? `${v.orderSummary.orderCount} order(s) taken during this visit`
+                            : 'No order was taken during this visit'
+                        }
+                      >
+                        {formatVisitOrderAmount(v.orderSummary)}
                       </span>
                     )}
                     {v.overstayFlagged && v.status === 'completed' && (

@@ -48,6 +48,25 @@ export interface IUser extends Document {
   target?: string;
   achivedTarget?: string;
   isActive: boolean;
+  /**
+   * Discipline lock raised when a rider fails to reach their first shop by the daily
+   * deadline — see `modules/account-freeze`. A frozen rider can still sign in and read
+   * their day (so they can see *why*), but every write in the field modules is refused
+   * until an admin clears it.
+   *
+   * Deliberately separate from `isActive`: that is the admin's permanent on/off switch
+   * for an account, this is an automatic, admin-clearable lock. Conflating them would
+   * make "did an admin disable this person, or were they just late?" unanswerable.
+   * Missing means not frozen, so every pre-existing user is unaffected.
+   */
+  isFrozen?: boolean;
+  frozenAt?: Date;
+  /** Human-readable explanation, shown verbatim to the rider and the admin. */
+  frozenReason?: string;
+  /** Absent when the system froze them automatically; set when an admin did it by hand. */
+  frozenBy?: Types.ObjectId;
+  unfrozenAt?: Date;
+  unfrozenBy?: Types.ObjectId;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -92,6 +111,12 @@ const userSchema = new Schema<IUser>(
     target: { type: String },
     achivedTarget: { type: String },
     isActive: { type: Boolean, default: true },
+    isFrozen: { type: Boolean, default: false },
+    frozenAt: { type: Date },
+    frozenReason: { type: String, trim: true, maxlength: 500 },
+    frozenBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    unfrozenAt: { type: Date },
+    unfrozenBy: { type: Schema.Types.ObjectId, ref: 'User' },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -108,6 +133,8 @@ userSchema.index({ managerId: 1, isTrashed: 1 });
 userSchema.index({ 'address.city': 1, isTrashed: 1 });
 // Listing the staff attached to a warehouse
 userSchema.index({ warehouseId: 1, isTrashed: 1 });
+// The admin "who is frozen today" queue, and the cron's sweep over freezable roles.
+userSchema.index({ isFrozen: 1, role: 1, isTrashed: 1 });
 userSchema.index({ isTrashed: 1, createdAt: -1 });
 userSchema.index({ isTrashed: 1, trashedAt: -1 });
 

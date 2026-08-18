@@ -27,6 +27,12 @@ export interface Order {
   dealerId: any;
   routeId?: any;
   /**
+   * Shop visit this order was punched during ("Order Lena" while checked in). Absent for
+   * orders raised from the Orders screen. The server refuses a visit the caller is not
+   * checked in to, or whose client does not match.
+   */
+  visitId?: string;
+  /**
    * Warehouse the stock came out of. Resolved from the salesman's city on create; only an admin can
    * change it, and doing so moves the reservation between warehouses.
    */

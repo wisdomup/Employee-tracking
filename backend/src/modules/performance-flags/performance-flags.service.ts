@@ -68,6 +68,7 @@ export async function countOpenFlags(visibleEmployeeIds?: Types.ObjectId[] | nul
     total: rows.reduce((sum, r) => sum + r.count, 0),
     lowVisitCompletion: byType.low_visit_completion ?? 0,
     overstay: byType.overstay ?? 0,
+    lateStart: byType.late_start ?? 0,
   };
 }
 

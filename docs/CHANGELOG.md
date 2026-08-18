@@ -8,6 +8,69 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-18 — Take an order during a shop visit ("Order Lena")
+
+### Added
+- **A rider checked in at a shop can punch the order right there, and the visit report shows
+  what the visit was worth.** New `Order.visitId` binds an order to the visit it was taken
+  during. `POST /api/orders` accepts an optional `visitId` and refuses it unless the visit
+  exists, belongs to the caller (admins exempt, so they can punch on a rider's behalf), is for
+  the same client, and — the point of the feature — is **`checked_in`**. A `todo` or already
+  completed visit is refused: the geofenced check-in is the proof the rider was actually in the
+  shop, and without that the report's claim would be worthless. The link is validated before any
+  stock is reserved, so a rejected order cannot strand committed stock.
+
+  The visits list and detail now carry an `orderSummary` (count, amount, cancelled count,
+  invoice numbers), attached by one batched aggregation over the page rather than a lookup per
+  row. **A visit with no order carries no summary at all** — deliberately not a zeroed object,
+  since a visit whose only order was cancelled legitimately totals Rs. 0 and the two must stay
+  distinguishable. Cancelled orders are counted but excluded from the money; trashed orders drop
+  out entirely.
+
+  UI: a green **Order Lena** button beside Complete Visit, shown only while checked in, opening
+  the order form with the client locked to that shop and returning to the visit on save. The
+  visit detail gained an "Order Taken During This Visit" section with links through to each
+  order. The visits list gained an **Order** column — green amount, or amber **No Order**, never
+  a blank cell — which sums in the table footer, and the rider's day view gained the same chip
+  per card. Covered by `npm run test:visits:orders` (21 integration tests). See
+  [visit-checkin-checkout-flow.md](./visit-checkin-checkout-flow.md) §9.
+
+## 2026-08-18 — Riders are frozen for starting the day late
+
+### Added
+- **An `order_taker` must check in at their first shop by 12:30 PM, or the account freezes.**
+  Riders were routinely starting the day hours late, and the existing 75% completion rule
+  could not catch it — a rider who starts at 3pm and rushes four shops still passes. Check-in
+  is the geofenced proof they are physically at a store, so it is what counts as starting
+  work. Two paths freeze an account: the check-in guard refuses a first check-in made after
+  the deadline (403, on the spot), and a daily sweep at deadline + 5 minutes catches riders
+  who never turned up at all — a no-show performs no action, so the guard alone would leave
+  them quietly unfrozen all day. Both are idempotent and both write a `late_start` performance
+  flag, so every freeze has an audit trail in the existing `/flags` feed.
+
+  A frozen rider **can still sign in and read their day** — writes are refused across visits,
+  orders, returns, dealers, approvals and collections with a 403 carrying the reason, while
+  GETs stay open so they can actually find out what happened. `isFrozen` is deliberately
+  separate from `isActive`: one is the admin's permanent switch, the other an automatic lock.
+  The state is resolved per-request from the database, so an admin's unfreeze takes effect on
+  the rider's very next call rather than when their 24-hour token expires.
+
+  Exempt: riders with no assigned visits that day (nothing to be late for — same principle as
+  an empty day scoring 100% on the completion rule), self-started extras, cancelled visits,
+  and every role other than `order_taker`. Exactly 12:30:00 passes; 12:31 is late. The
+  deadline is a wall-clock time in `RIDER_FREEZE_TIMEZONE` (falling back to `REPORT_TIMEZONE`,
+  default `Asia/Karachi`) — compared in UTC it would fire at 5:30 PM local and everyone would
+  pass. Configurable via `RIDER_FIRST_VISIT_DEADLINE`, `LATE_START_CRON_ENABLED` and
+  `LATE_START_CRON_SCHEDULE`; a malformed deadline stops the sweep starting rather than
+  freezing everybody at 00:00.
+
+  New admin page **`/frozen-accounts`** is the unfreeze queue — who, when, why, system or
+  admin — with an optional note kept in the activity log and a button to re-run the sweep
+  after an outage. Riders see a persistent banner above every screen with the reason and a
+  Contact admin button. `/employees` gained a Frozen chip; `/flags` gained a Late start
+  filter. Covered by `npm run test:freeze` (27 unit) and `npm run test:freeze:flow`
+  (26 integration). See [rider-late-start-freeze.md](./rider-late-start-freeze.md).
+
 ## 2026-08-13 — Item-wise discounts on orders
 
 ### Added

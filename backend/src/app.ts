@@ -28,6 +28,7 @@ import warehouseRouter from './modules/warehouse/warehouse.routes';
 import targetsRouter from './modules/targets/targets.routes';
 import analyticsRouter from './modules/analytics/analytics.routes';
 import performanceFlagsRouter from './modules/performance-flags/performance-flags.routes';
+import accountFreezeRouter from './modules/account-freeze/account-freeze.routes';
 import regionSalesRouter from './modules/region-sales/region-sales.routes';
 import collectionsRouter from './modules/collections/collections.routes';
 
@@ -73,6 +74,7 @@ app.use('/api/warehouse', warehouseRouter);
 app.use('/api/targets', targetsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/performance-flags', performanceFlagsRouter);
+app.use('/api/account-freeze', accountFreezeRouter);
 app.use('/api/region-sales', regionSalesRouter);
 app.use('/api/collections', collectionsRouter);
 

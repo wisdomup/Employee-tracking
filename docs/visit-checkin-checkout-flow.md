@@ -192,7 +192,74 @@ Admins keep the full edit form with the whole status list.
 
 ---
 
-## 9. Tests
+## 9. Taking an order during the visit ("Order Lena")
+
+A rider standing in the shop can punch the order there and then, and the visit report shows
+what that visit was worth.
+
+### The link
+
+`Order.visitId` (sparse-indexed, `ref: 'Visit'`). Absent for orders raised from the normal
+Orders screen — which is why a missing link reads as **"No Order"** rather than an error.
+
+### Rules on create
+
+`POST /api/orders` accepts an optional `visitId`. `resolveOrderVisitId` refuses it unless:
+
+| Check | Why |
+| --- | --- |
+| Visit exists and is not trashed | 404 otherwise |
+| Visit belongs to the caller (admins exempt) | a rider cannot attribute an order to someone else's visit |
+| `visit.dealerId === order.dealerId` | no booking shop A's order while checked in at B |
+| **`visit.status === 'checked_in'`** | the order is meant to be taken *in* the shop; the geofenced check-in is the proof they were there |
+
+`todo`, `in_progress` and `completed` are all refused. Validation runs **before any stock is
+reserved**, so a rejected link cannot leave stock committed to an order that never existed.
+
+An admin may punch on a rider's behalf; the order is still attributed to the rider's visit.
+
+### The report
+
+`visits.service` attaches `orderSummary` to every visit returned by `findAll` and `findById`,
+via **one batched aggregation** over the page of visits (a per-row lookup would be N+1 on the
+hottest read in the module).
+
+```ts
+orderSummary?: {
+  orderCount: number;       // includes cancelled
+  totalAmount: number;      // sum of grandTotal, EXCLUDING cancelled
+  cancelledCount: number;
+  orderIds: string[];
+  invoiceNumbers: number[];
+}
+```
+
+**A visit with no order carries no `orderSummary` at all** — deliberately not a zeroed
+object. A visit whose only order was cancelled legitimately has `totalAmount: 0`, and the
+report must keep "no order taken" and "order worth nothing" distinguishable. Trashed orders
+drop out entirely.
+
+`formatVisitOrderAmount()` in `admin/services/visitService.ts` is the single source of the
+wording — `Rs. 1,250` or `No Order`.
+
+### UI
+
+- **Visit detail** — a green **Order Lena** button next to Complete Visit, shown only while
+  `checked_in`, mirroring the server rule. It opens
+  `/orders/create?visitId=…&clientId=…&returnTo=/visits/…`, which locks the client picker
+  (an editable one could only produce the server's mismatch error), shows a green
+  "Order for this shop visit" banner, and returns to the visit on save.
+- **Visit detail** also gains an "Order Taken During This Visit" section — amount, count,
+  invoice numbers and a link through to each order, or a plain **No Order**.
+- **Visits list (the report)** — an **Order** column: green amount, or amber "No Order".
+  Never blank, which would read as missing data. The column sums in the table footer.
+- **Rider day view** — a per-card chip with the same wording, shown only once the rider has
+  been in the shop (`checked_in` / `completed`); showing "No Order" against a `todo` visit
+  would be nagging, not reporting.
+
+---
+
+## 10. Tests
 
 No test framework was configured, so tests are plain `ts-node` scripts using Node's
 built-in `assert`. They exit non-zero on the first failure.
@@ -201,6 +268,7 @@ built-in `assert`. They exit non-zero on the first failure.
 npm test               # both suites
 npm run test:visits    # pure rules, no database
 npm run test:visits:flow  # full flow against a throwaway in-memory MongoDB
+npm run test:visits:orders  # "Order Lena" + the visit report's order column
 npm run test:dashboard    # "last visit" + the dashboard cards that count visits
 ```
 

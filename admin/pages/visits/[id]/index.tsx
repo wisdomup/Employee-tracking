@@ -12,6 +12,7 @@ import {
   visitService,
   Visit,
   getVisitCompletionImageUrl,
+  formatVisitOrderAmount,
   VISIT_DURATION_LIMIT_MINUTES,
 } from '../../../services/visitService';
 import { toast } from 'react-toastify';
@@ -120,9 +121,30 @@ const VisitDetailPage: React.FC = () => {
               }
               if (visit.status === 'checked_in') {
                 return (
-                  <button className={styles.editButton} onClick={() => router.push(`/visits/${id}/edit`)}>
-                    Complete Visit
-                  </button>
+                  <>
+                    {/* Only while checked in — the order is meant to be taken standing in
+                        the shop, and the server enforces the same rule. */}
+                    <button
+                      className={styles.editButton}
+                      style={{ background: '#047857', borderColor: '#047857', color: '#fff' }}
+                      title="Punch an order for this shop right now, linked to this visit"
+                      onClick={() =>
+                        router.push({
+                          pathname: '/orders/create',
+                          query: {
+                            visitId: String(id),
+                            clientId: visit.dealerId?._id ?? '',
+                            returnTo: `/visits/${id}`,
+                          },
+                        })
+                      }
+                    >
+                      Order Lena
+                    </button>
+                    <button className={styles.editButton} onClick={() => router.push(`/visits/${id}/edit`)}>
+                      Complete Visit
+                    </button>
+                  </>
                 );
               }
               return null;
@@ -259,6 +281,71 @@ const VisitDetailPage: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Rendered for every checked-in/finished visit, including when nothing was
+              ordered — "No Order" is a reportable fact, not an empty state to hide. */}
+          {(visit.status === 'checked_in' ||
+            visit.status === 'completed' ||
+            visit.orderSummary) && (
+            <div
+              style={{
+                marginTop: '1.5rem',
+                paddingTop: '1.5rem',
+                borderTop: '1px solid #e5e7eb',
+              }}
+            >
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', color: '#047857' }}>
+                Order Taken During This Visit
+              </h3>
+              {visit.orderSummary ? (
+                <div className={styles.infoGrid}>
+                  <div className={styles.infoItem}>
+                    <span className={styles.label} style={{ color: '#374151' }}>Order Amount:</span>
+                    <span className={styles.value} style={{ fontWeight: 700, color: '#047857' }}>
+                      {formatVisitOrderAmount(visit.orderSummary)}
+                    </span>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <span className={styles.label} style={{ color: '#374151' }}>Orders:</span>
+                    <span className={styles.value}>
+                      {visit.orderSummary.orderCount}
+                      {visit.orderSummary.cancelledCount > 0
+                        ? ` (${visit.orderSummary.cancelledCount} cancelled, excluded from the amount)`
+                        : ''}
+                    </span>
+                  </div>
+                  {visit.orderSummary.invoiceNumbers.length > 0 && (
+                    <div className={styles.infoItem}>
+                      <span className={styles.label} style={{ color: '#374151' }}>Invoice #:</span>
+                      <span className={styles.value}>
+                        {visit.orderSummary.invoiceNumbers.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: '#6b7280', fontSize: '0.9375rem', margin: 0 }}>
+                  <strong style={{ color: '#b45309' }}>No Order</strong> — no order was taken
+                  during this visit.
+                </p>
+              )}
+              {visit.orderSummary && visit.orderSummary.orderIds.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                  {visit.orderSummary.orderIds.map((orderId, idx) => (
+                    <button
+                      key={orderId}
+                      type="button"
+                      className={styles.backButton}
+                      onClick={() => router.push(`/orders/${orderId}`)}
+                    >
+                      View order
+                      {visit.orderSummary!.orderIds.length > 1 ? ` ${idx + 1}` : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
