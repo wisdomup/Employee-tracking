@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import {
+  requireAnyReportOn,
+  requireReportFrom,
+} from '../../middleware/permission.middleware';
 import * as controller from './analytics.controller';
 
 const router = Router();
@@ -8,10 +11,13 @@ const router = Router();
 router.use(authMiddleware);
 
 /**
- * Every authenticated role may call these. Visibility is narrowed inside the service:
- * admin sees everyone, a sales_manager sees their own reports, and any other role
- * sees only themselves. Requesting an employee outside your scope returns an empty
- * report rather than an error, so the UI can stay simple.
+ * Access is now the report layer's business, not a role list — see the per-route guards
+ * below. Row visibility is still narrowed inside the service and is a separate concern:
+ * admin sees everyone, a sales_manager sees their own reports, and any other role sees only
+ * themselves. The report toggle says *whether* someone opens the report; the service still
+ * decides *whose rows* are in it.
+ *
+ * Kept only for the Swagger examples further down.
  */
 const ANY_STAFF = [
   'admin',
@@ -41,7 +47,7 @@ const ANY_STAFF = [
  *     responses:
  *       200: { description: Performance report with kpis and per-employee rows }
  */
-router.get('/performance', requireRoles(...ANY_STAFF), controller.performance);
+router.get('/performance', requireAnyReportOn('analytics.'), controller.performance);
 
 /**
  * @openapi
@@ -71,7 +77,11 @@ router.get('/performance', requireRoles(...ANY_STAFF), controller.performance);
  *       200: { description: Detail payload with columns, summary and rows }
  *       400: { description: Unknown metric }
  */
-router.get('/performance/detail', requireRoles(...ANY_STAFF), controller.performanceDetail);
+router.get(
+  '/performance/detail',
+  requireReportFrom((req) => 'analytics.' + String(req.query.metric ?? '')),
+  controller.performanceDetail,
+);
 
 /**
  * @openapi
@@ -91,6 +101,6 @@ router.get('/performance/detail', requireRoles(...ANY_STAFF), controller.perform
  *     responses:
  *       200: { description: Dense monthly series suitable for charting }
  */
-router.get('/trend', requireRoles(...ANY_STAFF), controller.trend);
+router.get('/trend', requireAnyReportOn('analytics.'), controller.trend);
 
 export default router;

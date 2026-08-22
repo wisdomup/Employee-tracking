@@ -170,7 +170,7 @@ const CreateApprovalPage: React.FC = () => {
 
 export default function CreateApprovalPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute permission="approvals:add">
       <CreateApprovalPage />
     </ProtectedRoute>
   );

@@ -372,7 +372,7 @@ const td: React.CSSProperties = { padding: '0.5rem', borderBottom: '1px solid #f
 
 export default function StockInDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="stock-in:view">
       <StockInDetailPage />
     </ProtectedRoute>
   );

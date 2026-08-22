@@ -38,8 +38,7 @@ import {
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import { formatRs, formatRsExact, formatPieces } from '../../../utils/formatCurrency';
-import { printTableAsPdf } from '../../../utils/tableExport';
-import { can } from '../../../utils/permissions';
+import { can, canViewReport } from '../../../utils/permissions';
 import { useAuth } from '../../../contexts/AuthContext';
 import styles from '../../../styles/StockReports.module.scss';
 
@@ -52,13 +51,14 @@ import styles from '../../../styles/StockReports.module.scss';
  */
 type TabId = 'stock' | 'movement' | 'transfers' | 'damage' | 'count' | 'valuation';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'stock', label: 'Stock on Hand' },
-  { id: 'movement', label: 'Movement History' },
-  { id: 'transfers', label: 'Transfers' },
-  { id: 'damage', label: 'Damage / Claim' },
-  { id: 'count', label: 'Monthly Count' },
-  { id: 'valuation', label: 'Sales & Valuation' },
+/** Each tab is a separately-grantable report; the admin ticks them one at a time. */
+const TABS: { id: TabId; label: string; reportId: string }[] = [
+  { id: 'stock', label: 'Stock on Hand', reportId: 'warehouse-reports.stock' },
+  { id: 'movement', label: 'Movement History', reportId: 'warehouse-reports.movement' },
+  { id: 'transfers', label: 'Transfers', reportId: 'warehouse-reports.transfers' },
+  { id: 'damage', label: 'Damage / Claim', reportId: 'warehouse-reports.damage' },
+  { id: 'count', label: 'Monthly Count', reportId: 'warehouse-reports.count' },
+  { id: 'valuation', label: 'Sales & Valuation', reportId: 'warehouse-reports.valuation' },
 ];
 
 const TAB_EXPORT_LABEL: Record<TabId, string> = {
@@ -192,8 +192,24 @@ const EMPTY_FILTERS: Filters = {
 };
 
 function WarehouseReportsPage() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>('stock');
+  const { user, access } = useAuth();
+  // Only the tabs this user has been granted. A tab that answers 403 is worse than no tab:
+  // the person can see the report exists but cannot tell forbidden from broken.
+  // Depends on `access`, NOT on []. Permissions arrive from /permissions/me after mount, so a
+  // memo with empty deps runs once against an empty grant set and every tab disappears
+  // permanently — the page renders as if the user had no reports at all.
+  const visibleTabs = useMemo(() => TABS.filter((t) => canViewReport(t.reportId)), [access]);
+  const [activeTab, setActiveTab] = useState<TabId>(() => visibleTabs[0]?.id ?? 'stock');
+
+  // The initialiser above runs on mount, before /permissions/me has answered, so it can leave
+  // `activeTab` pointing at a tab the user turns out not to have. Correct it once the grants
+  // land — otherwise they see a selected tab that is not in the tab strip, and an empty table.
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+    if (!visibleTabs.some((t) => t.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [visibleTabs, activeTab]);
   // Explicit Apply/Reset rather than live refetch — the movement report can be large, and this is
   // the pattern the existing stock-reports page already uses.
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -660,36 +676,13 @@ function WarehouseReportsPage() {
     setAppliedFilters(EMPTY_FILTERS);
   };
 
-  const handlePrint = async () => {
-    try {
-      if (activeTab === 'valuation') {
-        await printTableAsPdf({
-          title: exportPdfTitle,
-          columns: [
-            { key: 'label', title: 'Measure' },
-            { key: 'value', title: 'Value' },
-          ],
-          data: valuationCards().map((c) => ({ label: c.label, value: c.value })),
-        });
-        return;
-      }
-      const byTab: Record<string, { columns: TableColumnConfig[]; data: unknown[] }> = {
-        stock: { columns: stockColumns, data: stockRows },
-        movement: { columns: movementColumns, data: movementRows },
-        transfers: { columns: transferColumns, data: transferRows },
-        damage: { columns: damageColumns, data: damageRows },
-        count: { columns: countColumns, data: countRows },
-      };
-      const { columns, data } = byTab[activeTab];
-      await printTableAsPdf({
-        title: exportPdfTitle,
-        columns: columns.map((c) => ({ key: c.key, title: c.title, exportValue: c.exportValue })),
-        data,
-      });
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Failed to prepare the printout'));
-    }
-  };
+  /*
+   * `handlePrint` removed. Reports are view-only for every role, Admin included.
+   *
+   * Warehouse SLIPS keep their print path and are untouched — a stock-in, transfer or
+   * damage slip is an operational document that staff hand over with the goods. This screen
+   * is a report, which is a different thing.
+   */
 
   function valuationCards() {
     const s = valuation?.summary;
@@ -732,17 +725,12 @@ function WarehouseReportsPage() {
       <div className={styles.page}>
         <div className={styles.header}>
           <h1>Warehouse Reports</h1>
-          <div className={styles.headerActions}>
-            <button className={styles.printButton} onClick={handlePrint} disabled={loading}>
-              Print / Save PDF
-            </button>
-          </div>
         </div>
 
         <WarehouseModuleNav active="reports" />
 
         <div className={styles.tabs}>
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               className={`${styles.tab} ${activeTab === tab.id ? styles.activeTab : ''}`}
@@ -1129,7 +1117,7 @@ function WarehouseReportsPage() {
 
 export default function WarehouseReportsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute reportPrefix="warehouse-reports.">
       <WarehouseReportsPage />
     </ProtectedRoute>
   );

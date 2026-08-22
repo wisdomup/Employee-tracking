@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { uploadPdfSingle } from '../../middleware/upload.middleware';
 import * as controller from './catalogs.controller';
 
@@ -10,7 +10,7 @@ router.use(authMiddleware);
 
 router.post(
   '/',
-  requireRoles('admin'),
+  requirePermission('catalogs:add'),
   (req: Request, res: Response, next: NextFunction) => {
     uploadPdfSingle(req, res, (err: unknown) => {
       if (err) {
@@ -24,12 +24,12 @@ router.post(
   controller.create,
 );
 
-router.get('/', controller.findAll);
-router.get('/:id', controller.findOne);
+router.get('/', requirePermission('catalogs:view'), controller.findAll);
+router.get('/:id', requirePermission('catalogs:view'), controller.findOne);
 
 router.put(
   '/:id',
-  requireRoles('admin'),
+  requirePermission('catalogs:edit'),
   (req: Request, res: Response, next: NextFunction) => {
     uploadPdfSingle(req, res, (err: unknown) => {
       if (err) {
@@ -43,6 +43,6 @@ router.put(
   controller.update,
 );
 
-router.delete('/:id', requireRoles('admin'), controller.remove);
+router.delete('/:id', requirePermission('catalogs:delete'), controller.remove);
 
 export default router;

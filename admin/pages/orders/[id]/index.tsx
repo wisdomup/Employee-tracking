@@ -465,7 +465,7 @@ const OrderDetailPage: React.FC = () => {
 
 export default function OrderDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="orders:view">
       <OrderDetailPage />
     </ProtectedRoute>
   );

@@ -14,6 +14,7 @@ import {
 } from '../../../services/visitService';
 import { ImageUpload } from '../../../components/UI/ImageUpload';
 import { useAuth } from '../../../contexts/AuthContext';
+import { isAdmin } from '../../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import Loader from '../../../components/UI/Loader';
@@ -61,7 +62,16 @@ const EditVisitPage: React.FC = () => {
     status: 'todo',
   });
   const { user } = useAuth();
-  const isOrderTaker = user?.role === 'order_taker';
+  /**
+   * Anyone who is not an admin gets the guided step flow, not the admin form.
+   *
+   * This used to test `role === 'order_taker'` because the page was only ever open to admins
+   * and salesmen. It is now gated on `visits:change`, which an admin can grant to any role —
+   * and the admin form lets you set any status directly, bypassing the geofenced check-in the
+   * step flow exists to enforce. Falling through to it for a newly-granted role would hand
+   * them a screen the backend then refuses field by field.
+   */
+  const isFieldFlow = !isAdmin();
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -307,7 +317,7 @@ const EditVisitPage: React.FC = () => {
     visit?.employeeId?.username ?? visit?.employeeId?.userID ?? '-';
 
   // ============================= RIDER (order_taker) VIEW =============================
-  if (isOrderTaker) {
+  if (isFieldFlow) {
     const status = visit?.status;
     return (
       <Layout>
@@ -803,7 +813,7 @@ const EditVisitPage: React.FC = () => {
 
 export default function EditVisitPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute permission="visits:change">
       <EditVisitPage />
     </ProtectedRoute>
   );

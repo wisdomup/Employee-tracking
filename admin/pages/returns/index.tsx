@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { can } from '../../utils/permissions';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
@@ -232,9 +233,11 @@ const ReturnsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Returns &amp; Damages</h1>
+          {can(undefined, 'returns:add') && (
           <button className={styles.addButton} onClick={() => router.push('/returns/create')}>
             + New Return
           </button>
+          )}
         </div>
 
         <div className={styles.listCard}>
@@ -304,7 +307,7 @@ const ReturnsPage: React.FC = () => {
 
 export default function ReturnsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="returns:view">
       <ReturnsPage />
     </ProtectedRoute>
   );

@@ -548,7 +548,7 @@ const VisitDetailPage: React.FC = () => {
 
 export default function VisitDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="visits:view">
       <VisitDetailPage />
     </ProtectedRoute>
   );

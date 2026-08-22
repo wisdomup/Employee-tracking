@@ -487,7 +487,7 @@ const EditReturnPage: React.FC = () => {
 
 export default function EditReturnPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute permission="returns:edit">
       <EditReturnPage />
     </ProtectedRoute>
   );

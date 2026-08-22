@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
@@ -58,7 +58,7 @@ router.use(blockFrozenWrites);
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/', requireRoles('admin', 'employee', 'order_taker'), validate(createDealerSchema), controller.create);
+router.post('/', requirePermission('dealers:add'), validate(createDealerSchema), controller.create);
 
 /**
  * @openapi
@@ -93,7 +93,7 @@ router.post('/', requireRoles('admin', 'employee', 'order_taker'), validate(crea
 // client list for the credit-recovery party picker.
 router.get(
   '/',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'delivery_man'),
+  requirePermission('dealers:view'),
   controller.findAll,
 );
 
@@ -133,7 +133,7 @@ router.get(
  *       400: { description: Missing or invalid lat/lng/radius parameters }
  *       401: { description: Unauthorized }
  */
-router.get('/nearby', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findNearby);
+router.get('/nearby', requirePermission('dealers:view'), controller.findNearby);
 
 /**
  * @openapi
@@ -161,7 +161,7 @@ router.get('/nearby', requireRoles('admin', 'sales_manager', 'employee', 'order_
  */
 router.get(
   '/:id',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'delivery_man'),
+  requirePermission('dealers:view'),
   controller.findOne,
 );
 
@@ -204,7 +204,7 @@ router.get(
  *       401: { description: Unauthorized }
  *       404: { description: Dealer not found }
  */
-router.put('/:id', requireRoles('admin', 'employee'), validate(updateDealerSchema), controller.update);
+router.put('/:id', requirePermission('dealers:edit'), validate(updateDealerSchema), controller.update);
 
 /**
  * @openapi
@@ -255,7 +255,7 @@ router.patch(
   '/:id/location',
   // Riders too: the delivery boy is the one standing outside the shop when the saved pin
   // turns out to be wrong. Still city-scoped on write by `resolveCityScope`.
-  requireRoles('admin', 'employee', 'order_taker', 'delivery_man'),
+  requirePermission('dealers:change'),
   validate(updateDealerLocationSchema),
   controller.updateLocation,
 );
@@ -279,8 +279,8 @@ router.patch(
  *       403: { description: Forbidden — admin role required }
  *       404: { description: Dealer not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('dealers:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

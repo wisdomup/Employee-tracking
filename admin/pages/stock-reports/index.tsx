@@ -14,19 +14,26 @@ import {
   LowStockRow,
 } from '../../services/stockReportService';
 import { toast } from 'react-toastify';
-import { printTableAsPdf } from '../../utils/tableExport';
+
+import { canViewReport } from '../../utils/permissions';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from '../../styles/StockReports.module.scss';
 
 type TabId = 'current' | 'hold' | 'damage' | 'pl' | 'lowstock';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'current', label: 'Current Stock' },
-  { id: 'hold', label: 'Hold Stock' },
+/**
+ * Each tab is a separately-grantable report and carries its own id. A role ticked for Profit
+ * & Loss and nothing else sees exactly one tab here — the page-level gate only decides whether
+ * they can open the screen at all.
+ */
+const TABS: { id: TabId; label: string; reportId: string }[] = [
+  { id: 'current', label: 'Current Stock', reportId: 'stock-reports.current' },
+  { id: 'hold', label: 'Hold Stock', reportId: 'stock-reports.hold' },
   // Dealer RETURN damage — a different concept from warehouse damage/claim entries, which live on
   // Warehouse → Reports. Renamed so the two are not mistaken for each other.
-  { id: 'damage', label: 'Return Damage' },
-  { id: 'pl', label: 'Profit & Loss' },
-  { id: 'lowstock', label: 'Low Stock Alerts' },
+  { id: 'damage', label: 'Return Damage', reportId: 'stock-reports.damage' },
+  { id: 'pl', label: 'Profit & Loss', reportId: 'stock-reports.pl' },
+  { id: 'lowstock', label: 'Low Stock Alerts', reportId: 'stock-reports.lowstock' },
 ];
 
 const TAB_EXPORT_LABEL: Record<TabId, string> = {
@@ -51,7 +58,24 @@ function formatDate(iso: string) {
 }
 
 const StockReportsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('current');
+  const { access } = useAuth();
+  // Only the tabs this user has been granted. Rendering a tab that answers 403 is worse than
+  // omitting it — the person sees the report exists and cannot tell forbidden from broken.
+  // Depends on `access`, NOT on []. Permissions arrive from /permissions/me after mount, so a
+  // memo with empty deps runs once against an empty grant set and every tab disappears
+  // permanently — the page renders as if the user had no reports at all.
+  const visibleTabs = useMemo(() => TABS.filter((t) => canViewReport(t.reportId)), [access]);
+  const [activeTab, setActiveTab] = useState<TabId>(() => visibleTabs[0]?.id ?? 'current');
+
+  // The initialiser above runs on mount, before /permissions/me has answered, so it can leave
+  // `activeTab` pointing at a tab the user turns out not to have. Correct it once the grants
+  // land — otherwise they see a selected tab that is not in the tab strip, and an empty table.
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+    if (!visibleTabs.some((t) => t.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [visibleTabs, activeTab]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -116,46 +140,14 @@ const StockReportsPage: React.FC = () => {
     setActiveTab(tab);
   };
 
-  const handlePrint = async () => {
-    try {
-      if (activeTab === 'pl') {
-        if (!plCards.length) {
-          toast.error('No Profit & Loss data available to print');
-          return;
-        }
-        await printTableAsPdf({
-          title: exportPdfTitle,
-          columns: [
-            { key: 'label', title: 'Metric' },
-            { key: 'value', title: 'Value' },
-          ],
-          data: plCards.map((c) => ({ label: c.label, value: c.value })),
-        });
-        return;
-      }
-
-      const tabConfig: Record<Exclude<TabId, 'pl'>, { columns: TableColumnConfig[]; data: unknown[] }> = {
-        current: { columns: currentStockColumns, data: currentStock },
-        hold: { columns: holdStockColumns, data: holdStock },
-        damage: { columns: damageStockColumns, data: damageStock },
-        lowstock: { columns: lowStockColumns, data: lowStock },
-      };
-
-      const config = tabConfig[activeTab as Exclude<TabId, 'pl'>];
-      if (!config?.data.length) {
-        toast.error('No rows available to print');
-        return;
-      }
-
-      await printTableAsPdf({
-        title: exportPdfTitle,
-        columns: config.columns,
-        data: config.data,
-      });
-    } catch {
-      toast.error('Failed to generate printable PDF');
-    }
-  };
+  /*
+   * `handlePrint` removed. Reports are view-only for every role, Admin included — no export,
+   * print or download anywhere in the reporting screens.
+   *
+   * Operational documents keep their print path and are deliberately untouched: order
+   * invoices, warehouse stock-in / transfer / damage slips, and the catalog download. Riders
+   * and warehouse staff hand those to customers on paper.
+   */
 
   // ─── Column definitions ────────────────────────────────────────────────────
 
@@ -348,11 +340,6 @@ const StockReportsPage: React.FC = () => {
       <div className={styles.page}>
         <div className={styles.header}>
           <h1>Stock Reports</h1>
-          <div className={styles.headerActions}>
-            <button className={styles.printButton} onClick={handlePrint}>
-              Print / Save PDF
-            </button>
-          </div>
         </div>
 
         {/* ─── Filters ────────────────────────────────────────────── */}
@@ -415,7 +402,7 @@ const StockReportsPage: React.FC = () => {
 
         {/* ─── Tabs ────────────────────────────────────────────────── */}
         <div className={styles.tabs}>
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               className={`${styles.tab} ${activeTab === tab.id ? styles.activeTab : ''}`}
@@ -551,7 +538,7 @@ const StockReportsPage: React.FC = () => {
 
 export default function StockReportsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
+    <ProtectedRoute reportPrefix="stock-reports.">
       <StockReportsPage />
     </ProtectedRoute>
   );

@@ -347,7 +347,7 @@ const SettlementsPage: React.FC = () => {
 
 export default function SettlementsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'delivery_man']}>
+    <ProtectedRoute permission="collections:view">
       <SettlementsPage />
     </ProtectedRoute>
   );

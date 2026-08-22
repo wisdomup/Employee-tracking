@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createUserSchema, updateUserSchema, updateProfileSchema } from './dto/users.schemas';
 import * as controller from './users.controller';
@@ -46,7 +46,7 @@ router.use(authMiddleware);
  *       403: { description: Forbidden — admin role required }
  *       409: { description: Username or phone already exists }
  */
-router.post('/', requireRoles('admin'), validate(createUserSchema), controller.create);
+router.post('/', requirePermission('employees:add'), validate(createUserSchema), controller.create);
 
 /**
  * @openapi
@@ -77,7 +77,7 @@ router.post('/', requireRoles('admin'), validate(createUserSchema), controller.c
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
  */
-router.get('/', requireRoles('admin', 'sales_manager', 'employee'), controller.findAll);
+router.get('/', requirePermission('employees:view'), controller.findAll);
 
 /**
  * @openapi
@@ -105,7 +105,7 @@ router.get('/', requireRoles('admin', 'sales_manager', 'employee'), controller.f
  *                 $ref: '#/components/schemas/User'
  *       401: { description: Unauthorized }
  */
-router.get('/role/:role', requireRoles('admin', 'sales_manager', 'employee'), controller.findByRole);
+router.get('/role/:role', requirePermission('employees:view'), controller.findByRole);
 
 /**
  * @openapi
@@ -183,7 +183,7 @@ router.patch('/me', validate(updateProfileSchema), controller.updateMe);
  *       401: { description: Unauthorized }
  *       404: { description: User not found }
  */
-router.get('/:id', requireRoles('admin', 'sales_manager', 'employee'), controller.findOne);
+router.get('/:id', requirePermission('employees:view'), controller.findOne);
 
 /**
  * @openapi
@@ -224,7 +224,7 @@ router.get('/:id', requireRoles('admin', 'sales_manager', 'employee'), controlle
  *       403: { description: Forbidden — admin role required }
  *       404: { description: User not found }
  */
-router.put('/:id', requireRoles('admin'), validate(updateUserSchema), controller.update);
+router.put('/:id', requirePermission('employees:edit'), validate(updateUserSchema), controller.update);
 
 /**
  * @openapi
@@ -245,8 +245,8 @@ router.put('/:id', requireRoles('admin'), validate(updateUserSchema), controller
  *       403: { description: Forbidden — admin role required }
  *       404: { description: User not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('employees:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

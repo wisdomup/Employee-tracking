@@ -345,7 +345,7 @@ const ClientDetailPage: React.FC = () => {
                 Fix Location
               </button>
             )}
-            {isAdmin && (
+            {can(undefined, 'dealers:edit') && (
               <button className={styles.editButton} onClick={handleEdit}>
                 Edit
               </button>
@@ -660,7 +660,7 @@ const ClientDetailPage: React.FC = () => {
 
 export default function ClientDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="dealers:view">
       <ClientDetailPage />
     </ProtectedRoute>
   );

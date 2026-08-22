@@ -35,7 +35,7 @@ export interface FrozenUser {
 export interface SweepSummary {
   evaluated: number;
   frozen: number;
-  skippedNoVisits: number;
+  frozenWithNoAssignedVisits: number;
   skippedAlreadyStarted: number;
   skippedAlreadyFrozen: number;
 }

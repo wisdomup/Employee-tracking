@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
@@ -47,11 +47,11 @@ router.use(blockFrozenWrites);
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/', requireRoles('admin', 'employee'), validate(createVisitSchema), controller.create);
+router.post('/', requirePermission('visits:add'), validate(createVisitSchema), controller.create);
 
 router.post(
   '/create-for-route',
-  requireRoles('admin', 'employee'),
+  requirePermission('visits:add'),
   validate(createVisitsForRouteSchema),
   controller.createForRoute,
 );
@@ -81,7 +81,7 @@ router.post(
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/bulk', requireRoles('admin', 'employee'), validate(bulkCreateVisitsSchema), controller.bulkCreate);
+router.post('/bulk', requirePermission('visits:add'), validate(bulkCreateVisitsSchema), controller.bulkCreate);
 
 /**
  * @openapi
@@ -110,7 +110,7 @@ router.post('/bulk', requireRoles('admin', 'employee'), validate(bulkCreateVisit
  */
 router.get(
   '/',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:view'),
   controller.findAll,
 );
 
@@ -134,7 +134,7 @@ router.get(
 // NOTE: must stay above `GET /:id`, otherwise "gallery" is parsed as a visit id.
 router.get(
   '/gallery',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:view'),
   controller.dealerGallery,
 );
 
@@ -162,7 +162,7 @@ router.get(
 // NOTE: must stay above `GET /:id`, otherwise "last" is parsed as a visit id.
 router.get(
   '/last',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:view'),
   controller.dealerLastVisit,
 );
 
@@ -193,7 +193,7 @@ router.get(
  */
 router.patch(
   '/:id/complete',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:change'),
   validate(completeVisitSchema),
   controller.completeVisit,
 );
@@ -227,7 +227,7 @@ router.patch(
  */
 router.patch(
   '/:id/check-in',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:change'),
   validate(checkInVisitSchema),
   controller.checkInVisit,
 );
@@ -264,7 +264,7 @@ router.patch(
  */
 router.post(
   '/self',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:change'),
   controller.startSelfVisit,
 );
 
@@ -289,7 +289,7 @@ router.post(
  */
 router.get(
   '/:id/skip-preview',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:view'),
   controller.previewSkip,
 );
 
@@ -325,7 +325,7 @@ router.get(
  */
 router.patch(
   '/:id/skip',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:change'),
   validate(skipVisitSchema),
   controller.skipVisit,
 );
@@ -364,7 +364,7 @@ router.patch(
  */
 router.patch(
   '/:id/gallery',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:edit'),
   validate(updateVisitGallerySchema),
   controller.updateGallery,
 );
@@ -388,7 +388,7 @@ router.patch(
  */
 router.get(
   '/:id',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:view'),
   controller.findOne,
 );
 
@@ -420,7 +420,7 @@ router.get(
  */
 router.put(
   '/:id',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('visits:edit'),
   validate(updateVisitSchema),
   controller.update,
 );
@@ -442,8 +442,8 @@ router.put(
  *       200: { description: Visit deleted }
  *       404: { description: Visit not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('visits:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

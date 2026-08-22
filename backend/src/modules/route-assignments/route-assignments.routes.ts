@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { assignRouteSchema } from './dto/route-assignments.schemas';
 import * as controller from './route-assignments.controller';
@@ -39,7 +39,7 @@ router.use(authMiddleware);
  *       403: { description: Forbidden — admin role required }
  *       404: { description: Route or employee not found }
  */
-router.post('/', requireRoles('admin'), validate(assignRouteSchema), controller.assignRoute);
+router.post('/', requirePermission('route-assignments:add'), validate(assignRouteSchema), controller.assignRoute);
 
 /**
  * @openapi
@@ -60,7 +60,7 @@ router.post('/', requireRoles('admin'), validate(assignRouteSchema), controller.
  *                 $ref: '#/components/schemas/RouteAssignment'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee'), controller.findAll);
+router.get('/', requirePermission('route-assignments:view'), controller.findAll);
 
 /**
  * @openapi
@@ -86,7 +86,7 @@ router.get('/', requireRoles('admin', 'employee'), controller.findAll);
  *       401: { description: Unauthorized }
  *       404: { description: No assignment found for this route }
  */
-router.get('/route/:routeId', requireRoles('admin', 'employee'), controller.findByRoute);
+router.get('/route/:routeId', requirePermission('route-assignments:view'), controller.findByRoute);
 
 /**
  * @openapi
@@ -113,7 +113,7 @@ router.get('/route/:routeId', requireRoles('admin', 'employee'), controller.find
  *                 $ref: '#/components/schemas/RouteAssignment'
  *       401: { description: Unauthorized }
  */
-router.get('/employee/:employeeId', requireRoles('admin', 'employee'), controller.findByEmployee);
+router.get('/employee/:employeeId', requirePermission('route-assignments:view'), controller.findByEmployee);
 
 /**
  * @openapi
@@ -135,6 +135,6 @@ router.get('/employee/:employeeId', requireRoles('admin', 'employee'), controlle
  *       403: { description: Forbidden — admin role required }
  *       404: { description: No assignment found for this route }
  */
-router.delete('/route/:routeId', requireRoles('admin'), controller.unassignRoute);
+router.delete('/route/:routeId', requirePermission('route-assignments:delete'), controller.unassignRoute);
 
 export default router;

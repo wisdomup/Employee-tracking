@@ -8,6 +8,7 @@
  * product/return collections without a date match), while sales KPIs are range-bound. Applying the
  * date range uniformly here would make the detail total disagree with the tile it was opened from.
  */
+import { Types } from 'mongoose';
 import { OrderModel } from '../../models/order.model';
 import { ProductModel } from '../../models/product.model';
 import { ReturnModel } from '../../models/return.model';
@@ -21,7 +22,8 @@ export type ReportDetailMetric =
   | 'earned'
   | 'paid-back'
   | 'net-after-returns'
-  | 'booked-sales';
+  | 'booked-sales'
+  | 'sales-ledger';
 
 export const REPORT_DETAIL_METRICS: ReportDetailMetric[] = [
   'current-stock',
@@ -33,6 +35,7 @@ export const REPORT_DETAIL_METRICS: ReportDetailMetric[] = [
   'paid-back',
   'net-after-returns',
   'booked-sales',
+  'sales-ledger',
 ];
 
 /** Orders whose stock has left the shelf but not the books — the `Stock Hold` / `Booked Sales` set. */
@@ -61,7 +64,7 @@ export interface ReportDetailResult {
   description: string;
   /** `false` when the KPI is an all-time snapshot, so the UI can hide the date filter. */
   dateFiltered: boolean;
-  filters: { startDate: string; endDate: string };
+  filters: { startDate: string; endDate: string; dealerId: string | null; employeeId: string | null };
   columns: DetailColumn[];
   summary: DetailSummaryItem[];
   rows: Record<string, unknown>[];
@@ -115,6 +118,10 @@ function sum(rows: Record<string, unknown>[], key: string) {
 
 function round2(value: number) {
   return Number(value.toFixed(2));
+}
+
+function toObjectId(value?: string): Types.ObjectId | undefined {
+  return value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined;
 }
 
 /** Order lines (unwound `products`) for a status set, optionally bounded by the date range. */
@@ -264,6 +271,82 @@ const ORDER_TOTAL_COLUMNS: DetailColumn[] = [
   { key: 'status', title: 'Status' },
 ];
 
+/**
+ * Sales ledger: one row per invoice, oldest first, so a running balance reads down the page the
+ * way a paper ledger does. Cancelled orders are left out — a cancelled invoice was never a sale —
+ * but everything still open is in, because money owed on a dispatched order is money owed.
+ */
+function salesLedgerPipeline(
+  range: { start: Date; end: Date },
+  party: { dealerId?: Types.ObjectId; employeeId?: Types.ObjectId },
+) {
+  return [
+    {
+      $match: {
+        isTrashed: { $ne: true },
+        status: { $ne: 'cancelled' },
+        createdAt: { $gte: range.start, $lte: range.end },
+        ...(party.dealerId ? { dealerId: party.dealerId } : {}),
+        ...(party.employeeId ? { createdBy: party.employeeId } : {}),
+      },
+    },
+    ...dealerLookup,
+    { $lookup: { from: 'users', localField: 'createdBy', foreignField: '_id', as: 'employee' } },
+    { $unwind: { path: '$employee', preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        _id: 0,
+        orderId: { $toString: '$_id' },
+        invoiceNumber: { $ifNull: ['$invoiceNumber', null] },
+        date: '$createdAt',
+        dealerName: dealerNameExpr,
+        employeeName: {
+          $ifNull: ['$employee.fullName', { $ifNull: ['$employee.username', '-'] }],
+        },
+        itemCount: { $size: { $ifNull: ['$products', []] } },
+        totalQty: { $sum: { $ifNull: ['$products.quantity', []] } },
+        totalPrice: { $round: [{ $ifNull: ['$totalPrice', 0] }, 2] },
+        discount: { $round: [{ $ifNull: ['$discount', 0] }, 2] },
+        grandTotal: { $round: [{ $ifNull: ['$grandTotal', 0] }, 2] },
+        paidAmount: { $round: [{ $ifNull: ['$paidAmount', 0] }, 2] },
+        outstanding: {
+          $round: [
+            {
+              $max: [
+                0,
+                { $subtract: [{ $ifNull: ['$grandTotal', 0] }, { $ifNull: ['$paidAmount', 0] }] },
+              ],
+            },
+            2,
+          ],
+        },
+        paymentType: { $ifNull: ['$paymentType', '-'] },
+        status: 1,
+      },
+    },
+    // Ascending: a running balance built from the newest row backwards would be meaningless.
+    { $sort: { date: 1, invoiceNumber: 1 } },
+    { $limit: MAX_ROWS + 1 },
+  ];
+}
+
+const SALES_LEDGER_COLUMNS: DetailColumn[] = [
+  { key: 'date', title: 'Date', type: 'date' },
+  { key: 'invoiceNumber', title: 'Invoice #', type: 'number' },
+  { key: 'dealerName', title: 'Client' },
+  { key: 'employeeName', title: 'Employee' },
+  { key: 'itemCount', title: 'Items', type: 'number' },
+  { key: 'totalQty', title: 'Qty', type: 'number' },
+  { key: 'totalPrice', title: 'Total', type: 'currency' },
+  { key: 'discount', title: 'Discount', type: 'currency' },
+  { key: 'grandTotal', title: 'Invoiced', type: 'currency' },
+  { key: 'paidAmount', title: 'Received', type: 'currency' },
+  { key: 'outstanding', title: 'Balance', type: 'currency' },
+  { key: 'runningBalance', title: 'Running Balance', type: 'currency' },
+  { key: 'paymentType', title: 'Payment' },
+  { key: 'status', title: 'Status' },
+];
+
 /** Runs the pipeline and reports whether it hit `MAX_ROWS` (pipelines fetch one extra row to tell). */
 async function run(
   pipeline: Record<string, unknown>[],
@@ -278,10 +361,26 @@ export async function getReportDetail(params: {
   metric: ReportDetailMetric;
   startDate?: string;
   endDate?: string;
+  /** Sales ledger only; other metrics mirror their KPI, which has no party filter. */
+  dealerId?: string;
+  employeeId?: string;
 }): Promise<ReportDetailResult> {
   const { start, end } = getDateRange(params.startDate, params.endDate);
   const range = { start, end };
-  const filters = { startDate: start.toISOString(), endDate: end.toISOString() };
+
+  // A malformed id is dropped rather than cast — `new ObjectId('abc')` throws a 500 on what is
+  // really a bad query string.
+  const party = {
+    dealerId: toObjectId(params.dealerId),
+    employeeId: toObjectId(params.employeeId),
+  };
+
+  const filters = {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+    dealerId: party.dealerId ? party.dealerId.toString() : null,
+    employeeId: party.employeeId ? party.employeeId.toString() : null,
+  };
 
   const base = { metric: params.metric, filters, truncated: false };
 
@@ -452,6 +551,35 @@ export async function getReportDetail(params: {
           { label: 'Qty', value: sum(rows, 'totalQty'), type: 'number' },
           { label: 'Earned', value: round2(sum(rows, 'grandTotal')), type: 'currency' },
           { label: 'Paid', value: round2(sum(rows, 'paidAmount')), type: 'currency' },
+        ],
+        rows,
+      };
+    }
+
+    case 'sales-ledger': {
+      const { rows, truncated } = await run(salesLedgerPipeline(range, party), OrderModel);
+
+      // Carried forward in JS rather than a `$setWindowFields`: the rows are already capped at
+      // MAX_ROWS, and this keeps the figure honest after the cap trims the tail.
+      let carried = 0;
+      for (const row of rows) {
+        carried = round2(carried + (Number(row.outstanding) || 0));
+        row.runningBalance = carried;
+      }
+
+      return {
+        ...base,
+        truncated,
+        title: 'Sales Ledger',
+        description:
+          'Every invoice raised in the selected range, oldest first, with what was received and the balance carried forward. Cancelled orders excluded.',
+        dateFiltered: true,
+        columns: SALES_LEDGER_COLUMNS,
+        summary: [
+          { label: 'Invoices', value: rows.length, type: 'number' },
+          { label: 'Invoiced', value: round2(sum(rows, 'grandTotal')), type: 'currency' },
+          { label: 'Received', value: round2(sum(rows, 'paidAmount')), type: 'currency' },
+          { label: 'Closing Balance', value: carried, type: 'currency' },
         ],
         rows,
       };

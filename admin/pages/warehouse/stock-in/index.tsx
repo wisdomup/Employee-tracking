@@ -267,7 +267,7 @@ function StockInListPage() {
 
 export default function StockInListPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="stock-in:view">
       <StockInListPage />
     </ProtectedRoute>
   );

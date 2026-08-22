@@ -12,7 +12,7 @@ import {
 } from '../../services/attendanceService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
-import { ALL_ROLES } from '../../utils/permissions';
+import { ALL_ROLES, can } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format, differenceInMinutes } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -188,7 +188,7 @@ const AttendancePage: React.FC = () => {
           >
             Edit
           </button>
-          {isAdmin && (
+          {can(undefined, 'attendance:delete') && (
             <button
               className={styles.deleteButton}
               onClick={(e) => {

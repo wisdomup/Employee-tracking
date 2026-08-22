@@ -200,3 +200,31 @@
   padding: 1.2rem;
   border: 1px dashed #d1d5db;
 }
+
+/* "View invoice" in the detail table — drills from a report row into the order editor. */
+.rowActionLink {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid #2563eb;
+  border-radius: 0.35rem;
+  color: #2563eb;
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover,
+  &:focus-visible {
+    background: #2563eb;
+    color: #fff;
+  }
+}
+
+/* Cross-links out of the Reports header: Sales Ledger, Collection Report. */
+.headerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}

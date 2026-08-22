@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { upsertTargetSchema } from './dto/targets.schemas';
 import * as controller from './targets.controller';
@@ -38,7 +38,7 @@ router.use(authMiddleware);
  */
 router.put(
   '/',
-  requireRoles('admin', 'sales_manager'),
+  requirePermission('targets:add'),
   validate(upsertTargetSchema),
   controller.upsert,
 );
@@ -66,7 +66,7 @@ router.put(
  */
 router.get(
   '/',
-  requireRoles('admin', 'sales_manager', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('targets:view'),
   controller.findAll,
 );
 
@@ -88,6 +88,6 @@ router.get(
  *       403: { description: Not your team }
  *       404: { description: Target not found }
  */
-router.delete('/:id', requireRoles('admin', 'sales_manager'), controller.remove);
+router.delete('/:id', requirePermission('targets:delete'), controller.remove);
 
 export default router;

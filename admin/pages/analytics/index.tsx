@@ -10,7 +10,7 @@ import SearchableSelect from '../../components/UI/SearchableSelect';
 import TargetModal from '../../components/Analytics/TargetModal';
 import AchievementBar from '../../components/Analytics/AchievementBar';
 import { useAuth } from '../../contexts/AuthContext';
-import { ALL_ROLES, can } from '../../utils/permissions';
+import { can } from '../../utils/permissions';
 import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
 import {
   analyticsService,
@@ -645,7 +645,7 @@ const AnalyticsPage: React.FC = () => {
 
 export default function AnalyticsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={ALL_ROLES}>
+    <ProtectedRoute reportPrefix="analytics.">
       <AnalyticsPage />
     </ProtectedRoute>
   );

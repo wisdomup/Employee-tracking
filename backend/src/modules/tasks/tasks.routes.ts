@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { uploadTaskDocumentSingle } from '../../middleware/upload.middleware';
 import {
@@ -54,7 +54,7 @@ function optionalTaskDocument(req: Request, res: Response, next: NextFunction) {
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/', requireRoles('admin', 'employee'), optionalTaskDocument, validate(createTaskSchema), controller.create);
+router.post('/', requirePermission('tasks:add'), optionalTaskDocument, validate(createTaskSchema), controller.create);
 
 /**
  * @openapi
@@ -83,7 +83,7 @@ router.post('/', requireRoles('admin', 'employee'), optionalTaskDocument, valida
  */
 router.get(
   '/',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('tasks:view'),
   controller.findAll,
 );
 
@@ -107,7 +107,7 @@ router.get(
  */
 router.get(
   '/:id',
-  requireRoles('admin', 'employee', 'order_taker', 'warehouse_manager', 'delivery_man'),
+  requirePermission('tasks:view'),
   controller.findOne,
 );
 
@@ -142,7 +142,7 @@ router.get(
  *       401: { description: Unauthorized }
  *       404: { description: Task not found }
  */
-router.put('/:id', requireRoles('admin', 'employee'), optionalTaskDocument, validate(updateTaskSchema), controller.update);
+router.put('/:id', requirePermission('tasks:edit'), optionalTaskDocument, validate(updateTaskSchema), controller.update);
 
 /**
  * @openapi
@@ -164,7 +164,7 @@ router.put('/:id', requireRoles('admin', 'employee'), optionalTaskDocument, vali
  *       403: { description: Forbidden }
  *       404: { description: Task not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
+router.delete('/:id', requirePermission('tasks:delete'), controller.remove);
 
 /**
  * @openapi
@@ -196,7 +196,7 @@ router.delete('/:id', requireRoles('admin'), controller.remove);
  */
 router.patch(
   '/:id/assign',
-  requireRoles('admin', 'employee'),
+  requirePermission('tasks:edit'),
   validate(assignTaskSchema),
   controller.assignTask,
 );
@@ -230,7 +230,7 @@ router.patch(
  *       401: { description: Unauthorized }
  *       404: { description: Task not found }
  */
-router.patch('/:id/start', validate(startTaskSchema), controller.startTask);
+router.patch('/:id/start', requirePermission('tasks:change'), validate(startTaskSchema), controller.startTask);
 
 /**
  * @openapi
@@ -269,6 +269,6 @@ router.patch('/:id/start', validate(startTaskSchema), controller.startTask);
  *       401: { description: Unauthorized }
  *       404: { description: Task not found }
  */
-router.patch('/:id/complete', validate(completeTaskSchema), controller.completeTask);
+router.patch('/:id/complete', requirePermission('tasks:change'), validate(completeTaskSchema), controller.completeTask);
 
 export default router;

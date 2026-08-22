@@ -8,6 +8,39 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-20 — Fix: the late-start freeze was never firing
+
+### Fixed
+- **An empty day silently disabled the whole late-start rule.** Riders were still taking
+  orders after 12:30 PM. The timezone was correct throughout (`Asia/Karachi`, PKT) — the
+  cause was the "no assigned visits = exempt" carve-out. Visit generation had stopped
+  producing visits three weeks earlier, so *every* rider had an empty day *every* day, the
+  exemption fired for all of them, and neither the check-in guard nor the sweep could ever
+  freeze anyone.
+
+  A rider is now expected at a shop by the deadline whether or not the cron handed them a
+  route. Self-started extras and cancelled-only days are no longer escapes either, since
+  they only mattered through that same count. `sweepLateStarters` still reports
+  `frozenWithNoAssignedVisits`, but as a **count, not a skip** — a rising number there means
+  the visit cron has gone idle, which is worth knowing but no longer excuses anybody.
+
+  Two real excuses replace it: **Friday** (the company holiday the visit cron already omits,
+  now enforced in the rule itself rather than only in the cron expression, so the check-in
+  guard honours it too) and an **approved leave** for that date. A `pending` leave request
+  does not count — otherwise the freeze would be avoidable by filing a request nobody
+  approves.
+
+### Added
+- **`RIDER_FREEZE_ENABLED`** — a master switch covering both the check-in guard and the
+  sweep. `LATE_START_CRON_ENABLED` only stops the sweep and would leave riders still being
+  refused at check-in.
+- **Timezone pinned explicitly** in `.env` (`REPORT_TIMEZONE` / `RIDER_FREEZE_TIMEZONE` =
+  `Asia/Karachi`). It already defaulted to PKT in code, but leaving it implicit meant the
+  deadline quietly followed whatever `REPORT_TIMEZONE` was set to.
+- `visits.flow.test.ts` now disables the rule. It drives check-in at the real wall-clock
+  time, so it passed before 12:30 PKT and failed after — latent flakiness introduced when
+  the guard was added. Suites: `test:freeze` 32, `test:freeze:flow` 33.
+
 ## 2026-08-18 — Take an order during a shop visit ("Order Lena")
 
 ### Added

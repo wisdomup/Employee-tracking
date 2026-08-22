@@ -432,7 +432,7 @@ const CreateClientPage: React.FC = () => {
 
 export default function CreateClientPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute permission="dealers:add">
       <CreateClientPage />
     </ProtectedRoute>
   );

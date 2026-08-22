@@ -469,7 +469,7 @@ function CreateStockInPage() {
 
 export default function CreateStockInPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="stock-in:add">
       <CreateStockInPage />
     </ProtectedRoute>
   );

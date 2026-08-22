@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { can } from '../../utils/permissions';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -199,12 +200,14 @@ const RoutesPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Routes</h1>
+          {can(undefined, 'routes:add') && (
           <button
             className={styles.addButton}
             onClick={() => router.push('/routes/create')}
           >
             + Add Route
           </button>
+          )}
         </div>
 
         <div className={styles.listCard}>

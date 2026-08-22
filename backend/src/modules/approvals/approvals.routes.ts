@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
@@ -43,7 +43,7 @@ router.use(blockFrozenWrites);
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/', validate(createApprovalSchema), controller.create);
+router.post('/', requirePermission('approvals:add'), validate(createApprovalSchema), controller.create);
 
 /**
  * @openapi
@@ -69,7 +69,7 @@ router.post('/', validate(createApprovalSchema), controller.create);
  *       200: { description: List }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'order_taker'), controller.findAll);
+router.get('/', requirePermission('approvals:view'), controller.findAll);
 
 /**
  * @openapi
@@ -88,7 +88,7 @@ router.get('/', requireRoles('admin', 'order_taker'), controller.findAll);
  *       200: { description: Found }
  *       404: { description: Not found }
  */
-router.get('/:id', controller.findOne);
+router.get('/:id', requirePermission('approvals:view'), controller.findOne);
 
 /**
  * @openapi
@@ -120,7 +120,7 @@ router.get('/:id', controller.findOne);
  *       400: { description: Invalid state }
  *       404: { description: Not found }
  */
-router.patch('/:id', validate(updateApprovalSchema), controller.update);
+router.patch('/:id', requirePermission('approvals:edit'), validate(updateApprovalSchema), controller.update);
 
 /**
  * @openapi
@@ -151,7 +151,7 @@ router.patch('/:id', validate(updateApprovalSchema), controller.update);
  */
 router.patch(
   '/:id/status',
-  requireRoles('admin'),
+  requirePermission('approvals:change'),
   validate(updateApprovalStatusSchema),
   controller.updateStatus,
 );
@@ -174,6 +174,6 @@ router.patch(
  *       400: { description: Cannot delete }
  *       404: { description: Not found }
  */
-router.delete('/:id', requireRoles('admin', 'order_taker'), controller.remove);
+router.delete('/:id', requirePermission('approvals:delete'), controller.remove);
 
 export default router;

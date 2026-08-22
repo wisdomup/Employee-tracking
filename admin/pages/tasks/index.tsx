@@ -7,7 +7,7 @@ import StatusBadge from '../../components/UI/StatusBadge';
 import { taskService, Task } from '../../services/taskService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
-import { ALL_ROLES } from '../../utils/permissions';
+import { can, ALL_ROLES } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
 import SearchableSelect from '../../components/UI/SearchableSelect';
@@ -191,7 +191,7 @@ const TasksPage: React.FC = () => {
               Assign
             </button>
           )}
-          {isAdmin && (
+          {can(undefined, 'tasks:delete') && (
             <button
               type="button"
               className={styles.deleteButton}
@@ -213,7 +213,7 @@ const TasksPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Tasks</h1>
-          {!isOrderTaker && (
+          {can(undefined, 'tasks:add') && (
             <button className={styles.addButton} onClick={() => router.push('/tasks/create')}>
               + Add Task
             </button>

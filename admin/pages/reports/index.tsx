@@ -154,10 +154,16 @@ const ReportsPage: React.FC = () => {
       <div className={styles.page}>
         <div className={styles.header}>
           <h1>Reports</h1>
-          {/* §12: "Collection" reachable from Reports & Insights as well as the dashboard. */}
-          <Link href="/collection/report" className={styles.kpiCardLink}>
-            Collection Report →
-          </Link>
+          <div className={styles.headerLinks}>
+            {/* Not a KPI tile — the ledger is invoice-grain, so it has no number to sit under. */}
+            <Link href={`/reports/sales-ledger${detailQuery}`} className={styles.kpiCardLink}>
+              Sales Ledger →
+            </Link>
+            {/* §12: "Collection" reachable from Reports & Insights as well as the dashboard. */}
+            <Link href="/collection/report" className={styles.kpiCardLink}>
+              Collection Report →
+            </Link>
+          </div>
         </div>
 
         <div className={styles.filters}>
@@ -274,7 +280,7 @@ const ReportsPage: React.FC = () => {
 
 export default function ReportsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute reportPrefix="reports.">
       <ReportsPage />
     </ProtectedRoute>
   );

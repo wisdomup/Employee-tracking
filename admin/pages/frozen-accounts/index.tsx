@@ -194,7 +194,7 @@ const FrozenAccountsPage: React.FC = () => {
 
 export default function FrozenAccountsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
+    <ProtectedRoute permission="account-freeze:view">
       <FrozenAccountsPage />
     </ProtectedRoute>
   );

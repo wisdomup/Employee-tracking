@@ -541,7 +541,7 @@ const td: React.CSSProperties = { padding: '0.5rem', borderBottom: '1px solid #f
 
 export default function StockCountDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="stock-count:view">
       <StockCountDetailPage />
     </ProtectedRoute>
   );

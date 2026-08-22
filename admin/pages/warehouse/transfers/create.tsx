@@ -239,7 +239,7 @@ function CreateTransferPage() {
 
 export default function CreateTransferPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="transfers:add">
       <CreateTransferPage />
     </ProtectedRoute>
   );

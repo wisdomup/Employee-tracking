@@ -411,7 +411,7 @@ const RecoveryPage: React.FC = () => {
 
 export default function RecoveryPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'delivery_man']}>
+    <ProtectedRoute permission="collections:add">
       <RecoveryPage />
     </ProtectedRoute>
   );

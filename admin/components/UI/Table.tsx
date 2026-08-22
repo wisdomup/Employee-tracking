@@ -1,20 +1,29 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CaretDown } from '@phosphor-icons/react';
+import React, { useMemo } from 'react';
 import GlobalDataTable, { TableColumn } from './GlobalDataTable';
 import {
   aggregateColumn,
-  exportTableToCsv,
-  exportTableToPdf,
   formatTotalForDisplay,
   type TableExportColumn,
   type TableExportFormat,
 } from '../../utils/tableExport';
-import { useAuth } from '../../contexts/AuthContext';
-import styles from './GlobalDataTable.module.scss';
-import { toast } from 'react-toastify';
 
-/** Table export UI (CSV/PDF sub-header). Set to `false` to hide the Export button. */
-const ENABLE_TABLE_EXPORT_UI = true;
+/**
+ * Reports are view-only across the product: no export, no print, no download, for any role
+ * including Admin.
+ *
+ * The CSV/PDF control that used to live in this table's sub-header has been **removed**
+ * rather than hidden behind a flag, so it cannot be switched back on by accident. The four
+ * `export*` props survive as accepted-and-ignored because roughly twenty pages still pass
+ * them, and deleting them all in this change would have buried the actual removal in noise.
+ *
+ * Operational documents are NOT reports and keep their print path: order invoices, warehouse
+ * stock-in / transfer / damage slips, and the product catalog download. Riders and warehouse
+ * staff hand those to customers on paper.
+ *
+ * The honest limit: this removes the button, not the data. The report APIs still return JSON
+ * to anyone with a valid token and browser dev tools. Closing that means removing the
+ * server-side export endpoints, which is a separate decision.
+ */
 
 export interface TableColumnConfig {
   key: string;
@@ -48,13 +57,13 @@ interface TableProps {
   noDataText?: string;
   fixedHeader?: boolean;
   fixedHeaderHeight?: string;
-  /** Show export control when `ENABLE_TABLE_EXPORT_UI` is true. Default: true. */
+  /** @deprecated Accepted and ignored — reports are view-only. See the note above. */
   exportable?: boolean;
-  /** Base download name (extension added per format). Default: `export`. */
+  /** @deprecated Accepted and ignored — reports are view-only. */
   exportFileName?: string;
-  /** Which formats appear in the export menu. Default: CSV and PDF. */
+  /** @deprecated Accepted and ignored — reports are view-only. */
   exportFormats?: TableExportFormat[];
-  /** Optional title line at the top of exported PDFs. */
+  /** @deprecated Accepted and ignored — reports are view-only. */
   exportPdfTitle?: string;
   /** Backward-compatible alias for `showTotals`; older pages still pass this prop. */
   showGrandTotal?: boolean;
@@ -65,144 +74,6 @@ interface TableProps {
 }
 
 
-function TableExportControl({
-  disabled,
-  columns,
-  data,
-  exportFileName,
-  exportFormats,
-  exportPdfTitle,
-  grandTotalRow,
-}: {
-  disabled: boolean;
-  columns: TableExportColumn[];
-  data: unknown[];
-  exportFileName: string;
-  exportFormats: TableExportFormat[];
-  exportPdfTitle?: string;
-  grandTotalRow?: string[] | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  const hasCsv = exportFormats.includes('csv');
-  const hasPdf = exportFormats.includes('pdf');
-  const multi = hasCsv && hasPdf;
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const runCsv = useCallback(() => {
-    exportTableToCsv({ filename: exportFileName, columns, data, grandTotalRow });
-    setOpen(false);
-  }, [columns, data, exportFileName, grandTotalRow]);
-
-  const runPdf = useCallback(async () => {
-    setPdfBusy(true);
-    try {
-      await exportTableToPdf({
-        filename: exportFileName,
-        columns,
-        data,
-        title: exportPdfTitle,
-        grandTotalRow,
-      });
-      setOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast.error('Could not generate PDF. Try again or use CSV.');
-    } finally {
-      setPdfBusy(false);
-    }
-  }, [columns, data, exportFileName, exportPdfTitle, grandTotalRow]);
-
-  if (hasCsv && !hasPdf) {
-    return (
-      <button
-        type="button"
-        className={styles.exportButton}
-        onClick={runCsv}
-        disabled={disabled}
-        aria-label="Export table as CSV"
-      >
-        Export CSV
-      </button>
-    );
-  }
-
-  if (!hasCsv && hasPdf) {
-    return (
-      <button
-        type="button"
-        className={styles.exportButton}
-        onClick={() => void runPdf()}
-        disabled={disabled || pdfBusy}
-        aria-label="Export table as PDF"
-      >
-        {pdfBusy ? 'Generating…' : 'Export PDF'}
-      </button>
-    );
-  }
-
-  return (
-    <div className={styles.exportWrap} ref={wrapRef}>
-      <button
-        type="button"
-        className={styles.exportButton}
-        onClick={() => setOpen((v) => !v)}
-        disabled={disabled || pdfBusy}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Export table"
-      >
-        Export
-        <CaretDown className={styles.exportCaret} size={14} weight="bold" aria-hidden />
-      </button>
-      {open && multi && (
-        <ul className={styles.exportMenu} role="menu">
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.exportMenuItem}
-              onClick={runCsv}
-              disabled={disabled}
-            >
-              Export as CSV
-            </button>
-          </li>
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.exportMenuItem}
-              onClick={() => void runPdf()}
-              disabled={disabled || pdfBusy}
-            >
-              {pdfBusy ? 'Generating PDF…' : 'Export as PDF'}
-            </button>
-          </li>
-        </ul>
-      )}
-    </div>
-  );
-}
 
 const Table: React.FC<TableProps> = ({
   columns,
@@ -214,16 +85,13 @@ const Table: React.FC<TableProps> = ({
   noDataText,
   fixedHeader = false,
   fixedHeaderHeight,
-  exportable = true,
-  exportFileName = 'export',
-  exportFormats = ['csv', 'pdf'],
-  exportPdfTitle,
+  // `exportable`, `exportFileName`, `exportFormats` and `exportPdfTitle` are intentionally
+  // NOT destructured. They stay in `TableProps` so the ~20 pages still passing them keep
+  // compiling, but nothing here reads them — reports are view-only.
   showGrandTotal,
   grandTotalLabel: _grandTotalLabel = 'Grand Total',
   showTotals = true,
 }) => {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
   const normalizedColumns = useMemo<TableColumn<any>[]>(
     () =>
       columns.map((column) => ({
@@ -236,12 +104,6 @@ const Table: React.FC<TableProps> = ({
       })),
     [columns],
   );
-
-  const formats = useMemo<TableExportFormat[]>(() => {
-    const allowed = new Set<TableExportFormat>(['csv', 'pdf']);
-    const list = exportFormats.filter((f) => allowed.has(f));
-    return list.length ? [...list] : ['csv', 'pdf'];
-  }, [exportFormats]);
 
   const totalsEnabled = showGrandTotal ?? showTotals;
 
@@ -267,17 +129,9 @@ const Table: React.FC<TableProps> = ({
     });
   }, [columns, data, totalsEnabled]);
 
-  const subHeaderComponent =
-    ENABLE_TABLE_EXPORT_UI && exportable && isAdmin ? (
-      <TableExportControl
-        disabled={loading || data.length === 0}
-        columns={columns as TableExportColumn[]}
-        data={data}
-        exportFileName={exportFileName}
-        exportFormats={formats}
-        exportPdfTitle={exportPdfTitle}
-      />
-    ) : undefined;
+  // No sub-header: the export control that lived here has been removed. See the note at the
+  // top of this file.
+  const subHeaderComponent = undefined;
 
   return (
     <GlobalDataTable

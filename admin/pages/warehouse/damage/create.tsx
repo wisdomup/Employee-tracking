@@ -300,7 +300,7 @@ function CreateDamagePage() {
 
 export default function CreateDamagePageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="damage:add">
       <CreateDamagePage />
     </ProtectedRoute>
   );

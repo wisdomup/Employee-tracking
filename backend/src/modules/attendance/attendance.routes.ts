@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requireAdmin, requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
   checkInSchema,
@@ -38,7 +38,7 @@ router.use(authMiddleware);
  *       201: { description: Checked in successfully }
  *       409: { description: Already checked in today }
  */
-router.post('/check-in', validate(checkInSchema), controller.checkIn);
+router.post('/check-in', requirePermission('attendance:add'), validate(checkInSchema), controller.checkIn);
 
 /**
  * @openapi
@@ -64,7 +64,7 @@ router.post('/check-in', validate(checkInSchema), controller.checkIn);
  *       400: { description: Not checked in today }
  *       409: { description: Already checked out today }
  */
-router.post('/check-out', validate(checkOutSchema), controller.checkOut);
+router.post('/check-out', requirePermission('attendance:add'), validate(checkOutSchema), controller.checkOut);
 
 /**
  * @openapi
@@ -77,7 +77,7 @@ router.post('/check-out', validate(checkOutSchema), controller.checkOut);
  *     responses:
  *       200: { description: Today's record or null }
  */
-router.get('/today', controller.getToday);
+router.get('/today', requirePermission('attendance:view'), controller.getToday);
 
 /**
  * @openapi
@@ -91,7 +91,7 @@ router.get('/today', controller.getToday);
  *       201: { description: Record created }
  *       409: { description: Record already exists for that employee+date }
  */
-router.post('/', requireRoles('admin'), validate(adminCreateSchema), controller.adminCreate);
+router.post('/', requireAdmin(), validate(adminCreateSchema), controller.adminCreate);
 
 /**
  * @openapi
@@ -115,7 +115,7 @@ router.post('/', requireRoles('admin'), validate(adminCreateSchema), controller.
  *     responses:
  *       200: { description: List of attendance records }
  */
-router.get('/', controller.findAll);
+router.get('/', requirePermission('attendance:view'), controller.findAll);
 
 /**
  * @openapi
@@ -135,7 +135,7 @@ router.get('/', controller.findAll);
  *       403: { description: Not your record }
  *       404: { description: Not found }
  */
-router.get('/:id', controller.findOne);
+router.get('/:id', requirePermission('attendance:view'), controller.findOne);
 
 /**
  * @openapi
@@ -156,7 +156,9 @@ router.get('/:id', controller.findOne);
  *       404: { description: Not found }
  */
 router.patch(
+  // Which FIELDS may change is still decided per-role by the validator below.
   '/:id',
+  requirePermission('attendance:edit'),
   (req, _res, next) => {
     const schema = req.user?.role === 'admin' ? updateAttendanceSchema : updateNoteSchema;
     return validate(schema)(req, _res, next);
@@ -180,9 +182,9 @@ router.patch(
  *     responses:
  *       200: { description: Moved to trash }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
+router.delete('/:id', requirePermission('attendance:delete'), controller.remove);
 
-router.patch('/:id/restore', requireRoles('admin'), controller.restoreRecord);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restoreRecord);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

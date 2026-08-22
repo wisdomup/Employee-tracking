@@ -192,7 +192,7 @@ const DayEndPage: React.FC = () => {
 
 export default function DayEndPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'delivery_man']}>
+    <ProtectedRoute report="collection.day-end">
       <DayEndPage />
     </ProtectedRoute>
   );

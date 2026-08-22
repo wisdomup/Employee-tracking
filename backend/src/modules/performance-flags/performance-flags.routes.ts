@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import * as controller from './performance-flags.controller';
 
 const router = Router();
@@ -28,7 +28,7 @@ const ANY_STAFF = [
  *       200: { description: "{ total, lowVisitCompletion, overstay }" }
  */
 // Must stay above /:id-style routes.
-router.get('/summary', requireRoles(...ANY_STAFF), controller.summary);
+router.get('/summary', requirePermission('performance-flags:view'), controller.summary);
 
 /**
  * @openapi
@@ -57,7 +57,7 @@ router.get('/summary', requireRoles(...ANY_STAFF), controller.summary);
  *     responses:
  *       200: { description: Flags, unresolved first, newest first }
  */
-router.get('/', requireRoles(...ANY_STAFF), controller.findAll);
+router.get('/', requirePermission('performance-flags:view'), controller.findAll);
 
 /**
  * @openapi
@@ -76,6 +76,6 @@ router.get('/', requireRoles(...ANY_STAFF), controller.findAll);
  *       200: { description: Flag resolved }
  *       404: { description: Flag not found }
  */
-router.patch('/:id/resolve', requireRoles('admin', 'sales_manager'), controller.resolve);
+router.patch('/:id/resolve', requirePermission('performance-flags:change'), controller.resolve);
 
 export default router;

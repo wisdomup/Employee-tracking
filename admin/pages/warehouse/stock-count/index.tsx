@@ -229,7 +229,7 @@ function StockCountListPage() {
 
 export default function StockCountListPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="stock-count:view">
       <StockCountListPage />
     </ProtectedRoute>
   );
