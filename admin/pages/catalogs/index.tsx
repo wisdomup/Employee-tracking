@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { can } from '../../utils/permissions';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -70,8 +71,8 @@ const CatalogsPage: React.FC = () => {
         <div className={styles.actions}>
           <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); router.push('/catalogs/' + row._id); }}>View</button>
           <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); window.open(getCatalogDownloadUrl(row.fileUrl), '_blank', 'noopener'); }}>Download</button>
-          {isAdmin && <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); router.push('/catalogs/' + row._id + '/edit'); }}>Edit</button>}
-          {isAdmin && <button type="button" className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete(row._id); }}>Delete</button>}
+          {can(undefined, 'catalogs:edit') && <button type="button" className={styles.editButton} onClick={(e) => { e.stopPropagation(); router.push('/catalogs/' + row._id + '/edit'); }}>Edit</button>}
+          {can(undefined, 'catalogs:delete') && <button type="button" className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete(row._id); }}>Delete</button>}
         </div>
       ),
     },
@@ -82,7 +83,7 @@ const CatalogsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Catalogs</h1>
-          {isAdmin && (
+          {can(undefined, 'catalogs:add') && (
             <button className={styles.addButton} onClick={() => router.push('/catalogs/create')}>
               + Add Catalog
             </button>
@@ -115,7 +116,7 @@ const CatalogsPage: React.FC = () => {
 
 export default function CatalogsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="catalogs:view">
       <CatalogsPage />
     </ProtectedRoute>
   );

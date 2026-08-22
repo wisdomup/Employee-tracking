@@ -28,6 +28,7 @@ process.env.JWT_SECRET = 'collections-api-test-secret';
 
 import app from '../../app';
 import { UserModel } from '../../models/user.model';
+import { seedAccessPolicies } from '../../database/seeds/access-policies.seed';
 import { DealerModel } from '../../models/dealer.model';
 import { OrderModel } from '../../models/order.model';
 import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
@@ -91,6 +92,12 @@ async function call<T = any>(
 }
 
 async function seed(): Promise<void> {
+  // The permission matrix must exist before any guarded route is called. In production
+  // `runAccessBootstrapOnStart()` does this before the port binds; a throwaway test database
+  // starts empty, and an empty matrix denies every non-admin — which is exactly the 403 this
+  // test used to fail with.
+  await seedAccessPolicies({ backfillUsers: false });
+
   await UserModel.create([
     { _id: ADMIN, userID: 'ADM', username: 'admin.one', phone: '0300000000', password: 'x', role: 'admin', isActive: true },
     { _id: TAKER, userID: 'OT1', username: 'taker', phone: '0300000001', password: 'x', role: 'order_taker', isActive: true, address: { city: 'Lahore' } },

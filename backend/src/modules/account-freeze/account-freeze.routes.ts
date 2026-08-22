@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requireAdmin, requirePermission } from '../../middleware/permission.middleware';
 import * as controller from './account-freeze.controller';
 
 const router = Router();
@@ -33,7 +33,7 @@ router.get('/me', controller.myStatus);
  *     responses:
  *       200: { description: Frozen users }
  */
-router.get('/', requireRoles('admin'), controller.findFrozen);
+router.get('/', requirePermission('account-freeze:view'), controller.findFrozen);
 
 /**
  * @openapi
@@ -42,16 +42,17 @@ router.get('/', requireRoles('admin'), controller.findFrozen);
  *     tags: [Account Freeze]
  *     summary: Re-run the late-start sweep now [Admin]
  *     description: >
- *       Freezes riders who had visits assigned today and still have not checked in
- *       anywhere past the deadline. The daily cron calls the same routine; this endpoint
- *       is for re-running it after an outage. A no-op before the deadline.
+ *       Freezes riders who still have not checked in anywhere past the deadline, whether
+ *       or not visits were assigned. Only the company holiday and approved leave excuse
+ *       it. The daily cron calls the same routine; this endpoint is for re-running it
+ *       after an outage. A no-op before the deadline and on the holiday.
  *     security:
  *       - bearerAuth: []
  *     responses:
- *       200: { description: "{ evaluated, frozen, skippedNoVisits, skippedAlreadyStarted, skippedAlreadyFrozen }" }
+ *       200: { description: "{ evaluated, frozen, frozenWithNoAssignedVisits, skippedAlreadyStarted, skippedAlreadyFrozen }" }
  */
 // Must stay above /:id-style routes.
-router.post('/sweep', requireRoles('admin'), controller.runSweep);
+router.post('/sweep', requireAdmin(), controller.runSweep);
 
 /**
  * @openapi
@@ -78,6 +79,6 @@ router.post('/sweep', requireRoles('admin'), controller.runSweep);
  *       400: { description: Account is not frozen }
  *       404: { description: User not found }
  */
-router.patch('/:id/unfreeze', requireRoles('admin'), controller.unfreeze);
+router.patch('/:id/unfreeze', requirePermission('account-freeze:change'), controller.unfreeze);
 
 export default router;

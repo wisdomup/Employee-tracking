@@ -702,7 +702,7 @@ const EditOrderPage: React.FC = () => {
 
 export default function EditOrderPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute permission="orders:edit">
       <EditOrderPage />
     </ProtectedRoute>
   );

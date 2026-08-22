@@ -5,6 +5,7 @@ import { startVisitGenerationCron } from './jobs/visit-generation.cron';
 import { startLowStockCron } from './jobs/low-stock.cron';
 import { startLateStartFreezeCron } from './jobs/late-start-freeze.cron';
 import { runWarehouseBootstrapOnStart } from './database/warehouse-bootstrap-on-start';
+import { runAccessBootstrapOnStart } from './database/access-bootstrap-on-start';
 import app from './app';
 
 const PORT = process.env.PORT || 8001;
@@ -13,6 +14,9 @@ async function bootstrap() {
   await connectDatabase();
   // Before the port is bound, so no request can be served against half-migrated stock.
   await runWarehouseBootstrapOnStart();
+  // Before the port is bound: an empty matrix denies every non-admin, so this must not race
+  // the first request.
+  await runAccessBootstrapOnStart();
   ensureUploadDirectories();
   startVisitGenerationCron();
   startLowStockCron();

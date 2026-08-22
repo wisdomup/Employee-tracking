@@ -54,6 +54,20 @@ export function parseTimeOfDay(value: string): TimeOfDay {
   return { hour, minute };
 }
 
+/**
+ * Master switch for the whole late-start rule, `RIDER_FREEZE_ENABLED=false` to turn it off.
+ *
+ * Covers BOTH enforcement paths — the check-in guard and the sweep — unlike
+ * `LATE_START_CRON_ENABLED`, which only stops the sweep and would leave riders still being
+ * refused at check-in. Read per call rather than captured at module load so it can be
+ * flipped in a test without reordering imports.
+ */
+export function isFreezeRuleEnabled(): boolean {
+  const raw = process.env.RIDER_FREEZE_ENABLED?.trim().toLowerCase();
+  if (raw === undefined || raw === '') return true;
+  return !['0', 'false', 'no', 'off'].includes(raw);
+}
+
 /** The configured deadline, from `RIDER_FIRST_VISIT_DEADLINE` or the 12:30 default. */
 export function configuredDeadline(): TimeOfDay {
   return parseTimeOfDay(
@@ -104,6 +118,36 @@ export function isPastDeadline(
   return minuteOfDayInZone(instant, timeZone) > minutesSinceMidnight(deadline);
 }
 
+/**
+ * The company holiday, in `Date.getUTCDay()` numbering (0 = Sunday). Friday — the same day
+ * the visit-generation cron already omits.
+ */
+export const NON_WORKING_WEEKDAY = 5;
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Weekday of `instant` in `timeZone`, 0 = Sunday … 6 = Saturday. */
+export function weekdayInZone(instant: Date, timeZone: string = FREEZE_TIMEZONE): number {
+  const label = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(instant);
+  const index = WEEKDAY_LABELS.indexOf(label);
+  if (index < 0) {
+    throw new Error(`Invalid timezone "${timeZone}"`);
+  }
+  return index;
+}
+
+/**
+ * True on the company holiday, when nobody is expected at a shop at all.
+ *
+ * Checked in the rule rather than only in the cron expression: the cron's default schedule
+ * omits Friday, but the check-in guard runs on every check-in regardless of any schedule,
+ * and an operator setting a custom `LATE_START_CRON_SCHEDULE` could easily reintroduce
+ * Friday without realising. This makes the holiday hold on both paths.
+ */
+export function isNonWorkingDay(instant: Date, timeZone: string = FREEZE_TIMEZONE): boolean {
+  return weekdayInZone(instant, timeZone) === NON_WORKING_WEEKDAY;
+}
+
 /** `12:30` → `12:30 PM`, for messages riders and admins actually read. */
 export function formatDeadline(deadline: TimeOfDay = configuredDeadline()): string {
   const suffix = deadline.hour < 12 ? 'AM' : 'PM';
@@ -149,7 +193,11 @@ export function lateStartFlagMessage(
   timeZone: string = FREEZE_TIMEZONE,
 ): string {
   const by = formatDeadline(deadline);
-  return arrivedAt
-    ? `First shop check-in at ${formatWallClock(arrivedAt, timeZone)}, past the ${by} deadline. Account frozen.`
-    : `No shop check-in by ${by} with ${assignedVisits} visit(s) assigned. Account frozen.`;
+  if (arrivedAt) {
+    return `First shop check-in at ${formatWallClock(arrivedAt, timeZone)}, past the ${by} deadline. Account frozen.`;
+  }
+  // Riders are freezable with no assigned visits at all, so the count is only worth
+  // mentioning when there actually was route work to miss.
+  const scope = assignedVisits > 0 ? ` with ${assignedVisits} visit(s) assigned` : '';
+  return `No shop check-in by ${by}${scope}. Account frozen.`;
 }

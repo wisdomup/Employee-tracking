@@ -10,6 +10,9 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_FIRST_VISIT_DEADLINE,
   FREEZE_ELIGIBLE_ROLES,
+  NON_WORKING_WEEKDAY,
+  isNonWorkingDay,
+  weekdayInZone,
   formatDeadline,
   formatWallClock,
   isPastDeadline,
@@ -183,6 +186,46 @@ test('lateStartFlagMessage: the late variant reports the arrival time', () => {
   const msg = lateStartFlagMessage(karachiInstant(13, 32), 7, DEADLINE, KARACHI);
   assert.match(msg, /First shop check-in at 1:32 PM/);
   assert.match(msg, /Account frozen/);
+});
+
+// ---------------------------------------------------------------------------
+// The company holiday
+// ---------------------------------------------------------------------------
+test('weekdayInZone: reads the local weekday, 0 = Sunday', () => {
+  // 2026-08-16 is a Sunday, 2026-08-21 a Friday.
+  assert.equal(weekdayInZone(new Date(Date.UTC(2026, 7, 16, 6, 0)), KARACHI), 0);
+  assert.equal(weekdayInZone(new Date(Date.UTC(2026, 7, 21, 6, 0)), KARACHI), 5);
+});
+
+test('isNonWorkingDay: Friday is the company holiday, other days are not', () => {
+  assert.equal(isNonWorkingDay(new Date(Date.UTC(2026, 7, 21, 6, 0)), KARACHI), true);
+  for (const day of [16, 17, 18, 19, 20, 22]) {
+    assert.equal(
+      isNonWorkingDay(new Date(Date.UTC(2026, 7, day, 6, 0)), KARACHI),
+      false,
+      `2026-08-${day} should be a working day`,
+    );
+  }
+});
+
+test('isNonWorkingDay: the weekday is judged in the local zone, not UTC', () => {
+  // 2026-08-20 21:00 UTC is still Thursday in UTC but already Friday 02:00 in Karachi.
+  const instant = new Date(Date.UTC(2026, 7, 20, 21, 0));
+  assert.equal(isNonWorkingDay(instant, 'UTC'), false);
+  assert.equal(isNonWorkingDay(instant, KARACHI), true);
+});
+
+test('NON_WORKING_WEEKDAY matches the day the visit cron omits', () => {
+  assert.equal(NON_WORKING_WEEKDAY, 5);
+});
+
+// ---------------------------------------------------------------------------
+// Flag wording
+// ---------------------------------------------------------------------------
+test('lateStartFlagMessage: an empty day does not claim "0 visit(s) assigned"', () => {
+  const msg = lateStartFlagMessage(null, 0, DEADLINE, KARACHI);
+  assert.doesNotMatch(msg, /0 visit/);
+  assert.match(msg, /No shop check-in by 12:30 PM\. Account frozen\./);
 });
 
 // ---------------------------------------------------------------------------

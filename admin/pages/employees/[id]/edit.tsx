@@ -4,6 +4,8 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { employeeService, Employee } from '../../../services/employeeService';
 import { FIELD_STAFF_ROLES, WAREHOUSE_ROLES } from '../../../utils/permissions';
+import { permissionService } from '../../../services/permissionService';
+import AdditionalRoles from '../../../components/Employees/AdditionalRoles';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import {
   warehouseService,
@@ -17,14 +19,19 @@ import Loader from '../../../components/UI/Loader';
 import styles from '../../../styles/FormPage.module.scss';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
 
+/**
+ * Primary role options. Labels are the Seetrack names; the values are the unchanged code
+ * identifiers — `order_taker` is the Salesman, `delivery_man` is the Rider.
+ *
+ * `employee` is deliberately absent. Existing accounts on it keep working, but it is a legacy
+ * catch-all and nobody new should be put there.
+ */
 const EMPLOYEE_ROLES = [
-  // { value: 'admin', label: 'Admin' },
-  // { value: 'employee', label: 'Employee' },
+  { value: 'sales_manager', label: 'Manager / Dept Head' },
   { value: 'warehouse_manager', label: 'Warehouse Manager' },
+  { value: 'order_taker', label: 'Salesman' },
+  { value: 'delivery_man', label: 'Rider / Delivery Boy' },
   { value: 'warehouse_staff', label: 'Warehouse Staff' },
-  { value: 'sales_manager', label: 'Sales Manager' },
-  { value: 'order_taker', label: 'Order Taker' },
-  { value: 'delivery_man', label: 'Delivery Man' },
 ];
 
 const EditEmployeePage: React.FC = () => {
@@ -32,6 +39,8 @@ const EditEmployeePage: React.FC = () => {
   const { id } = router.query;
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  /** Roles beyond the primary one. The primary stays on `formData.role`. */
+  const [extraRoles, setExtraRoles] = useState<string[]>([]);
   const [salesManagers, setSalesManagers] = useState<Employee[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [formData, setFormData] = useState({
@@ -118,6 +127,11 @@ const EditEmployeePage: React.FC = () => {
         // Missing means enabled, matching the backend's `$ne: false` treatment.
         autoAssignVisits: data.autoAssignVisits !== false,
       });
+
+      // Everything except the primary. Accounts written before multi-role carry no array,
+      // which correctly reads as "no extra roles".
+      const assigned: string[] = Array.isArray(data.roles) ? data.roles : [];
+      setExtraRoles(assigned.filter((r) => r !== (data.role || 'employee')));
     } catch (error) {
       toast.error('Failed to fetch employee');
     } finally {
@@ -224,7 +238,25 @@ const EditEmployeePage: React.FC = () => {
       }
 
       await employeeService.updateEmployee(id as string, updateData);
+
+      // Roles go through the permissions API rather than the employee payload: it validates
+      // the combination and reports whether a profile covers it. Sent unconditionally, so
+      // clearing every extra role writes the single-role array back.
+      const { needsProfile } = await permissionService.setUserRoles(id as string, [
+        formData.role,
+        ...extraRoles.filter((r) => r !== formData.role),
+      ]);
+
       toast.success('Employee updated successfully');
+
+      if (needsProfile) {
+        toast.info(
+          'This role combination has no permission profile yet. Until one is created under ' +
+            "Roles & Permissions, they keep their primary role's permissions only.",
+          { autoClose: 9000 },
+        );
+      }
+
       router.push('/employees');
     } catch (error: any) {
       toast.error(
@@ -346,6 +378,15 @@ const EditEmployeePage: React.FC = () => {
               className={styles.select}
               placeholder="Role"
               options={EMPLOYEE_ROLES}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <AdditionalRoles
+              primaryRole={formData.role}
+              value={extraRoles}
+              onChange={setExtraRoles}
+              disabled={loading}
             />
           </div>
 

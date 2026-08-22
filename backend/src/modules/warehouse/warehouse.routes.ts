@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import {
+  requireAdmin,
+  requirePermission,
+  requireReport,
+} from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import * as controller from './warehouse.controller';
 import {
@@ -68,7 +72,7 @@ const STOCK_READERS = [...WAREHOUSE_VIEWERS, 'sales_manager'] as const;
  */
 router.post(
   '/warehouses',
-  requireRoles('admin'),
+  requirePermission('warehouse:add'),
   validate(createWarehouseSchema),
   controller.createWarehouse,
 );
@@ -87,9 +91,9 @@ router.post(
  *     responses:
  *       200: { description: Warehouses, Main first }
  */
-router.get('/warehouses', requireRoles(...STOCK_READERS), controller.findAllWarehouses);
+router.get('/warehouses', requirePermission('warehouse:view'), controller.findAllWarehouses);
 
-router.get('/warehouses/main', requireRoles(...STOCK_READERS), controller.getMainWarehouse);
+router.get('/warehouses/main', requirePermission('warehouse:view'), controller.getMainWarehouse);
 
 /**
  * @openapi
@@ -103,11 +107,11 @@ router.get('/warehouses/main', requireRoles(...STOCK_READERS), controller.getMai
  *       200: { description: Warehouse }
  *       404: { description: Not found }
  */
-router.get('/warehouses/:id', requireRoles(...STOCK_READERS), controller.findWarehouse);
+router.get('/warehouses/:id', requirePermission('warehouse:view'), controller.findWarehouse);
 
 router.put(
   '/warehouses/:id',
-  requireRoles('admin'),
+  requirePermission('warehouse:edit'),
   validate(updateWarehouseSchema),
   controller.updateWarehouse,
 );
@@ -124,13 +128,13 @@ router.put(
  *     responses:
  *       200: { description: Warehouse is now Main }
  */
-router.patch('/warehouses/:id/set-main', requireRoles('admin'), controller.setMain);
+router.patch('/warehouses/:id/set-main', requirePermission('warehouse:change'), controller.setMain);
 
-router.delete('/warehouses/:id', requireRoles('admin'), controller.trashWarehouse);
-router.patch('/warehouses/:id/restore', requireRoles('admin'), controller.restoreWarehouse);
+router.delete('/warehouses/:id', requirePermission('warehouse:delete'), controller.trashWarehouse);
+router.patch('/warehouses/:id/restore', requirePermission('trash:change'), controller.restoreWarehouse);
 router.delete(
   '/warehouses/:id/permanent',
-  requireRoles('admin'),
+  requirePermission('trash:delete'),
   controller.permanentlyDeleteWarehouse,
 );
 
@@ -156,7 +160,7 @@ router.delete(
  *     responses:
  *       200: { description: Stock rows }
  */
-router.get('/stock', requireRoles(...STOCK_READERS), controller.getStock);
+router.get('/stock', requirePermission('warehouse:view'), controller.getStock);
 
 /**
  * @openapi
@@ -180,7 +184,7 @@ router.get('/stock', requireRoles(...STOCK_READERS), controller.getStock);
  *     responses:
  *       200: { description: '{ warehouses, products, generatedAt, truncated, scopedWarehouseId? }' }
  */
-router.get('/stock/matrix', requireRoles(...STOCK_READERS), controller.getStockMatrix);
+router.get('/stock/matrix', requirePermission('warehouse:view'), controller.getStockMatrix);
 
 /**
  * @openapi
@@ -199,11 +203,11 @@ router.get('/stock/matrix', requireRoles(...STOCK_READERS), controller.getStockM
  *     responses:
  *       200: { description: Ledger rows, newest first }
  */
-router.get('/stock/movements', requireRoles(...WAREHOUSE_VIEWERS), controller.getMovements);
+router.get('/stock/movements', requirePermission('warehouse:view'), controller.getMovements);
 
 router.get(
   '/products/:productId/last-purchase-rate',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('warehouse:view'),
   controller.getLastPurchaseRate,
 );
 
@@ -246,7 +250,7 @@ router.get(
  */
 router.post(
   '/stock/adjust',
-  requireRoles('admin'),
+  requirePermission('warehouse:change'),
   validate(adjustStockSchema),
   controller.adjustStock,
 );
@@ -269,12 +273,12 @@ router.post(
  */
 router.post(
   '/opening-stock',
-  requireRoles('admin'),
+  requirePermission('warehouse:change'),
   validate(postOpeningStockSchema),
   controller.postOpeningStock,
 );
 
-router.get('/opening-stock', requireRoles('admin'), controller.findAllOpeningStock);
+router.get('/opening-stock', requireAdmin(), controller.findAllOpeningStock);
 
 /**
  * @openapi
@@ -318,17 +322,17 @@ router.get('/opening-stock', requireRoles('admin'), controller.findAllOpeningSto
  *     responses:
  *       200: { description: '{ created, updated, skipped, failed }' }
  */
-router.get('/opening-stock/matrix', requireRoles('admin'), controller.getOpeningStockMatrix);
+router.get('/opening-stock/matrix', requireAdmin(), controller.getOpeningStockMatrix);
 router.post(
   '/opening-stock/matrix',
-  requireRoles('admin'),
+  requirePermission('warehouse:change'),
   validate(saveOpeningStockMatrixSchema),
   controller.saveOpeningStockMatrix,
 );
 
 router.get(
   '/opening-stock/status/:warehouseId',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('warehouse:view'),
   controller.getOpeningStockStatus,
 );
 
@@ -349,14 +353,14 @@ router.get(
  */
 router.put(
   '/opening-stock/:id',
-  requireRoles('admin'),
+  requirePermission('warehouse:edit'),
   validate(updateOpeningStockSchema),
   controller.updateOpeningStock,
 );
 
 router.patch(
   '/opening-stock/:id/cancel',
-  requireRoles('admin'),
+  requirePermission('warehouse:change'),
   validate(reasonSchema),
   controller.cancelOpeningStock,
 );
@@ -398,20 +402,20 @@ router.patch(
  */
 router.post(
   '/stock-receipts',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-in:add'),
   validate(createStockReceiptSchema),
   controller.createStockReceipt,
 );
 
-router.get('/stock-receipts', requireRoles(...WAREHOUSE_VIEWERS), controller.findAllStockReceipts);
+router.get('/stock-receipts', requirePermission('stock-in:view'), controller.findAllStockReceipts);
 router.get(
   '/stock-receipts/:id',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-in:view'),
   controller.findStockReceipt,
 );
 router.get(
   '/stock-receipts/:id/slip',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-in:view'),
   controller.getStockReceiptSlip,
 );
 
@@ -431,7 +435,7 @@ router.get(
  */
 router.patch(
   '/stock-receipts/:id/cancel',
-  requireRoles('admin'),
+  requirePermission('stock-in:change'),
   validate(reasonSchema),
   controller.cancelStockReceipt,
 );
@@ -477,7 +481,7 @@ router.patch(
  */
 router.put(
   '/stock-receipts/:id',
-  requireRoles('admin'),
+  requirePermission('stock-in:edit'),
   validate(updateStockReceiptSchema),
   controller.updateStockReceipt,
 );
@@ -502,7 +506,7 @@ router.put(
  */
 router.delete(
   '/stock-receipts/:id',
-  requireRoles('admin'),
+  requirePermission('stock-in:delete'),
   validate(optionalReasonSchema),
   controller.deleteStockReceipt,
 );
@@ -525,14 +529,14 @@ router.delete(
  */
 router.post(
   '/transfers',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('transfers:add'),
   validate(createTransferSchema),
   controller.createTransfer,
 );
 
-router.get('/transfers', requireRoles(...WAREHOUSE_VIEWERS), controller.findAllTransfers);
-router.get('/transfers/:id', requireRoles(...WAREHOUSE_VIEWERS), controller.findTransfer);
-router.get('/transfers/:id/slip', requireRoles(...WAREHOUSE_VIEWERS), controller.getTransferSlip);
+router.get('/transfers', requirePermission('transfers:view'), controller.findAllTransfers);
+router.get('/transfers/:id', requirePermission('transfers:view'), controller.findTransfer);
+router.get('/transfers/:id/slip', requirePermission('transfers:view'), controller.getTransferSlip);
 
 /**
  * @openapi
@@ -550,11 +554,11 @@ router.get('/transfers/:id/slip', requireRoles(...WAREHOUSE_VIEWERS), controller
  *       400: { description: Not pending, or not enough stock at the source }
  *       403: { description: You raised this transfer }
  */
-router.patch('/transfers/:id/approve', requireRoles('admin'), controller.approveTransfer);
+router.patch('/transfers/:id/approve', requireAdmin(), controller.approveTransfer);
 
 router.patch(
   '/transfers/:id/reject',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(reasonSchema),
   controller.rejectTransfer,
 );
@@ -576,14 +580,14 @@ router.patch(
  */
 router.patch(
   '/transfers/:id/receive',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('transfers:change'),
   validate(receiveTransferSchema),
   controller.receiveTransfer,
 );
 
 router.patch(
   '/transfers/:id/resolve-mismatch',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(resolveMismatchSchema),
   controller.resolveTransferMismatch,
 );
@@ -605,7 +609,7 @@ router.patch(
  */
 router.patch(
   '/transfers/:id/cancel',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(reasonSchema),
   controller.cancelTransfer,
 );
@@ -647,16 +651,16 @@ router.patch(
  */
 router.post(
   '/damage-claims',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('damage:add'),
   validate(createDamageClaimSchema),
   controller.createDamageClaim,
 );
 
-router.get('/damage-claims', requireRoles(...WAREHOUSE_VIEWERS), controller.findAllDamageClaims);
-router.get('/damage-claims/:id', requireRoles(...WAREHOUSE_VIEWERS), controller.findDamageClaim);
+router.get('/damage-claims', requirePermission('damage:view'), controller.findAllDamageClaims);
+router.get('/damage-claims/:id', requirePermission('damage:view'), controller.findDamageClaim);
 router.get(
   '/damage-claims/:id/slip',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('damage:view'),
   controller.getDamageClaimSlip,
 );
 
@@ -675,18 +679,21 @@ router.get(
  *       400: { description: Not pending, or not enough sellable stock }
  *       403: { description: You raised this entry }
  */
-router.patch('/damage-claims/:id/approve', requireRoles('admin'), controller.approveDamageClaim);
+router.patch('/damage-claims/:id/approve', requireAdmin(), controller.approveDamageClaim);
 
 router.patch(
   '/damage-claims/:id/reject',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(reasonSchema),
   controller.rejectDamageClaim,
 );
 
 router.patch(
   '/damage-claims/:id/cancel',
-  requireRoles('admin'),
+  // Cancelling a claim is not approving one — no stock is written off — so unlike
+  // approve/reject this is a real matrix cell. Seeded to nobody, matching today's
+  // admin-only behaviour, but an admin can now delegate it without a code change.
+  requirePermission('damage:change'),
   validate(reasonSchema),
   controller.cancelDamageClaim,
 );
@@ -706,7 +713,7 @@ router.patch(
  */
 router.get(
   '/stock-counts/sheet/:warehouseId',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-count:view'),
   controller.getCountSheet,
 );
 
@@ -726,18 +733,18 @@ router.get(
  */
 router.post(
   '/stock-counts',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-count:add'),
   validate(openStockCountSchema),
   controller.openStockCount,
 );
 
-router.get('/stock-counts', requireRoles(...WAREHOUSE_VIEWERS), controller.findAllStockCounts);
-router.get('/stock-counts/report', requireRoles(...WAREHOUSE_VIEWERS), controller.getStockCountReport);
-router.get('/stock-counts/:id', requireRoles(...WAREHOUSE_VIEWERS), controller.findStockCount);
+router.get('/stock-counts', requirePermission('stock-count:view'), controller.findAllStockCounts);
+router.get('/stock-counts/report', requirePermission('stock-count:view'), controller.getStockCountReport);
+router.get('/stock-counts/:id', requirePermission('stock-count:view'), controller.findStockCount);
 
 router.put(
   '/stock-counts/:id',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-count:edit'),
   validate(saveStockCountSchema),
   controller.saveStockCount,
 );
@@ -757,7 +764,7 @@ router.put(
  */
 router.patch(
   '/stock-counts/:id/submit',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-count:change'),
   controller.submitStockCount,
 );
 
@@ -776,18 +783,18 @@ router.patch(
  *       200: { description: '{ count, drift }' }
  *       403: { description: You submitted this count }
  */
-router.patch('/stock-counts/:id/approve', requireRoles('admin'), controller.approveStockCount);
+router.patch('/stock-counts/:id/approve', requireAdmin(), controller.approveStockCount);
 
 router.patch(
   '/stock-counts/:id/reject',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(reasonSchema),
   controller.rejectStockCount,
 );
 
 router.patch(
   '/stock-counts/:id/cancel',
-  requireRoles(...WAREHOUSE_VIEWERS),
+  requirePermission('stock-count:change'),
   validate(reasonSchema),
   controller.cancelStockCount,
 );
@@ -812,9 +819,9 @@ router.patch(
  *     responses:
  *       200: { description: '{ period, summary, bestSellers }' }
  */
-router.get('/reports/valuation', requireRoles(...WAREHOUSE_VIEWERS), controller.getValuationReport);
+router.get('/reports/valuation', requireReport('warehouse-reports.valuation'), controller.getValuationReport);
 
-router.get('/reports/low-stock', requireRoles(...WAREHOUSE_VIEWERS), controller.getLowStockReport);
+router.get('/reports/low-stock', requireReport('warehouse-reports.stock'), controller.getLowStockReport);
 
 // ------------------------------------------------------------------ maintenance
 
@@ -831,11 +838,11 @@ router.get('/reports/low-stock', requireRoles(...WAREHOUSE_VIEWERS), controller.
  *     responses:
  *       200: { description: '{ clean, driftCount, rows }' }
  */
-router.get('/maintenance/integrity', requireRoles('admin'), controller.getIntegrity);
+router.get('/maintenance/integrity', requireAdmin(), controller.getIntegrity);
 
 router.post(
   '/maintenance/resync-mirror',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(resyncMirrorSchema),
   controller.resyncMirror,
 );

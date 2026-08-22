@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import mongoose, { Types } from 'mongoose';
 import bcrypt from 'bcrypt';
+import { seedAccessPolicies } from './access-policies.seed';
 import { UserModel } from '../../models/user.model';
 import { RouteModel } from '../../models/route.model';
 import { RouteAssignmentModel } from '../../models/route-assignment.model';
@@ -62,6 +63,12 @@ async function seedAll() {
   const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/gps_task_tracking';
   await mongoose.connect(uri);
   console.log('Connected to MongoDB');
+
+  // The permission matrix first. Every non-admin resolves to zero permissions without it, so
+  // a freshly seeded dev database would answer 403 on almost every screen and look broken in
+  // a way that has nothing to do with the data below.
+  const access = await seedAccessPolicies({ backfillUsers: false });
+  console.log(`Access policies: ${access.created.length} created, ${access.skipped.length} kept`);
 
   const users = {
     admin: await upsertUser({

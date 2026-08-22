@@ -370,7 +370,7 @@ function TransfersListPage() {
 
 export default function TransfersListPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="transfers:view">
       <TransfersListPage />
     </ProtectedRoute>
   );

@@ -418,7 +418,7 @@ const CollectionReportPage: React.FC = () => {
 
 export default function CollectionReportPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
+    <ProtectedRoute report="collection.report">
       <CollectionReportPage />
     </ProtectedRoute>
   );

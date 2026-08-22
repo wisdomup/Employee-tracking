@@ -16,6 +16,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { UserModel } from '../../models/user.model';
 import { VisitModel } from '../../models/visit.model';
 import { DealerModel } from '../../models/dealer.model';
+import { ApprovalModel } from '../../models/approval.model';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import * as freezeService from './account-freeze.service';
@@ -57,11 +58,16 @@ function zoneOffsetMinutes(instant: Date, timeZone: string): number {
   return Math.round((asIfUtc - instant.getTime()) / 60_000);
 }
 
-/** The UTC instant at which the local wall clock in FREEZE_TIMEZONE reads `hh:mm`. */
-function localTime(hour: number, minute: number): Date {
-  const naive = Date.UTC(TEST_DAY.year, TEST_DAY.month - 1, TEST_DAY.day, hour, minute);
+/** The UTC instant at which the local wall clock in FREEZE_TIMEZONE reads `hh:mm` on `day`. */
+function localTimeOn(day: number, hour: number, minute: number): Date {
+  const naive = Date.UTC(TEST_DAY.year, TEST_DAY.month - 1, day, hour, minute);
   const offset = zoneOffsetMinutes(new Date(naive), FREEZE_TIMEZONE);
   return new Date(naive - offset * 60_000);
+}
+
+/** Same, on the default (working-day) test date. */
+function localTime(hour: number, minute: number): Date {
+  return localTimeOn(TEST_DAY.day, hour, minute);
 }
 
 /** UTC midnight of the day an instant falls on — how the visit cron stamps `visitDate`. */
@@ -74,6 +80,8 @@ function utcMidnight(instant: Date): Date {
 const deadline = configuredDeadline();
 const BEFORE_DEADLINE = localTime(deadline.hour, Math.max(0, deadline.minute - 1));
 const AFTER_DEADLINE = localTime(deadline.hour + 1, deadline.minute);
+/** 2026-08-21 is a Friday — the company holiday, when nobody can be frozen. */
+const FRIDAY_AFTER_DEADLINE = localTimeOn(21, deadline.hour + 1, deadline.minute);
 const VISIT_DATE = utcMidnight(AFTER_DEADLINE);
 
 let mongod: MongoMemoryServer;
@@ -208,8 +216,83 @@ async function main(): Promise<void> {
     assert.notEqual((await reload(rider))?.isFrozen, true);
   });
 
-  await test('a rider with no assigned visits is exempt — nothing to be late for', async () => {
+  await test('a rider with NO assigned visits is still frozen — the empty-day escape hatch is gone', async () => {
     const rider = await makeRider();
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    // This is the regression that mattered: while the visit cron was idle every rider had
+    // an empty day, so exempting empty days silently disabled the entire rule.
+    assert.ok(reason, 'expected a refusal even with nothing assigned');
+    assert.equal((await reload(rider))?.isFrozen, true);
+  });
+
+  await test('the flag for an empty day does not claim visits were assigned', async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    const flag = await PerformanceFlagModel.findOne({ employeeId: rider, type: 'late_start' }).lean();
+    assert.doesNotMatch(flag!.message, /0 visit\(s\) assigned/);
+  });
+
+  await test('a rider with only self-started extras is still frozen', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider, { isSelfInitiated: true });
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    assert.ok(reason);
+  });
+
+  await test('a day of only cancelled visits is still frozen', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider, { status: 'cancelled' });
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    assert.ok(reason);
+  });
+
+  await test('the company holiday excuses everyone', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: FRIDAY_AFTER_DEADLINE,
+    });
+
+    assert.equal(reason, null);
+    assert.notEqual((await reload(rider))?.isFrozen, true);
+  });
+
+  await test('an approved leave excuses that rider for that day', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+    await ApprovalModel.create({
+      employeeId: rider,
+      approvalType: 'leave',
+      leaveType: 'full_day',
+      status: 'approved',
+      leaveDate: utcMidnight(AFTER_DEADLINE),
+    });
 
     const reason = await freezeService.enforceFirstCheckInDeadline({
       employeeId: rider,
@@ -221,22 +304,34 @@ async function main(): Promise<void> {
     assert.notEqual((await reload(rider))?.isFrozen, true);
   });
 
-  await test('a self-started extra does not count as assigned work', async () => {
+  await test('a PENDING leave request does NOT excuse anyone', async () => {
     const rider = await makeRider();
-    await assignVisit(rider, { isSelfInitiated: true });
+    await ApprovalModel.create({
+      employeeId: rider,
+      approvalType: 'leave',
+      status: 'pending',
+      leaveDate: utcMidnight(AFTER_DEADLINE),
+    });
 
+    // Otherwise the freeze is avoidable by filing a request nobody ever approves.
     const reason = await freezeService.enforceFirstCheckInDeadline({
       employeeId: rider,
       role: 'order_taker',
       now: AFTER_DEADLINE,
     });
 
-    assert.equal(reason, null);
+    assert.ok(reason);
   });
 
-  await test('a day of only cancelled visits is exempt', async () => {
+  await test("another rider's approved leave does not excuse this one", async () => {
     const rider = await makeRider();
-    await assignVisit(rider, { status: 'cancelled' });
+    const colleague = await makeRider();
+    await ApprovalModel.create({
+      employeeId: colleague,
+      approvalType: 'leave',
+      status: 'approved',
+      leaveDate: utcMidnight(AFTER_DEADLINE),
+    });
 
     const reason = await freezeService.enforceFirstCheckInDeadline({
       employeeId: rider,
@@ -244,7 +339,7 @@ async function main(): Promise<void> {
       now: AFTER_DEADLINE,
     });
 
-    assert.equal(reason, null);
+    assert.ok(reason);
   });
 
   await test('roles outside the rule are never frozen, however late they are', async () => {
@@ -305,12 +400,39 @@ async function main(): Promise<void> {
     assert.notEqual((await reload(rider))?.isFrozen, true);
   });
 
-  await test('the sweep skips a rider with an empty day', async () => {
+  await test('the sweep FREEZES a rider with an empty day, and counts it', async () => {
     const rider = await makeRider();
 
     const summary = await freezeService.sweepLateStarters(AFTER_DEADLINE);
 
-    assert.ok(summary.skippedNoVisits >= 1);
+    assert.equal((await reload(rider))?.isFrozen, true);
+    // Counted, not skipped — a rising number here means the visit cron has gone idle.
+    assert.ok(summary.frozenWithNoAssignedVisits >= 1);
+  });
+
+  await test('the sweep is a no-op on the company holiday', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+
+    const summary = await freezeService.sweepLateStarters(FRIDAY_AFTER_DEADLINE);
+
+    assert.equal(summary.frozen, 0);
+    assert.equal(summary.evaluated, 0);
+    assert.notEqual((await reload(rider))?.isFrozen, true);
+  });
+
+  await test('the sweep skips a rider on approved leave', async () => {
+    const rider = await makeRider();
+    await ApprovalModel.create({
+      employeeId: rider,
+      approvalType: 'leave',
+      status: 'approved',
+      leaveDate: utcMidnight(AFTER_DEADLINE),
+    });
+
+    const summary = await freezeService.sweepLateStarters(AFTER_DEADLINE);
+
+    assert.ok(summary.skippedExempt >= 1);
     assert.notEqual((await reload(rider))?.isFrozen, true);
   });
 
@@ -404,14 +526,15 @@ async function main(): Promise<void> {
   });
 
   await test('the frozen list is what the admin queue reads', async () => {
-    const before = (await freezeService.findFrozenUsers()).length;
     const rider = await makeRider();
     await assignVisit(rider);
     await freezeService.sweepLateStarters(AFTER_DEADLINE);
 
     const frozen = await freezeService.findFrozenUsers();
 
-    assert.equal(frozen.length, before + 1);
+    // Containment rather than an exact count: a sweep now freezes every eligible rider
+    // left over from earlier cases, so the total is not a fixed number.
+    assert.ok(frozen.some((u) => String(u._id) === String(rider)));
     assert.ok(frozen.every((u) => u.isFrozen === true));
     // Passwords never leave the service, even to an admin.
     assert.ok(frozen.every((u) => (u as unknown as { password?: string }).password === undefined));

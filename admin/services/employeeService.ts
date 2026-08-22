@@ -8,6 +8,8 @@ export interface Employee {
   phone: string;
   email?: string;
   role: string;
+  /** Every role held, primary first. Absent on accounts written before multi-role. */
+  roles?: string[];
   address?: {
     street?: string;
     city?: string;

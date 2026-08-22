@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import * as controller from './activity-logs.controller';
 
 const router = Router();
@@ -39,7 +39,7 @@ router.use(authMiddleware);
  *                 $ref: '#/components/schemas/ActivityLog'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get('/', requirePermission('activity-logs:view'), controller.findAll);
 
 /**
  * @openapi
@@ -65,7 +65,7 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  *                 $ref: '#/components/schemas/ActivityLog'
  *       401: { description: Unauthorized }
  */
-router.get('/recent', requireRoles('admin', 'employee', 'order_taker'), controller.getRecent);
+router.get('/recent', requirePermission('activity-logs:view'), controller.getRecent);
 
 /**
  * @openapi
@@ -99,6 +99,6 @@ router.get('/recent', requireRoles('admin', 'employee', 'order_taker'), controll
  *       401: { description: Unauthorized }
  *       404: { description: Employee not found }
  */
-router.get('/employee/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findByEmployee);
+router.get('/employee/:id', requirePermission('activity-logs:view'), controller.findByEmployee);
 
 export default router;

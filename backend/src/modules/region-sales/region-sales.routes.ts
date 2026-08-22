@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requireReport } from '../../middleware/permission.middleware';
 import * as controller from './region-sales.controller';
 
 const router = Router();
@@ -44,7 +44,7 @@ const MANAGEMENT_ROLES = ['admin', 'sales_manager'] as const;
  *       200: { description: "{ from, to, date, timezone, totals, regions[] }" }
  *       400: { description: Malformed date, reversed range, or a range over 366 days }
  */
-router.get('/regions', requireRoles(...MANAGEMENT_ROLES), controller.regions);
+router.get('/regions', requireReport('region-sales.daily'), controller.regions);
 
 /**
  * @openapi
@@ -75,7 +75,7 @@ router.get('/regions', requireRoles(...MANAGEMENT_ROLES), controller.regions);
  */
 router.get(
   '/regions/:regionKey/salesmen',
-  requireRoles(...MANAGEMENT_ROLES),
+  requireReport('region-sales.daily'),
   controller.regionSalesmen,
 );
 
@@ -109,7 +109,7 @@ router.get(
  */
 router.get(
   '/salesman/:employeeId',
-  requireRoles(...MANAGEMENT_ROLES),
+  requireReport('region-sales.daily'),
   controller.salesmanDaily,
 );
 

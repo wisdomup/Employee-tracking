@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createCategorySchema, updateCategorySchema } from './dto/categories.schemas';
 import * as controller from './categories.controller';
@@ -33,7 +33,7 @@ router.use(authMiddleware);
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/', requireRoles('admin'), validate(createCategorySchema), controller.create);
+router.post('/', requirePermission('categories:add'), validate(createCategorySchema), controller.create);
 
 /**
  * @openapi
@@ -51,7 +51,7 @@ router.post('/', requireRoles('admin'), validate(createCategorySchema), controll
  *       200: { description: List of categories }
  *       401: { description: Unauthorized }
  */
-router.get('/', controller.findAll);
+router.get('/', requirePermission('categories:view'), controller.findAll);
 
 /**
  * @openapi
@@ -70,7 +70,7 @@ router.get('/', controller.findAll);
  *       200: { description: Category found }
  *       404: { description: Category not found }
  */
-router.get('/:id', controller.findOne);
+router.get('/:id', requirePermission('categories:view'), controller.findOne);
 
 /**
  * @openapi
@@ -99,7 +99,7 @@ router.get('/:id', controller.findOne);
  *       200: { description: Category updated }
  *       404: { description: Category not found }
  */
-router.put('/:id', requireRoles('admin'), validate(updateCategorySchema), controller.update);
+router.put('/:id', requirePermission('categories:edit'), validate(updateCategorySchema), controller.update);
 
 /**
  * @openapi
@@ -118,8 +118,8 @@ router.put('/:id', requireRoles('admin'), validate(updateCategorySchema), contro
  *       200: { description: Category deleted }
  *       404: { description: Category not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('categories:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

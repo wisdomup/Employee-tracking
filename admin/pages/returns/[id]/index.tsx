@@ -305,7 +305,7 @@ const ReturnDetailPage: React.FC = () => {
 
 export default function ReturnDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="returns:view">
       <ReturnDetailPage />
     </ProtectedRoute>
   );

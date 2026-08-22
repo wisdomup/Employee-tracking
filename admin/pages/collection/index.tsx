@@ -223,7 +223,7 @@ const CollectionHome: React.FC = () => {
 
 export default function CollectionHomeWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'delivery_man']}>
+    <ProtectedRoute permission="collections:view">
       <CollectionHome />
     </ProtectedRoute>
   );

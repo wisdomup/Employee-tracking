@@ -4,6 +4,7 @@ import Header from './Header';
 import OrderTakerBottomNav from './OrderTakerBottomNav';
 import RiderBottomNav from './RiderBottomNav';
 import FrozenAccountBanner from './FrozenAccountBanner';
+import RoleFallbackBanner from './RoleFallbackBanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { BroadcastInboxProvider } from '../../contexts/BroadcastInboxContext';
 import styles from './Layout.module.scss';

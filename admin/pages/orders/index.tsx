@@ -337,7 +337,7 @@ const OrdersPage: React.FC = () => {
               Edit
             </button>
           )}
-          {isAdmin && (
+          {can(undefined, 'orders:delete') && (
             <button
               className={styles.deleteButton}
               onClick={(e) => {
@@ -358,9 +358,11 @@ const OrdersPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Orders</h1>
+          {can(undefined, 'orders:add') && (
           <button className={styles.addButton} onClick={() => router.push('/orders/create')}>
             + Create Order
           </button>
+          )}
         </div>
 
         <div className={styles.listCard}>
@@ -497,7 +499,7 @@ const OrdersPage: React.FC = () => {
 
 export default function OrdersPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="orders:view">
       <OrdersPage />
     </ProtectedRoute>
   );

@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import {
+  requireAdmin,
+  requirePermission,
+  requireReport,
+} from '../../middleware/permission.middleware';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
@@ -22,7 +26,9 @@ import * as controller from './collections.controller';
  * `orders.controller.findAll` has no rider branch and would leak every order in the company.
  * Everything rider-facing hard-filters on `assignedRiderId`.
  *
- * Corrections and voids are `requireRoles('admin')` at the ROUTE, not behind a controller `if`.
+ * Corrections and voids are `requireAdmin()` at the ROUTE, not behind a controller `if`, and
+ * deliberately are NOT matrix cells — a rider correcting their own cash record defeats the
+ * record. `collections:change` covers mark-packed and settle only.
  * Spec §7 ("rider cannot edit or delete their own entries") is easier to get wrong in a
  * controller than in a route table you can read top to bottom.
  */
@@ -56,7 +62,7 @@ router.use(blockFrozenWrites);
  *       200: { description: "{ date, timezone, rider, counts, groups[] }" }
  *       401: { description: Unauthorized }
  */
-router.get('/my/orders', requireRoles('delivery_man'), controller.myOrders);
+router.get('/my/orders', requirePermission('collections:view'), controller.myOrders);
 
 /**
  * @openapi
@@ -69,7 +75,7 @@ router.get('/my/orders', requireRoles('delivery_man'), controller.myOrders);
  *     responses:
  *       200: { description: "{ cash{...}, online{...}, creditIssuedOutstanding }" }
  */
-router.get('/my/balance', requireRoles('delivery_man'), controller.myBalance);
+router.get('/my/balance', requirePermission('collections:view'), controller.myBalance);
 
 /**
  * @openapi
@@ -90,7 +96,7 @@ router.get('/my/balance', requireRoles('delivery_man'), controller.myBalance);
  *       404: { description: Order not found }
  *       409: { description: Already packed or delivered }
  */
-router.patch('/orders/:orderId/packed', requireRoles('delivery_man'), controller.markPacked);
+router.patch('/orders/:orderId/packed', requirePermission('collections:change'), controller.markPacked);
 
 /**
  * @openapi
@@ -129,7 +135,7 @@ router.patch('/orders/:orderId/packed', requireRoles('delivery_man'), controller
  */
 router.post(
   '/orders/:orderId/deliver',
-  requireRoles('delivery_man'),
+  requirePermission('collections:add'),
   validate(deliverOrderSchema),
   controller.deliver,
 );
@@ -177,11 +183,11 @@ router.post(
  */
 router.post(
   '/recoveries',
-  requireRoles('delivery_man', 'admin'),
+  requirePermission('collections:add'),
   validate(createRecoverySchema),
   controller.createRecovery,
 );
-router.get('/recoveries', requireRoles('delivery_man', 'admin'), controller.listRecoveries);
+router.get('/recoveries', requirePermission('collections:view'), controller.listRecoveries);
 
 /**
  * @openapi
@@ -201,7 +207,7 @@ router.get('/recoveries', requireRoles('delivery_man', 'admin'), controller.list
  */
 router.get(
   '/dealers/:dealerId/outstanding',
-  requireRoles('delivery_man', 'admin'),
+  requirePermission('collections:view'),
   controller.dealerOutstanding,
 );
 
@@ -253,11 +259,11 @@ router.get(
  */
 router.post(
   '/settlements',
-  requireRoles('delivery_man'),
+  requirePermission('collections:add'),
   validate(createSettlementSchema),
   controller.submitSettlement,
 );
-router.get('/settlements', requireRoles('delivery_man', 'admin'), controller.listSettlements);
+router.get('/settlements', requirePermission('collections:view'), controller.listSettlements);
 
 /**
  * @openapi
@@ -280,7 +286,7 @@ router.get('/settlements', requireRoles('delivery_man', 'admin'), controller.lis
  */
 router.patch(
   '/settlements/:id/receive',
-  requireRoles('admin'),
+  requireAdmin(),
   (req, _res, next) => {
     if (req.body == null || typeof req.body !== 'object') req.body = {};
     next();
@@ -314,7 +320,7 @@ router.patch(
  *           { from, to, timezone, filters, rows[], totals, cities[], page }. `totals` covers the
  *           whole filtered set, not just the current page.
  */
-router.get('/report', requireRoles('admin'), controller.report);
+router.get('/report', requireReport('collection.report'), controller.report);
 
 /**
  * @openapi
@@ -331,7 +337,7 @@ router.get('/report', requireRoles('admin'), controller.report);
  *     responses:
  *       200: { description: "{ date, timezone, riders[], totals }" }
  */
-router.get('/activity', requireRoles('admin', 'delivery_man'), controller.activity);
+router.get('/activity', requireReport('collection.activity'), controller.activity);
 
 /**
  * @openapi
@@ -348,7 +354,7 @@ router.get('/activity', requireRoles('admin', 'delivery_man'), controller.activi
  *     responses:
  *       200: { description: "{ date, timezone, totals, counts, orders[] }" }
  */
-router.get('/day-end', requireRoles('admin', 'delivery_man'), controller.dayEnd);
+router.get('/day-end', requireReport('collection.day-end'), controller.dayEnd);
 
 /**
  * @openapi
@@ -361,7 +367,7 @@ router.get('/day-end', requireRoles('admin', 'delivery_man'), controller.dayEnd)
  *     responses:
  *       200: { description: "[{ _id, username, fullName, city, cityKey, cashInHand }]" }
  */
-router.get('/riders', requireRoles('admin'), controller.riders);
+router.get('/riders', requireAdmin(), controller.riders);
 
 // ---------------------------------------------------------------------------
 // Admin corrections and voids (spec §7). Admin-only at the route, deliberately.
@@ -380,13 +386,13 @@ router.get('/riders', requireRoles('admin'), controller.riders);
  */
 router.patch(
   '/recoveries/:id',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(correctRecoverySchema),
   controller.correctRecovery,
 );
 router.post(
   '/recoveries/:id/void',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(voidEntrySchema),
   controller.voidRecovery,
 );
@@ -404,13 +410,13 @@ router.post(
  */
 router.patch(
   '/settlements/:id',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(correctSettlementSchema),
   controller.correctSettlement,
 );
 router.post(
   '/settlements/:id/void',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(voidEntrySchema),
   controller.voidSettlement,
 );
@@ -445,7 +451,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  requireRoles('admin'),
+  requireAdmin(),
   validate(correctCollectionSchema),
   controller.correctCollection,
 );
@@ -475,6 +481,6 @@ router.patch(
  *       200: { description: Voided entry }
  *       409: { description: Already voided }
  */
-router.post('/:id/void', requireRoles('admin'), validate(voidEntrySchema), controller.voidCollection);
+router.post('/:id/void', requireAdmin(), validate(voidEntrySchema), controller.voidCollection);
 
 export default router;

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { can } from '../../utils/permissions';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -223,9 +224,11 @@ const ApprovalsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Approvals</h1>
+          {can(undefined, 'approvals:add') && (
           <button className={styles.addButton} onClick={() => router.push('/approvals/create')}>
             + New approval
           </button>
+          )}
         </div>
 
         <div className={styles.listCard}>
@@ -284,7 +287,7 @@ const ApprovalsPage: React.FC = () => {
 
 export default function ApprovalsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="approvals:view">
       <ApprovalsPage />
     </ProtectedRoute>
   );

@@ -10,6 +10,12 @@ import assert from 'node:assert/strict';
 import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
+// This suite drives check-in at the REAL wall-clock time, so with the late-start rule
+// active every case here would fail when run after 12:30 PKT and pass before it. The
+// freeze has its own deterministic suite (`npm run test:freeze:flow`); switch it off here
+// so this one tests the check-in/checkout flow and nothing else.
+process.env.RIDER_FREEZE_ENABLED = 'false';
+
 import { VisitModel } from '../../models/visit.model';
 import { DealerModel } from '../../models/dealer.model';
 import { UserModel } from '../../models/user.model';

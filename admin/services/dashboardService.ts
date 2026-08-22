@@ -152,7 +152,8 @@ export type ReportDetailMetric =
   | 'earned'
   | 'paid-back'
   | 'net-after-returns'
-  | 'booked-sales';
+  | 'booked-sales'
+  | 'sales-ledger';
 
 export type ReportDetailColumnType = 'text' | 'number' | 'currency' | 'date';
 
@@ -174,7 +175,7 @@ export interface ReportDetail {
   description: string;
   /** `false` for all-time snapshots (stock, returns) — the date filter does not apply. */
   dateFiltered: boolean;
-  filters: { startDate: string; endDate: string };
+  filters: { startDate: string; endDate: string; dealerId: string | null; employeeId: string | null };
   columns: ReportDetailColumn[];
   summary: ReportDetailSummaryItem[];
   rows: Record<string, any>[];
@@ -211,11 +212,17 @@ export const dashboardService = {
 
   async getReportDetail(
     metric: ReportDetailMetric,
-    filters?: Pick<DashboardReportFilters, 'startDate' | 'endDate'>,
+    filters?: Pick<DashboardReportFilters, 'startDate' | 'endDate'> & {
+      /** Sales ledger only; the other metrics mirror a KPI that has no party filter. */
+      dealerId?: string;
+      employeeId?: string;
+    },
   ): Promise<ReportDetail> {
     const params = new URLSearchParams({ metric });
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
+    if (filters?.dealerId) params.append('dealerId', filters.dealerId);
+    if (filters?.employeeId) params.append('employeeId', filters.employeeId);
     const response = await api.get(`/dashboard/reports/detail?${params.toString()}`);
     return response.data;
   },

@@ -19,7 +19,10 @@ const ProductsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const router = useRouter();
   const { user } = useAuth();
-  const canManage = can(user?.role, 'products:view') && user?.role === 'admin';
+  // One cell per control. `canManage` used to collapse edit, delete and add into a single
+  // admin test, which made the three separate matrix ticks unobservable in the UI.
+  const canEdit = can(undefined, 'products:edit');
+  const canDelete = can(undefined, 'products:delete');
 
   useEffect(() => {
     fetchCategories();
@@ -208,7 +211,7 @@ const ProductsPage: React.FC = () => {
           >
             View
           </button>
-          {canManage && (
+          {canEdit && (
             <button
               className={styles.editButton}
               onClick={(e) => {
@@ -219,7 +222,7 @@ const ProductsPage: React.FC = () => {
               Edit
             </button>
           )}
-          {canManage && (
+          {canDelete && (
             <button
               className={styles.deleteButton}
               onClick={(e) => {
@@ -240,7 +243,7 @@ const ProductsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Products</h1>
-          {canManage && (
+          {can(undefined, 'products:add') && (
             <button className={styles.addButton} onClick={() => router.push('/products/create')}>
               + Add Product
             </button>
@@ -293,7 +296,7 @@ const ProductsPage: React.FC = () => {
 
 export default function ProductsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="products:view">
       <ProductsPage />
     </ProtectedRoute>
   );

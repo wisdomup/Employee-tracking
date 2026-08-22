@@ -6,7 +6,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
 import Table from '../../components/UI/Table';
-import { ALL_ROLES } from '../../utils/permissions';
+
 import {
   analyticsService,
   DetailColumnType,
@@ -14,6 +14,7 @@ import {
   PerformanceDetailMetric,
   formatPeriodMonth,
 } from '../../services/analyticsService';
+import { can } from '../../utils/permissions';
 import styles from '../../styles/Reports.module.scss';
 
 const VALID_METRICS: PerformanceDetailMetric[] = [
@@ -111,9 +112,15 @@ const PerformanceDetailPage: React.FC = () => {
     run();
   }, [router.isReady, metric, periodMonth, employeeId]);
 
+  // Order-backed metrics carry `orderId` on every row; visit and employee rollups do not.
+  const hasInvoiceLink = useMemo(
+    () => Boolean(detail?.rows.some((row) => row.orderId)) && can(undefined, 'orders:edit'),
+    [detail],
+  );
+
   const columns = useMemo(
-    () =>
-      (detail?.columns ?? []).map((column) => {
+    () => {
+      const dataColumns = (detail?.columns ?? []).map((column) => {
         const numeric =
           column.type === 'number' || column.type === 'currency' || column.type === 'percent';
         const mode = !numeric || NO_TOTAL_KEYS.has(column.key)
@@ -134,8 +141,33 @@ const PerformanceDetailPage: React.FC = () => {
               }
             : {}),
         };
-      }),
-    [detail],
+      });
+
+      if (!hasInvoiceLink) return dataColumns;
+
+      // A link rather than a button: the report is worth keeping open, so ctrl/cmd-click works.
+      return [
+        ...dataColumns,
+        {
+          key: 'actions',
+          title: 'Actions',
+          omitFromExport: true,
+          render: (_value: unknown, row: Record<string, unknown>) =>
+            row.orderId ? (
+              <Link
+                href={`/orders/${row.orderId}/edit`}
+                className={styles.rowActionLink}
+                onClick={(event) => event.stopPropagation()}
+              >
+                View invoice
+              </Link>
+            ) : (
+              '-'
+            ),
+        },
+      ];
+    },
+    [detail, hasInvoiceLink],
   );
 
   // The analytics page keeps month and employee in its own state, so both travel in the query.
@@ -209,8 +241,17 @@ const PerformanceDetailPage: React.FC = () => {
 };
 
 export default function PerformanceDetailPageWrapper() {
+  const router = useRouter();
+  // Twelve reports behind one route, so the gate reads the metric rather than naming a report
+  // up front — otherwise a role ticked for Sales alone could reach Overstays by editing the URL.
+  const metric = router.query.metric as string | undefined;
+
+  // Wait for the router: on the first render `query` is empty, and gating on
+  // `analytics.undefined` would bounce every direct link.
+  if (!router.isReady || !metric) return null;
+
   return (
-    <ProtectedRoute allowedRoles={ALL_ROLES}>
+    <ProtectedRoute report={`analytics.${metric}`}>
       <PerformanceDetailPage />
     </ProtectedRoute>
   );

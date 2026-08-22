@@ -468,7 +468,7 @@ const RegionSalesPage: React.FC = () => {
 
 export default function RegionSalesPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager']}>
+    <ProtectedRoute report="region-sales.daily">
       <RegionSalesPage />
     </ProtectedRoute>
   );

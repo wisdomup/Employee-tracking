@@ -649,7 +649,7 @@ const StockMatrixPage: React.FC = () => {
 export default function StockMatrixPageWrapper() {
   return (
     <ProtectedRoute
-      allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff', 'sales_manager']}
+      permission="warehouse:view"
     >
       <StockMatrixPage />
     </ProtectedRoute>

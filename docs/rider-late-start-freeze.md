@@ -28,9 +28,29 @@ until an admin unfreezes them.
 | | |
 | --- | --- |
 | **Roles** | `order_taker` only. Extending it is a one-line change to `FREEZE_ELIGIBLE_ROLES`. |
-| **Exempt** | Riders with **no assigned visits** that day — nothing to be late for. Same principle as the 75% rule scoring an empty day 100%. |
+| **Exempt** | **Friday** — the company holiday, the same day the visit cron omits. |
+| **Exempt** | An **approved leave** (`Approval` with `approvalType: 'leave'`, `status: 'approved'`) for that date. Any leave type counts: an admin signed off on the absence, and a half day is a fine reason to reach the first shop after noon. A `pending` request does **not** excuse anyone — otherwise the freeze would be avoidable by filing a request nobody approves. |
 | **Exempt** | Deactivated (`isActive: false`) and trashed users. |
-| **Not counted as assigned** | Self-started extras (`isSelfInitiated`) and `cancelled` visits. |
+| **NOT exempt** | Having **no assigned visits**. See below. |
+
+### Why an empty day is not an excuse
+
+The rule originally exempted riders with no assigned visits — "nothing to be late for",
+mirroring the 75% rule scoring an empty day 100%. That was wrong here, and it silently
+disabled the entire feature in production.
+
+Visit generation had stopped producing visits (the last were three weeks old), so **every
+rider had an empty day, every day**. The exemption fired for all of them, the check-in
+guard never triggered, the sweep skipped everyone, and nobody was ever frozen — while the
+riders carried on taking orders after 12:30 as though no rule existed.
+
+A rider is now expected at a shop by the deadline whether or not the cron handed them a
+route. `sweepLateStarters` still reports `frozenWithNoAssignedVisits` — **a count, not a
+skip**. A number rising there means the visit cron has gone idle and is worth
+investigating, but it no longer stops anyone being frozen.
+
+Self-started extras and cancelled visits are likewise no longer an escape: they were only
+ever relevant through the assigned-visit count, which no longer gates the freeze.
 
 ### The boundary
 
@@ -182,10 +202,19 @@ from `isActive`, so showing only Active there would hide why they cannot work.
 
 ```bash
 RIDER_FIRST_VISIT_DEADLINE=12:30           # HH:MM, 24-hour
-RIDER_FREEZE_TIMEZONE=Asia/Karachi         # falls back to REPORT_TIMEZONE
-LATE_START_CRON_ENABLED=false              # turn the no-show sweep off
+RIDER_FREEZE_TIMEZONE=Asia/Karachi         # PKT; falls back to REPORT_TIMEZONE
+RIDER_FREEZE_ENABLED=false                 # master switch — BOTH the guard and the sweep
+LATE_START_CRON_ENABLED=false              # the no-show sweep only
 LATE_START_CRON_SCHEDULE=35 12 * * 0,1,2,3,4,6
 ```
+
+**Set the timezone explicitly in `.env`.** It defaults to `Asia/Karachi` in code, but
+leaving it implicit means the rule quietly follows whatever `REPORT_TIMEZONE` happens to
+be — and neither follows the server's own clock, which is the thing people assume.
+
+`RIDER_FREEZE_ENABLED=false` is the switch for turning the feature off.
+`LATE_START_CRON_ENABLED=false` only stops the sweep and would leave riders still being
+refused at check-in — rarely what you want.
 
 A malformed `RIDER_FIRST_VISIT_DEADLINE` **throws**. The cron catches it and refuses to
 start, logging the reason — better a sweep that does not run than one that freezes
@@ -201,9 +230,12 @@ everybody at 00:00. `parseTimeOfDay` rejects `noon`, `1230`, `12:30pm`, `24:00`,
 | Checks in at 12:30:59 | Passes — seconds do not make a rider late. |
 | Checks in at 12:31 | Frozen, check-in refused (403). |
 | Already checked in at 9am, checks in again at 4pm | Untouched. Only the first arrival is judged. |
-| No assigned visits today | Exempt, both paths. |
-| Only self-started extras assigned | Exempt — extras are not assigned work. |
-| Only cancelled visits today | Exempt — called off, not the rider's failure. |
+| No assigned visits today | **Frozen.** Counted in `frozenWithNoAssignedVisits`. |
+| Only self-started extras assigned | **Frozen** — no longer an escape. |
+| Only cancelled visits today | **Frozen** — no longer an escape. |
+| Friday | Nobody is frozen, on either path. |
+| Approved leave for today | That rider is not frozen. |
+| Leave request still `pending` | Frozen — an unapproved request excuses nothing. |
 | `delivery_man` / `employee` / warehouse roles, arbitrarily late | Never frozen. Rule is `order_taker` only. |
 | Admin checks in on the rider's behalf after 12:30 | Allowed — the acting role is tested. The rider is still caught on their own next attempt. |
 | Server down over the deadline | The check-in guard still freezes them when they try to start. `POST /sweep` re-runs the no-show half. |
@@ -219,9 +251,13 @@ everybody at 00:00. `parseTimeOfDay` rejects `noon`, `1230`, `12:30pm`, `24:00`,
 ## 8. Tests
 
 ```bash
-npm run test:freeze        # 27 unit tests — deadline maths, timezone, formatting
-npm run test:freeze:flow   # 26 integration tests against in-memory MongoDB
+npm run test:freeze        # 32 unit tests — deadline maths, timezone, holiday, formatting
+npm run test:freeze:flow   # 33 integration tests against in-memory MongoDB
 ```
+
+Note `visits.flow.test.ts` sets `RIDER_FREEZE_ENABLED=false`. It drives check-in at the
+real wall-clock time, so with the rule active every case in it would pass before 12:30 PKT
+and fail after. The freeze's own suite controls the clock explicitly instead.
 
 Unit tests cover the `12:30:00` / `12:30:59` / `12:31` boundary, that the timezone
 genuinely changes the verdict (09:00 UTC is late in Karachi, on time in UTC), midnight

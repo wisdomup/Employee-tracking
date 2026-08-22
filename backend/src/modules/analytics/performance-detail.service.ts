@@ -177,6 +177,8 @@ function orderPipeline(
     {
       $project: {
         _id: 0,
+        // Not a column — it is what lets the detail table link a row back to its invoice.
+        orderId: '$_id',
         invoiceNumber: { $ifNull: ['$invoiceNumber', null] },
         date: '$createdAt',
         employeeName: employeeNameExpr,

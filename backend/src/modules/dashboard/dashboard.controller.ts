@@ -42,7 +42,7 @@ export async function getReports(req: Request, res: Response, next: NextFunction
 
 export async function getReportsDetail(req: Request, res: Response, next: NextFunction) {
   try {
-    const { metric, startDate, endDate } = req.query as Record<string, string>;
+    const { metric, startDate, endDate, dealerId, employeeId } = req.query as Record<string, string>;
     if (!REPORT_DETAIL_METRICS.includes(metric as ReportDetailMetric)) {
       res.status(400).json({
         message: `Unknown metric. Expected one of: ${REPORT_DETAIL_METRICS.join(', ')}`,
@@ -53,6 +53,8 @@ export async function getReportsDetail(req: Request, res: Response, next: NextFu
       metric: metric as ReportDetailMetric,
       startDate,
       endDate,
+      dealerId,
+      employeeId,
     });
     res.json(detail);
   } catch (err) {

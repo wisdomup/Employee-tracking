@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { can } from '../../utils/permissions';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -232,7 +233,7 @@ const ClientsPage: React.FC = () => {
               title={`Open driving directions to ${row.name}`}
             />
           )}
-          {isAdmin && (
+          {can(undefined, 'dealers:delete') && (
             <button
               className={styles.deleteButton}
               onClick={(e) => {
@@ -253,12 +254,14 @@ const ClientsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Clients</h1>
+          {can(undefined, 'dealers:add') && (
           <button
             className={styles.addButton}
             onClick={() => router.push('/clients/create')}
           >
             + Add Client
           </button>
+          )}
         </div>
 
         {riderCity && (
@@ -357,7 +360,7 @@ const ClientsPage: React.FC = () => {
 
 export default function ClientsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="dealers:view">
       <ClientsPage />
     </ProtectedRoute>
   );

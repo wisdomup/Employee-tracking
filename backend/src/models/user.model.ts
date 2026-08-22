@@ -10,7 +10,25 @@ export interface IUser extends Document {
   phone: string;
   email?: string;
   password: string;
+  /**
+   * The user's PRIMARY role, and the one every pre-existing query still reads.
+   *
+   * Kept authoritative rather than deprecated: ~305 references across the backend filter on
+   * it, the freeze cron sweeps by it, and analytics scoping groups by it. It is always
+   * `roles[0]`, enforced by the pre-validate hook below.
+   */
   role: string;
+  /**
+   * Every role assigned to this user, primary first.
+   *
+   * Added alongside `role` rather than replacing it so multi-role assignment could ship
+   * without rewriting every existing query in one change. A user with a single role has a
+   * one-element array, which is the state every account is migrated into.
+   *
+   * When this holds two or more roles the resolver looks for a `PermissionProfile` covering
+   * that exact combination — the roles are never unioned automatically.
+   */
+  roles: string[];
   /**
    * The sales_manager this field-staff user reports to.
    * Drives analytics scoping: a manager sees only the users pointing at them.
@@ -89,6 +107,11 @@ const userSchema = new Schema<IUser>(
       required: true,
       enum: Object.values(ROLES),
     },
+    roles: {
+      type: [String],
+      default: undefined,
+      enum: Object.values(ROLES),
+    },
     managerId: { type: Schema.Types.ObjectId, ref: 'User' },
     warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
     autoAssignVisits: { type: Boolean, default: true },
@@ -126,7 +149,52 @@ const userSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
+/**
+ * Keep `role` and `roles` in lockstep from whichever side the caller wrote.
+ *
+ * Two directions, because both write paths exist in the codebase: older code (and the public
+ * register endpoint) sets `role` alone, while the new employee form sets `roles`. Reconciling
+ * here rather than at every call site is what lets the two coexist during the migration —
+ * a user document is never left with a `role` that is absent from its own `roles`.
+ */
+userSchema.pre('validate', function (next) {
+  const hasRoles = Array.isArray(this.roles) && this.roles.length > 0;
+
+  // Which side was just written decides which side wins. Always trusting `roles` looks
+  // simpler and is wrong: `updateUser` assigns `role` from the employee form without
+  // touching `roles`, so `this.role = this.roles[0]` would quietly revert the change and the
+  // admin would watch the dropdown snap back with no error.
+  if (this.isModified('roles') && hasRoles) {
+    // De-duplicate without reordering, so an admin who put the roles in a deliberate order
+    // keeps it. First entry is the primary.
+    this.roles = [...new Set(this.roles)];
+    this.role = this.roles[0];
+  } else if (this.isModified('role') && this.role) {
+    /*
+     * Primary changed on its own — `updateUser` writing the employee form's Role dropdown.
+     *
+     * The whole assignment is replaced rather than the first entry swapped. Keeping the other
+     * entries would mean an admin who changed someone's role still left them holding
+     * permissions from the old one, with nothing on screen saying so; and the hook cannot
+     * tell a deliberately-added second role from the primary it is replacing.
+     *
+     * Nothing is lost in the normal flow: the employee form calls `setUserRoles` straight
+     * after, which writes the full array and takes the branch above.
+     */
+    this.roles = [this.role];
+  } else if (!hasRoles && this.role) {
+    // Neither was touched and the array is missing — a document written before multi-role.
+    this.roles = [this.role];
+  } else if (hasRoles) {
+    this.role = this.roles[0];
+  }
+
+  next();
+});
+
 userSchema.index({ role: 1 });
+// Multi-role lookups: "who holds warehouse_staff at all", not just as their primary.
+userSchema.index({ roles: 1, isTrashed: 1 });
 // Resolving a sales manager's team for analytics scoping
 userSchema.index({ managerId: 1, isTrashed: 1 });
 // Grouping salesmen into regions for the region-wise sale dashboard

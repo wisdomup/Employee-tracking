@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
@@ -58,7 +58,7 @@ router.use(blockFrozenWrites);
  */
 router.post(
   '/',
-  requireRoles('admin', 'employee', 'order_taker'),
+  requirePermission('orders:add'),
   validate(createOrderSchema),
   controller.create,
 );
@@ -88,7 +88,7 @@ router.post(
  *       200: { description: List of orders }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findAll);
+router.get('/', requirePermission('orders:view'), controller.findAll);
 
 /**
  * @openapi
@@ -107,7 +107,7 @@ router.get('/', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'
  *       200: { description: Order found }
  *       404: { description: Order not found }
  */
-router.get('/:id', requireRoles('admin', 'sales_manager', 'employee', 'order_taker'), controller.findOne);
+router.get('/:id', requirePermission('orders:view'), controller.findOne);
 
 /**
  * @openapi
@@ -136,7 +136,7 @@ router.get('/:id', requireRoles('admin', 'sales_manager', 'employee', 'order_tak
  */
 router.put(
   '/:id',
-  requireRoles('admin', 'employee', 'order_taker'),
+  requirePermission('orders:edit'),
   validate(updateOrderSchema),
   controller.update,
 );
@@ -171,7 +171,7 @@ router.put(
  */
 router.patch(
   '/:id/approve',
-  requireRoles('admin'),
+  requirePermission('orders:change'),
   (req, res, next) => {
     if (req.body == null || typeof req.body !== 'object') req.body = {};
     next();
@@ -213,7 +213,7 @@ router.patch(
  */
 router.patch(
   '/:id/assign-rider',
-  requireRoles('admin'),
+  requirePermission('orders:change'),
   validate(assignRiderSchema),
   controller.assignRider,
 );
@@ -235,8 +235,8 @@ router.patch(
  *       200: { description: Order deleted }
  *       404: { description: Order not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('orders:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

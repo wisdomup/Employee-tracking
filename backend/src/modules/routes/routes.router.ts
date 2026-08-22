@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createRouteSchema, updateRouteSchema } from './dto/routes.schemas';
 import * as controller from './routes.controller';
@@ -38,7 +38,7 @@ router.use(authMiddleware);
  *       400: { description: Validation error }
  *       401: { description: Unauthorized }
  */
-router.post('/', requireRoles('admin', 'employee'), validate(createRouteSchema), controller.create);
+router.post('/', requirePermission('routes:add'), validate(createRouteSchema), controller.create);
 
 /**
  * @openapi
@@ -64,7 +64,7 @@ router.post('/', requireRoles('admin', 'employee'), validate(createRouteSchema),
  *                 $ref: '#/components/schemas/Route'
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get('/', requirePermission('routes:view'), controller.findAll);
 
 /**
  * @openapi
@@ -90,7 +90,7 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  *       401: { description: Unauthorized }
  *       404: { description: Route not found }
  */
-router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
+router.get('/:id', requirePermission('routes:view'), controller.findOne);
 
 /**
  * @openapi
@@ -126,7 +126,7 @@ router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.
  *       401: { description: Unauthorized }
  *       404: { description: Route not found }
  */
-router.put('/:id', requireRoles('admin', 'employee'), validate(updateRouteSchema), controller.update);
+router.put('/:id', requirePermission('routes:edit'), validate(updateRouteSchema), controller.update);
 
 /**
  * @openapi
@@ -147,8 +147,8 @@ router.put('/:id', requireRoles('admin', 'employee'), validate(updateRouteSchema
  *       403: { description: Forbidden — admin role required }
  *       404: { description: Route not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('routes:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

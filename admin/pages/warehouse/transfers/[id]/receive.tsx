@@ -352,7 +352,7 @@ const td: React.CSSProperties = { padding: '0.5rem', borderBottom: '1px solid #f
 
 export default function ReceiveTransferPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="transfers:change">
       <ReceiveTransferPage />
     </ProtectedRoute>
   );

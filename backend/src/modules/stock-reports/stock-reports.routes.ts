@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requireReport } from '../../middleware/permission.middleware';
 import * as controller from './stock-reports.controller';
 
 const router = Router();
 
 router.use(authMiddleware);
-router.use(requireRoles('admin'));
+// Access is per-report, applied on each route below.
 
 /**
  * @openapi
@@ -34,7 +34,7 @@ router.use(requireRoles('admin'));
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
  */
-router.get('/current', controller.getCurrentStock);
+router.get('/current', requireReport('stock-reports.current'), controller.getCurrentStock);
 
 /**
  * @openapi
@@ -60,7 +60,7 @@ router.get('/current', controller.getCurrentStock);
  *     responses:
  *       200: { description: Hold stock rows }
  */
-router.get('/hold', controller.getHoldStock);
+router.get('/hold', requireReport('stock-reports.hold'), controller.getHoldStock);
 
 /**
  * @openapi
@@ -86,7 +86,7 @@ router.get('/hold', controller.getHoldStock);
  *     responses:
  *       200: { description: Damage stock rows }
  */
-router.get('/damage', controller.getDamageStock);
+router.get('/damage', requireReport('stock-reports.damage'), controller.getDamageStock);
 
 /**
  * @openapi
@@ -106,7 +106,7 @@ router.get('/damage', controller.getDamageStock);
  *     responses:
  *       200: { description: P&L summary }
  */
-router.get('/profit-loss', controller.getProfitLoss);
+router.get('/profit-loss', requireReport('stock-reports.pl'), controller.getProfitLoss);
 
 /**
  * @openapi
@@ -126,6 +126,6 @@ router.get('/profit-loss', controller.getProfitLoss);
  *     responses:
  *       200: { description: Low stock rows }
  */
-router.get('/low-stock', controller.getLowStock);
+router.get('/low-stock', requireReport('stock-reports.lowstock'), controller.getLowStock);
 
 export default router;

@@ -244,7 +244,7 @@ function WarehousesPage() {
 
 export default function WarehousesPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="warehouse:view">
       <WarehousesPage />
     </ProtectedRoute>
   );

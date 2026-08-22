@@ -315,7 +315,7 @@ interface DamageClaimLineLike {
 
 export default function DamageListPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="damage:view">
       <DamageListPage />
     </ProtectedRoute>
   );

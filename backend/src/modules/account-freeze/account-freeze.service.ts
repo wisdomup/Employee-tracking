@@ -16,6 +16,7 @@
 import { Types } from 'mongoose';
 import { UserModel, type IUser } from '../../models/user.model';
 import { VisitModel } from '../../models/visit.model';
+import { ApprovalModel } from '../../models/approval.model';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
@@ -24,6 +25,8 @@ import {
   FREEZE_TIMEZONE,
   configuredDeadline,
   formatDeadline,
+  isFreezeRuleEnabled,
+  isNonWorkingDay,
   isPastDeadline,
   lateStartFlagMessage,
   lateStartReason,
@@ -74,6 +77,34 @@ async function countAssignedVisits(employeeId: Types.ObjectId, day: Date): Promi
     { $count: 'count' },
   ]);
   return rows[0]?.count ?? 0;
+}
+
+/**
+ * Whether the rider has an admin-approved absence for this day.
+ *
+ * Any approved `leave` counts, including `half_day` and `short_leave` — an admin signed off
+ * on the absence, and a half day is a perfectly good reason to reach the first shop after
+ * noon. A `pending` request does NOT exempt anyone; letting it would make the freeze
+ * trivially avoidable by filing a request nobody ever approves.
+ */
+async function isOnApprovedLeave(employeeId: Types.ObjectId, day: Date): Promise<boolean> {
+  const { start, end } = utcDayRange(day);
+  const leave = await ApprovalModel.exists({
+    employeeId,
+    approvalType: 'leave',
+    status: 'approved',
+    leaveDate: { $gte: start, $lte: end },
+  });
+  return leave !== null;
+}
+
+/**
+ * Days nobody can be frozen on: the company holiday, and a rider's own approved leave.
+ * Shared by the check-in guard and the sweep so the two cannot drift apart.
+ */
+async function isExemptDay(employeeId: Types.ObjectId, now: Date): Promise<boolean> {
+  if (isNonWorkingDay(now)) return true;
+  return isOnApprovedLeave(employeeId, now);
 }
 
 /** The rider's earliest check-in of the day, or null if they have not arrived anywhere. */
@@ -252,6 +283,7 @@ export async function enforceFirstCheckInDeadline(params: {
   now: Date;
   visitId?: Types.ObjectId;
 }): Promise<string | null> {
+  if (!isFreezeRuleEnabled()) return null;
   if (!isFreezeEligibleRole(params.role)) return null;
   if (!isPastDeadline(params.now)) return null;
 
@@ -259,9 +291,14 @@ export async function enforceFirstCheckInDeadline(params: {
   const firstCheckIn = await findFirstCheckInAt(params.employeeId, params.now);
   if (firstCheckIn) return null;
 
-  // No assigned work today means nothing to be late for.
+  // The company holiday and approved leave are the ONLY excuses. Note what is deliberately
+  // absent: having no assigned visits. That used to exempt a rider, which silently disabled
+  // the whole rule whenever the visit-generation cron stopped producing visits — every
+  // rider then had an empty day and none could ever be frozen.
+  if (await isExemptDay(params.employeeId, params.now)) return null;
+
+  // Reported on the flag for context only; it no longer gates the freeze.
   const assignedVisits = await countAssignedVisits(params.employeeId, params.now);
-  if (assignedVisits === 0) return null;
 
   const reason = lateStartReason(params.now);
   await freezeUser(params.employeeId, reason);
@@ -279,27 +316,44 @@ export async function enforceFirstCheckInDeadline(params: {
 /**
  * The daily sweep, run by the cron just after the deadline.
  *
- * Freezes every eligible rider who had assigned visits today and has still not checked in
- * anywhere. Riders already frozen are skipped, so a re-run (or a manual invocation) is
- * safe and does not overwrite the original freeze time.
+ * Freezes every eligible rider who has not checked in anywhere today — whether or not the
+ * cron assigned them any visits. Only the company holiday and approved leave excuse it.
+ *
+ * `frozenWithNoAssignedVisits` counts riders frozen on an empty day. It is NOT a skip
+ * count: a high number there means the visit-generation cron has stopped producing visits,
+ * which is worth the admin knowing, but it no longer stops anyone being frozen.
+ *
+ * Riders already frozen are skipped, so a re-run (or a manual invocation) is safe and does
+ * not overwrite the original freeze time.
  */
 export async function sweepLateStarters(now: Date = new Date()): Promise<{
   evaluated: number;
   frozen: number;
-  skippedNoVisits: number;
+  frozenWithNoAssignedVisits: number;
   skippedAlreadyStarted: number;
   skippedAlreadyFrozen: number;
+  skippedExempt: number;
 }> {
   const summary = {
     evaluated: 0,
     frozen: 0,
-    skippedNoVisits: 0,
+    frozenWithNoAssignedVisits: 0,
     skippedAlreadyStarted: 0,
     skippedAlreadyFrozen: 0,
+    skippedExempt: 0,
   };
+
+  if (!isFreezeRuleEnabled()) {
+    return summary;
+  }
 
   // Running before the deadline would freeze riders who still have time to make it.
   if (!isPastDeadline(now)) {
+    return summary;
+  }
+
+  // Nobody is expected at a shop on the company holiday.
+  if (isNonWorkingDay(now)) {
     return summary;
   }
 
@@ -320,16 +374,23 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
       continue;
     }
 
-    const assignedVisits = await countAssignedVisits(rider._id, now);
-    if (assignedVisits === 0) {
-      summary.skippedNoVisits += 1;
-      continue;
-    }
-
     const firstCheckIn = await findFirstCheckInAt(rider._id, now);
     if (firstCheckIn) {
       summary.skippedAlreadyStarted += 1;
       continue;
+    }
+
+    // Approved leave is the only per-rider excuse. An empty day is NOT one: riders are
+    // expected at a shop by the deadline whether or not the cron assigned them a route.
+    if (await isOnApprovedLeave(rider._id, now)) {
+      summary.skippedExempt += 1;
+      continue;
+    }
+
+    const assignedVisits = await countAssignedVisits(rider._id, now);
+    if (assignedVisits === 0) {
+      // Still frozen — counted separately so the admin can see the visit cron is idle.
+      summary.frozenWithNoAssignedVisits += 1;
     }
 
     await freezeUser(rider._id, lateStartReason(null));

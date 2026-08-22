@@ -587,7 +587,7 @@ const td: React.CSSProperties = { padding: '0.5rem', borderBottom: '1px solid #f
 
 export default function WarehouseDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'warehouse_manager', 'warehouse_staff']}>
+    <ProtectedRoute permission="warehouse:view">
       <WarehouseDetailPage />
     </ProtectedRoute>
   );

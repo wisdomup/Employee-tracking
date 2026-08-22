@@ -10,7 +10,14 @@ export interface User {
   id: string;
   username: string;
   fullName?: string;
+  /** Primary role. Always `roles[0]`. */
   role: string;
+  /**
+   * Every role assigned to this user, primary first. Single-role accounts carry a one-element
+   * array. Never a security boundary — what these roles actually grant is resolved on the
+   * server and delivered by `/permissions/me`.
+   */
+  roles: string[];
   phone: string;
   email?: string;
   userID?: string;
@@ -43,6 +50,7 @@ export function mapApiUserToAuthUser(data: {
   username: string;
   fullName?: string;
   role: string;
+  roles?: string[];
   phone: string;
   email?: string;
   userID?: string;
@@ -59,6 +67,9 @@ export function mapApiUserToAuthUser(data: {
     username: data.username,
     fullName: data.fullName?.trim() || undefined,
     role: data.role,
+    // Accounts written before multi-role carry no array. The primary role standing alone is
+    // the same thing, and avoids an empty list reading as "this user has no roles".
+    roles: data.roles?.length ? data.roles : [data.role],
     phone: data.phone,
     email: data.email,
     userID: data.userID,

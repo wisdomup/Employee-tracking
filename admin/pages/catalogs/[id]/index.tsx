@@ -106,7 +106,7 @@ const CatalogDetailPage: React.FC = () => {
 
 export default function CatalogDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute permission="catalogs:view">
       <CatalogDetailPage />
     </ProtectedRoute>
   );

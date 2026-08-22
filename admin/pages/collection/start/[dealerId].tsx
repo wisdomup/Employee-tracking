@@ -298,7 +298,7 @@ const StartDeliveryPage: React.FC = () => {
 
 export default function StartDeliveryPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['delivery_man']}>
+    <ProtectedRoute permission="collections:add">
       <StartDeliveryPage />
     </ProtectedRoute>
   );

@@ -268,7 +268,7 @@ const ActivityPage: React.FC = () => {
 
 export default function ActivityPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'delivery_man']}>
+    <ProtectedRoute report="collection.activity">
       <ActivityPage />
     </ProtectedRoute>
   );

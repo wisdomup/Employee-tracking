@@ -249,7 +249,7 @@ const EditApprovalPage: React.FC = () => {
 
 export default function EditApprovalPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'order_taker']}>
+    <ProtectedRoute permission="approvals:edit">
       <EditApprovalPage />
     </ProtectedRoute>
   );

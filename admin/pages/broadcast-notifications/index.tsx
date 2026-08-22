@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { can } from '../../utils/permissions';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -184,6 +185,7 @@ const BroadcastNotificationsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Broadcast Notifications</h1>
+          {can(undefined, 'broadcast-notifications:add') && (
           <button
             type="button"
             className={styles.addButton}
@@ -191,6 +193,7 @@ const BroadcastNotificationsPage: React.FC = () => {
           >
             + New Notification
           </button>
+          )}
         </div>
 
         <div className={styles.listCard}>

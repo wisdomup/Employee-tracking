@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { uploadReturnInvoiceSingle } from '../../middleware/upload.middleware';
@@ -42,7 +42,7 @@ router.use(blockFrozenWrites);
  */
 router.post(
   '/',
-  requireRoles('admin', 'employee', 'order_taker'),
+  requirePermission('returns:add'),
   (req, res, next) => {
     uploadReturnInvoiceSingle(req, res, (err: unknown) => {
       if (err) {
@@ -81,7 +81,7 @@ router.post(
  *       200: { description: List of returns }
  *       401: { description: Unauthorized }
  */
-router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.findAll);
+router.get('/', requirePermission('returns:view'), controller.findAll);
 
 /**
  * @openapi
@@ -100,7 +100,7 @@ router.get('/', requireRoles('admin', 'employee', 'order_taker'), controller.fin
  *       200: { description: Return found }
  *       404: { description: Return not found }
  */
-router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.findOne);
+router.get('/:id', requirePermission('returns:view'), controller.findOne);
 
 /**
  * @openapi
@@ -135,7 +135,7 @@ router.get('/:id', requireRoles('admin', 'employee', 'order_taker'), controller.
  */
 router.put(
   '/:id',
-  requireRoles('admin', 'order_taker'),
+  requirePermission('returns:edit'),
   (req, res, next) => {
     uploadReturnInvoiceSingle(req, res, (err: unknown) => {
       if (err) {
@@ -166,8 +166,8 @@ router.put(
  *       200: { description: Return deleted }
  *       404: { description: Return not found }
  */
-router.delete('/:id', requireRoles('admin', 'order_taker'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('returns:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { can } from '../../utils/permissions';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -118,9 +119,11 @@ const CategoriesPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Categories</h1>
+          {can(undefined, 'categories:add') && (
           <button className={styles.addButton} onClick={() => router.push('/categories/create')}>
             + Add Category
           </button>
+          )}
         </div>
 
         <div className={styles.listCard}>

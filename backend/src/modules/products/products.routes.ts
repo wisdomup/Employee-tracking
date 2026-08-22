@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createProductSchema, updateProductSchema } from './dto/products.schemas';
 import * as controller from './products.controller';
@@ -38,7 +38,7 @@ router.use(authMiddleware);
  *       400: { description: Validation error or duplicate barcode }
  *       401: { description: Unauthorized }
  */
-router.post('/', requireRoles('admin'), validate(createProductSchema), controller.create);
+router.post('/', requirePermission('products:add'), validate(createProductSchema), controller.create);
 
 /**
  * @openapi
@@ -60,7 +60,7 @@ router.post('/', requireRoles('admin'), validate(createProductSchema), controlle
  *       200: { description: List of products }
  *       401: { description: Unauthorized }
  */
-router.get('/', controller.findAll);
+router.get('/', requirePermission('products:view'), controller.findAll);
 
 /**
  * @openapi
@@ -79,7 +79,7 @@ router.get('/', controller.findAll);
  *       200: { description: Product found }
  *       404: { description: Product not found }
  */
-router.get('/:id', controller.findOne);
+router.get('/:id', requirePermission('products:view'), controller.findOne);
 
 /**
  * @openapi
@@ -113,7 +113,7 @@ router.get('/:id', controller.findOne);
  *       200: { description: Product updated }
  *       404: { description: Product not found }
  */
-router.put('/:id', requireRoles('admin'), validate(updateProductSchema), controller.update);
+router.put('/:id', requirePermission('products:edit'), validate(updateProductSchema), controller.update);
 
 /**
  * @openapi
@@ -132,8 +132,8 @@ router.put('/:id', requireRoles('admin'), validate(updateProductSchema), control
  *       200: { description: Product deleted }
  *       404: { description: Product not found }
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
-router.patch('/:id/restore', requireRoles('admin'), controller.restore);
-router.delete('/:id/permanent', requireRoles('admin'), controller.removePermanent);
+router.delete('/:id', requirePermission('products:delete'), controller.remove);
+router.patch('/:id/restore', requirePermission('trash:change'), controller.restore);
+router.delete('/:id/permanent', requirePermission('trash:delete'), controller.removePermanent);
 
 export default router;

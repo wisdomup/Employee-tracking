@@ -1,0 +1,2298 @@
+{
+  "$comment": "Frozen snapshot of who could reach each endpoint BEFORE the permission migration, taken from the route files at the commit prior to it. Consumed by permissions.parity.test.ts, which asserts the new guards plus the seeded matrix grant the same access. Do not regenerate to make a failing test pass — a difference here is either a regression or a deliberate change that belongs in INTENTIONAL.",
+  "endpoints": 228,
+  "routes": {
+    "account-freeze_account-freeze.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/me",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "post",
+        "path": "/sweep",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "patch",
+        "path": "/:id/unfreeze",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "activity-logs_activity-logs.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/recent",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/employee/:id",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      }
+    ],
+    "analytics_analytics.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/performance",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/performance/detail",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/trend",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      }
+    ],
+    "approvals_approvals.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "patch",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "patch",
+        "path": "/:id/status",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "order_taker"
+        ]
+      }
+    ],
+    "attendance_attendance.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/check-in",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "post",
+        "path": "/check-out",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/today",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "patch",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 9,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "auth_auth.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/register",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "post",
+        "path": "/login",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "post",
+        "path": "/forgot-password",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "post",
+        "path": "/reset-password",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "post",
+        "path": "/change-password",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      }
+    ],
+    "broadcast-notifications_broadcast-notifications.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/inbox",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "patch",
+        "path": "/:id/read",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "catalogs_catalogs.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "categories_categories.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "collections_collections.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/my/orders",
+        "roles": [
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/my/balance",
+        "roles": [
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "patch",
+        "path": "/orders/:orderId/packed",
+        "roles": [
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "post",
+        "path": "/orders/:orderId/deliver",
+        "roles": [
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "post",
+        "path": "/recoveries",
+        "roles": [
+          "admin",
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "get",
+        "path": "/recoveries",
+        "roles": [
+          "admin",
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "get",
+        "path": "/dealers/:dealerId/outstanding",
+        "roles": [
+          "admin",
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "post",
+        "path": "/settlements",
+        "roles": [
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "get",
+        "path": "/settlements",
+        "roles": [
+          "admin",
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 9,
+        "verb": "patch",
+        "path": "/settlements/:id/receive",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 10,
+        "verb": "get",
+        "path": "/report",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 11,
+        "verb": "get",
+        "path": "/activity",
+        "roles": [
+          "admin",
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 12,
+        "verb": "get",
+        "path": "/day-end",
+        "roles": [
+          "admin",
+          "delivery_man"
+        ]
+      },
+      {
+        "index": 13,
+        "verb": "get",
+        "path": "/riders",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 14,
+        "verb": "patch",
+        "path": "/recoveries/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 15,
+        "verb": "post",
+        "path": "/recoveries/:id/void",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 16,
+        "verb": "patch",
+        "path": "/settlements/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 17,
+        "verb": "post",
+        "path": "/settlements/:id/void",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 18,
+        "verb": "patch",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 19,
+        "verb": "post",
+        "path": "/:id/void",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "dashboard_dashboard.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/stats",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/my-stats",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/reports",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/reports/detail",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "dealers_dealers.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/nearby",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/location",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "orders_orders.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "patch",
+        "path": "/:id/approve",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/assign-rider",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "performance-flags_performance-flags.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/summary",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "patch",
+        "path": "/:id/resolve",
+        "roles": [
+          "admin",
+          "sales_manager"
+        ]
+      }
+    ],
+    "products_products.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "region-sales_region-sales.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/regions",
+        "roles": [
+          "admin",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/regions/:regionKey/salesmen",
+        "roles": [
+          "admin",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/salesman/:employeeId",
+        "roles": [
+          "admin",
+          "sales_manager"
+        ]
+      }
+    ],
+    "returns_returns.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "route-assignments_route-assignments.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/route/:routeId",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/employee/:employeeId",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/route/:routeId",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "routes_routes.router.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee",
+          "order_taker"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "stock-reports_stock-reports.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/current",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/hold",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/damage",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/profit-loss",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "get",
+        "path": "/low-stock",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "targets_targets.routes.ts": [
+      {
+        "index": 0,
+        "verb": "put",
+        "path": "/",
+        "roles": [
+          "admin",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "sales_manager"
+        ]
+      }
+    ],
+    "tasks_tasks.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/:id/assign",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "patch",
+        "path": "/:id/start",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "patch",
+        "path": "/:id/complete",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      }
+    ],
+    "trash_trash.routes.ts": [
+      {
+        "index": 0,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "post",
+        "path": "/bulk-delete",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "upload_upload.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      }
+    ],
+    "users_users.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/role/:role",
+        "roles": [
+          "admin",
+          "employee",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/me",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "patch",
+        "path": "/me",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "employee",
+          "sales_manager"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 9,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "visits_visits.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "post",
+        "path": "/create-for-route",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "post",
+        "path": "/bulk",
+        "roles": [
+          "admin",
+          "employee"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "get",
+        "path": "/gallery",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "get",
+        "path": "/last",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "patch",
+        "path": "/:id/complete",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "patch",
+        "path": "/:id/check-in",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "post",
+        "path": "/self",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 9,
+        "verb": "get",
+        "path": "/:id/skip-preview",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 10,
+        "verb": "patch",
+        "path": "/:id/skip",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 11,
+        "verb": "patch",
+        "path": "/:id/gallery",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 12,
+        "verb": "get",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "sales_manager",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 13,
+        "verb": "put",
+        "path": "/:id",
+        "roles": [
+          "admin",
+          "delivery_man",
+          "employee",
+          "order_taker",
+          "warehouse_manager"
+        ]
+      },
+      {
+        "index": 14,
+        "verb": "delete",
+        "path": "/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 15,
+        "verb": "patch",
+        "path": "/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 16,
+        "verb": "delete",
+        "path": "/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      }
+    ],
+    "warehouse_warehouse.routes.ts": [
+      {
+        "index": 0,
+        "verb": "post",
+        "path": "/warehouses",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 1,
+        "verb": "get",
+        "path": "/warehouses",
+        "roles": [
+          "admin",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 2,
+        "verb": "get",
+        "path": "/warehouses/main",
+        "roles": [
+          "admin",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 3,
+        "verb": "get",
+        "path": "/warehouses/:id",
+        "roles": [
+          "admin",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 4,
+        "verb": "put",
+        "path": "/warehouses/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 5,
+        "verb": "patch",
+        "path": "/warehouses/:id/set-main",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 6,
+        "verb": "delete",
+        "path": "/warehouses/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 7,
+        "verb": "patch",
+        "path": "/warehouses/:id/restore",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 8,
+        "verb": "delete",
+        "path": "/warehouses/:id/permanent",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 9,
+        "verb": "get",
+        "path": "/stock",
+        "roles": [
+          "admin",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 10,
+        "verb": "get",
+        "path": "/stock/matrix",
+        "roles": [
+          "admin",
+          "sales_manager",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 11,
+        "verb": "get",
+        "path": "/stock/movements",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 12,
+        "verb": "get",
+        "path": "/products/:productId/last-purchase-rate",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 13,
+        "verb": "post",
+        "path": "/stock/adjust",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 14,
+        "verb": "post",
+        "path": "/opening-stock",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 15,
+        "verb": "get",
+        "path": "/opening-stock",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 16,
+        "verb": "get",
+        "path": "/opening-stock/matrix",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 17,
+        "verb": "post",
+        "path": "/opening-stock/matrix",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 18,
+        "verb": "get",
+        "path": "/opening-stock/status/:warehouseId",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 19,
+        "verb": "put",
+        "path": "/opening-stock/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 20,
+        "verb": "patch",
+        "path": "/opening-stock/:id/cancel",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 21,
+        "verb": "post",
+        "path": "/stock-receipts",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 22,
+        "verb": "get",
+        "path": "/stock-receipts",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 23,
+        "verb": "get",
+        "path": "/stock-receipts/:id",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 24,
+        "verb": "get",
+        "path": "/stock-receipts/:id/slip",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 25,
+        "verb": "patch",
+        "path": "/stock-receipts/:id/cancel",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 26,
+        "verb": "put",
+        "path": "/stock-receipts/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 27,
+        "verb": "delete",
+        "path": "/stock-receipts/:id",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 28,
+        "verb": "post",
+        "path": "/transfers",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 29,
+        "verb": "get",
+        "path": "/transfers",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 30,
+        "verb": "get",
+        "path": "/transfers/:id",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 31,
+        "verb": "get",
+        "path": "/transfers/:id/slip",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 32,
+        "verb": "patch",
+        "path": "/transfers/:id/approve",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 33,
+        "verb": "patch",
+        "path": "/transfers/:id/reject",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 34,
+        "verb": "patch",
+        "path": "/transfers/:id/receive",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 35,
+        "verb": "patch",
+        "path": "/transfers/:id/resolve-mismatch",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 36,
+        "verb": "patch",
+        "path": "/transfers/:id/cancel",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 37,
+        "verb": "post",
+        "path": "/damage-claims",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 38,
+        "verb": "get",
+        "path": "/damage-claims",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 39,
+        "verb": "get",
+        "path": "/damage-claims/:id",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 40,
+        "verb": "get",
+        "path": "/damage-claims/:id/slip",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 41,
+        "verb": "patch",
+        "path": "/damage-claims/:id/approve",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 42,
+        "verb": "patch",
+        "path": "/damage-claims/:id/reject",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 43,
+        "verb": "patch",
+        "path": "/damage-claims/:id/cancel",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 44,
+        "verb": "get",
+        "path": "/stock-counts/sheet/:warehouseId",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 45,
+        "verb": "post",
+        "path": "/stock-counts",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 46,
+        "verb": "get",
+        "path": "/stock-counts",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 47,
+        "verb": "get",
+        "path": "/stock-counts/report",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 48,
+        "verb": "get",
+        "path": "/stock-counts/:id",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 49,
+        "verb": "put",
+        "path": "/stock-counts/:id",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 50,
+        "verb": "patch",
+        "path": "/stock-counts/:id/submit",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 51,
+        "verb": "patch",
+        "path": "/stock-counts/:id/approve",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 52,
+        "verb": "patch",
+        "path": "/stock-counts/:id/reject",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 53,
+        "verb": "patch",
+        "path": "/stock-counts/:id/cancel",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 54,
+        "verb": "get",
+        "path": "/reports/valuation",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 55,
+        "verb": "get",
+        "path": "/reports/low-stock",
+        "roles": [
+          "admin",
+          "warehouse_manager",
+          "warehouse_staff"
+        ]
+      },
+      {
+        "index": 56,
+        "verb": "get",
+        "path": "/maintenance/integrity",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "index": 57,
+        "verb": "post",
+        "path": "/maintenance/resync-mirror",
+        "roles": [
+          "admin"
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import { requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
   createBroadcastNotificationSchema,
@@ -23,7 +23,7 @@ router.use(authMiddleware);
  */
 router.post(
   '/',
-  requireRoles('admin'),
+  requirePermission('broadcast-notifications:add'),
   validate(createBroadcastNotificationSchema),
   controller.create,
 );
@@ -37,7 +37,7 @@ router.post(
  *     security:
  *       - bearerAuth: []
  */
-router.get('/', requireRoles('admin'), controller.findAll);
+router.get('/', requirePermission('broadcast-notifications:view'), controller.findAll);
 
 /**
  * @openapi
@@ -83,7 +83,7 @@ router.get('/:id', controller.findOne);
  */
 router.put(
   '/:id',
-  requireRoles('admin'),
+  requirePermission('broadcast-notifications:edit'),
   validate(updateBroadcastNotificationSchema),
   controller.update,
 );
@@ -97,6 +97,6 @@ router.put(
  *     security:
  *       - bearerAuth: []
  */
-router.delete('/:id', requireRoles('admin'), controller.remove);
+router.delete('/:id', requirePermission('broadcast-notifications:delete'), controller.remove);
 
 export default router;

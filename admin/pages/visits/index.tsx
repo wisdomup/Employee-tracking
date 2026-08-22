@@ -18,7 +18,7 @@ import {
 import { clientService, Client } from '../../services/clientService';
 import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
-import { ALL_ROLES } from '../../utils/permissions';
+import { can, ALL_ROLES } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -275,7 +275,7 @@ const VisitsPage: React.FC = () => {
           >
             Edit
           </button>
-          {isAdmin && (
+          {can(undefined, 'visits:delete') && (
             <button
               className={styles.deleteButton}
               onClick={(e) => {
@@ -296,7 +296,7 @@ const VisitsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Visits</h1>
-          {isAdmin && (
+          {can(undefined, 'visits:add') && (
             <button className={styles.addButton} onClick={() => router.push('/visits/create')}>
               + Schedule Visit
             </button>

@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requireRoles } from '../../middleware/roles.middleware';
+import {
+  requireAdmin,
+  requireAnyReportOn,
+  requirePermission,
+  requireReportFrom,
+} from '../../middleware/permission.middleware';
 import * as controller from './dashboard.controller';
 
 const router = Router();
@@ -69,7 +74,10 @@ router.use(authMiddleware);
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden — admin role required }
  */
-router.get('/stats', requireRoles('admin'), controller.getStats);
+// Company-wide totals across every employee, client and order. Structurally the admin's:
+// `dashboard:view` is the baseline grant that opens the landing page for every role, so
+// gating this on it would publish the whole company's figures to a rider.
+router.get('/stats', requireAdmin(), controller.getStats);
 
 /**
  * @openapi
@@ -94,19 +102,8 @@ router.get('/stats', requireRoles('admin'), controller.getStats);
  *       200: { description: "{ date, visits{}, tasks{}, sales{} }" }
  *       401: { description: Unauthorized }
  */
-router.get(
-  '/my-stats',
-  requireRoles(
-    'admin',
-    'sales_manager',
-    'employee',
-    'order_taker',
-    'delivery_man',
-    'warehouse_manager',
-    'warehouse_staff',
-  ),
-  controller.getMyStats,
-);
+// Everyone's own numbers on their own landing page — the same grant that opens the dashboard.
+router.get('/my-stats', requirePermission('dashboard:view'), controller.getMyStats);
 
 /**
  * @openapi
@@ -135,7 +132,7 @@ router.get(
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden — admin role required }
  */
-router.get('/reports', requireRoles('admin'), controller.getReports);
+router.get('/reports', requireAnyReportOn('reports.'), controller.getReports);
 
 /**
  * @openapi
@@ -155,13 +152,21 @@ router.get('/reports', requireRoles('admin'), controller.getReports);
  *         required: true
  *         schema:
  *           type: string
- *           enum: [current-stock, stock-hold, returned-qty, damaged-qty, sold-qty, earned, paid-back, net-after-returns, booked-sales]
+ *           enum: [current-stock, stock-hold, returned-qty, damaged-qty, sold-qty, earned, paid-back, net-after-returns, booked-sales, sales-ledger]
  *       - in: query
  *         name: startDate
  *         schema: { type: string, format: date }
  *       - in: query
  *         name: endDate
  *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: dealerId
+ *         description: Sales ledger only — restrict to one client.
+ *         schema: { type: string }
+ *       - in: query
+ *         name: employeeId
+ *         description: Sales ledger only — restrict to the invoices one employee raised.
+ *         schema: { type: string }
  *     responses:
  *       200:
  *         description: Detail payload
@@ -198,6 +203,10 @@ router.get('/reports', requireRoles('admin'), controller.getReports);
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden — admin role required }
  */
-router.get('/reports/detail', requireRoles('admin'), controller.getReportsDetail);
+router.get(
+  '/reports/detail',
+  requireReportFrom((req) => 'reports.' + String(req.query.metric ?? '')),
+  controller.getReportsDetail,
+);
 
 export default router;

@@ -72,6 +72,7 @@ Wisdomup/
 | [Performance Analytics & Targets](docs/analytics-and-targets.md) | The `sales_manager` role, rider→manager hierarchy, monthly targets, achievement rules, and analytics scoping |
 | [Visit Completion, Skipping & Flags](docs/visit-completion-and-flags.md) | The 75% completion rule, skipping visits with warnings, and the admin performance-flag queue |
 | [Rider Late-Start Freeze](docs/rider-late-start-freeze.md) | The 12:30 PM first-visit deadline, what freezing an account blocks, and the admin unfreeze queue |
+| [User Roles & Permissions](docs/roles-and-permissions.md) | The admin-editable permission matrix (roles x modules x actions), the 48-report access layer, multi-role profiles, and why reports carry no export |
 | [Region-wise Daily Sale Dashboard](docs/region-sales-dashboard.md) | City-wise daily sale with drill-down to salesmen and day-wise reports, and the Pakistan-time day boundary |
 
 ---
