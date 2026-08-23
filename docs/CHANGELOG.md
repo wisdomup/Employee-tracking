@@ -8,6 +8,33 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-20 — Fix: an unfreeze was undone within seconds
+
+### Fixed
+- **Unfreezing a rider did nothing.** The admin lifted the lock and the rider was handed
+  straight back into the exact state that froze them — still past the deadline, still with
+  no check-in — so the check-in guard fired again on their very next action and re-froze
+  them. The intervention was cosmetic.
+
+  An unfreeze now records **`User.freezePardonedFor`**, UTC midnight of that day. While it
+  matches today neither enforcement path will re-freeze the rider, so they finish their
+  visits normally. The admin's "Run late-start check now" button no longer undoes their own
+  unfreeze either (`skippedPardoned` in the sweep summary).
+
+  The pardon is scoped to **one day and one rider**. Late again tomorrow means frozen again,
+  and the admin can unfreeze again — the cycle repeats indefinitely, with each freeze still
+  writing its own `late_start` flag so a repeat offender stays visible. `freezeUser` clears
+  a spent pardon, since a fresh freeze can only be a later day than the one it covered.
+
+  The rider's red banner is replaced for the rest of the day by a green "Your account has
+  been unfrozen" note confirming they are cleared and reminding them of tomorrow's deadline
+  (`pardonedToday` on `GET /api/account-freeze/me`). The admin's unfreeze confirmation now
+  spells out the same thing.
+
+  `unfreezeUser` and `getFreezeStatus` gained an optional injected clock, matching
+  `sweepLateStarters` and `enforceFirstCheckInDeadline`, purely so the pardon date is
+  testable. `test:freeze:flow` is now 42 integration tests.
+
 ## 2026-08-20 — Fix: the late-start freeze was never firing
 
 ### Fixed
@@ -39,7 +66,7 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
   deadline quietly followed whatever `REPORT_TIMEZONE` was set to.
 - `visits.flow.test.ts` now disables the rule. It drives check-in at the real wall-clock
   time, so it passed before 12:30 PKT and failed after — latent flakiness introduced when
-  the guard was added. Suites: `test:freeze` 32, `test:freeze:flow` 33.
+  the guard was added. Suites: `test:freeze` 32, `test:freeze:flow` 42.
 
 ## 2026-08-18 — Take an order during a shop visit ("Order Lena")
 

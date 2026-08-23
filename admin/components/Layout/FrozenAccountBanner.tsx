@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Snowflake } from '@phosphor-icons/react';
+import { CheckCircle, Snowflake } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { accountFreezeService, FreezeStatus } from '../../services/accountFreezeService';
@@ -44,6 +44,25 @@ const FrozenAccountBanner: React.FC = () => {
   }, [isAuthenticated, user?.id]);
 
   const frozen = status ? status.isFrozen : user?.isFrozen === true;
+
+  // Cleared by an admin earlier today. Worth saying out loud: the rider was just locked
+  // out, and without confirmation they have no way to know the lock will not simply come
+  // back the moment they try to work.
+  if (!frozen && isAuthenticated && status?.pardonedToday) {
+    return (
+      <div className={styles.clearedBanner} role="status">
+        <CheckCircle size={22} weight="fill" className={styles.clearedIcon} aria-hidden />
+        <div className={styles.body}>
+          <p className={styles.clearedTitle}>Your account has been unfrozen</p>
+          <p className={styles.reason}>
+            An admin cleared you for today — carry on with your visits as normal. Reach your
+            first shop by {status.deadline} tomorrow to avoid being frozen again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated || !frozen) return null;
 
   const reason =

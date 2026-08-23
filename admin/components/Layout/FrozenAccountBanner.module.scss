@@ -62,3 +62,37 @@
     padding: 0.875rem 1rem;
   }
 }
+
+/* The "you're cleared for today" note, shown after an admin lifts a freeze. */
+.clearedBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #a7f3d0;
+  border-left: 4px solid #047857;
+  border-radius: 0.5rem;
+  background-color: #ecfdf5;
+  color: #065f46;
+}
+
+.clearedIcon {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  color: #047857;
+}
+
+.clearedTitle {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #047857;
+}
+
+@media (max-width: 900px) {
+  .clearedBanner {
+    margin-bottom: 1rem;
+    padding: 0.875rem 1rem;
+  }
+}

@@ -42,7 +42,13 @@ const FrozenAccountsPage: React.FC = () => {
 
   const handleUnfreeze = async (row: FrozenUser) => {
     const name = employeeDisplayLabel(row) || row.username;
-    if (!window.confirm(`Unfreeze ${name}? They will be able to record work again immediately.`)) {
+    if (
+      !window.confirm(
+        `Unfreeze ${name}? They can record work again immediately, and will not be` +
+          ` auto-frozen again for the rest of today. If they are late again tomorrow,` +
+          ` they are frozen again.`,
+      )
+    ) {
       return;
     }
 
@@ -53,7 +59,7 @@ const FrozenAccountsPage: React.FC = () => {
     setBusyId(row._id);
     try {
       await accountFreezeService.unfreeze(row._id, note?.trim() || undefined);
-      toast.success(`${name} can work again`);
+      toast.success(`${name} can work again — cleared for the rest of today`);
       load();
     } catch (err) {
       const ax = err as { response?: { data?: { message?: string } } };

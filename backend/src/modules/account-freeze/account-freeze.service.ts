@@ -107,6 +107,23 @@ async function isExemptDay(employeeId: Types.ObjectId, now: Date): Promise<boole
   return isOnApprovedLeave(employeeId, now);
 }
 
+/**
+ * Whether an admin has already lifted this rider's freeze today.
+ *
+ * Compares against UTC midnight of `now` — the same day boundary everything else in this
+ * module uses — so the pardon covers exactly the day it was granted on and no other.
+ */
+function isPardonedOn(pardonedFor: Date | null | undefined, now: Date): boolean {
+  if (!pardonedFor) return false;
+  return new Date(pardonedFor).getTime() === utcDayRange(now).start.getTime();
+}
+
+/** Same check for the guard path, where the user document has not been loaded. */
+async function isPardonedToday(employeeId: Types.ObjectId, now: Date): Promise<boolean> {
+  const user = await UserModel.findById(employeeId).select('freezePardonedFor').lean().exec();
+  return isPardonedOn(user?.freezePardonedFor, now);
+}
+
 /** The rider's earliest check-in of the day, or null if they have not arrived anywhere. */
 async function findFirstCheckInAt(
   employeeId: Types.ObjectId,
@@ -181,7 +198,9 @@ export async function freezeUser(
         frozenReason: reason,
         ...(actorId ? { frozenBy: new Types.ObjectId(actorId) } : {}),
       },
-      $unset: { unfrozenAt: 1, unfrozenBy: 1, ...(actorId ? {} : { frozenBy: 1 }) },
+      // A fresh freeze spends any earlier pardon: it can only be a later day than the one
+      // that pardon covered, so leaving it would be stale data the sweep has to reason about.
+      $unset: { unfrozenAt: 1, unfrozenBy: 1, freezePardonedFor: 1, ...(actorId ? {} : { frozenBy: 1 }) },
     },
   ).exec();
 
@@ -203,6 +222,8 @@ export async function unfreezeUser(
   userId: string,
   actorId: string,
   note?: string,
+  /** Injected clock, so the pardon date is testable. Production always uses real time. */
+  now: Date = new Date(),
 ): Promise<IUser> {
   if (!Types.ObjectId.isValid(userId)) {
     throw badRequest('Invalid user id');
@@ -219,8 +240,12 @@ export async function unfreezeUser(
   }
 
   user.isFrozen = false;
-  user.unfrozenAt = new Date();
+  user.unfrozenAt = now;
   user.unfrozenBy = new Types.ObjectId(actorId);
+  // The pardon. Without it the rider is handed straight back into the same failing state —
+  // still past the deadline, still no check-in — and the guard re-freezes them on their very
+  // next action, which is exactly what the admin just intervened to prevent.
+  user.freezePardonedFor = utcDayRange(now).start;
   // `frozenAt` / `frozenReason` are kept: they are the record of the last freeze, and the
   // admin list shows "last frozen on…" for someone who is repeatedly late.
   await user.save();
@@ -250,9 +275,9 @@ export async function findFrozenUsers() {
 }
 
 /** The freeze state the rider's own app reads, to render the banner. */
-export async function getFreezeStatus(userId: string) {
+export async function getFreezeStatus(userId: string, now: Date = new Date()) {
   const user = await UserModel.findOne({ _id: userId, isTrashed: { $ne: true } })
-    .select('isFrozen frozenAt frozenReason role')
+    .select('isFrozen frozenAt frozenReason freezePardonedFor role')
     .lean()
     .exec();
   if (!user) {
@@ -266,6 +291,12 @@ export async function getFreezeStatus(userId: string) {
     /** So the rider's app can show the deadline even on a day they are not frozen. */
     deadline: formatDeadline(),
     subjectToRule: isFreezeEligibleRole(user.role),
+    /**
+     * True when an admin lifted a freeze for them earlier today. The rider's app uses it to
+     * confirm they are cleared for the rest of the day rather than leaving them wondering
+     * whether the lock is about to come back.
+     */
+    pardonedToday: isPardonedOn(user.freezePardonedFor, now),
   };
 }
 
@@ -296,6 +327,12 @@ export async function enforceFirstCheckInDeadline(params: {
   // the whole rule whenever the visit-generation cron stopped producing visits — every
   // rider then had an empty day and none could ever be frozen.
   if (await isExemptDay(params.employeeId, params.now)) return null;
+
+  // An admin has already let them off for today. Re-freezing now would undo the very
+  // intervention that just happened — the rider is still past the deadline with no
+  // check-in, so without this the guard fires again on their next action. The pardon
+  // covers today only; tomorrow they are judged afresh.
+  if (await isPardonedToday(params.employeeId, params.now)) return null;
 
   // Reported on the flag for context only; it no longer gates the freeze.
   const assignedVisits = await countAssignedVisits(params.employeeId, params.now);
@@ -333,6 +370,7 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
   skippedAlreadyStarted: number;
   skippedAlreadyFrozen: number;
   skippedExempt: number;
+  skippedPardoned: number;
 }> {
   const summary = {
     evaluated: 0,
@@ -341,6 +379,7 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
     skippedAlreadyStarted: 0,
     skippedAlreadyFrozen: 0,
     skippedExempt: 0,
+    skippedPardoned: 0,
   };
 
   if (!isFreezeRuleEnabled()) {
@@ -362,7 +401,7 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
     isActive: true,
     isTrashed: { $ne: true },
   })
-    .select('_id isFrozen')
+    .select('_id isFrozen freezePardonedFor')
     .lean()
     .exec();
 
@@ -371,6 +410,13 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
 
     if (rider.isFrozen === true) {
       summary.skippedAlreadyFrozen += 1;
+      continue;
+    }
+
+    // Already pardoned by an admin today — re-freezing would undo that intervention, and
+    // the manual "Run late-start check now" button makes it easy to trigger by accident.
+    if (isPardonedOn(rider.freezePardonedFor, now)) {
+      summary.skippedPardoned += 1;
       continue;
     }
 
