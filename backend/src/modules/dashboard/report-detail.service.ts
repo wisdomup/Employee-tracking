@@ -12,6 +12,9 @@ import { Types } from 'mongoose';
 import { OrderModel } from '../../models/order.model';
 import { ProductModel } from '../../models/product.model';
 import { ReturnModel } from '../../models/return.model';
+// The one range resolver, shared with the tiles this drill-down sits behind. Keeping a second
+// copy here is how the tile and its detail quietly ended up covering different instants.
+import { getDateRange } from './dashboard.service';
 
 export type ReportDetailMetric =
   | 'current-stock'
@@ -69,19 +72,6 @@ export interface ReportDetailResult {
   summary: DetailSummaryItem[];
   rows: Record<string, unknown>[];
   truncated: boolean;
-}
-
-function getDateRange(startDate?: string, endDate?: string) {
-  const end = endDate ? new Date(endDate) : new Date();
-  end.setUTCHours(23, 59, 59, 999);
-
-  const start = startDate ? new Date(startDate) : new Date(end);
-  if (!startDate) {
-    start.setUTCDate(start.getUTCDate() - 29);
-  }
-  start.setUTCHours(0, 0, 0, 0);
-
-  return { start, end };
 }
 
 const dealerLookup = [
@@ -272,9 +262,9 @@ const ORDER_TOTAL_COLUMNS: DetailColumn[] = [
 ];
 
 /**
- * Sales ledger: one row per invoice, oldest first, so a running balance reads down the page the
- * way a paper ledger does. Cancelled orders are left out — a cancelled invoice was never a sale —
- * but everything still open is in, because money owed on a dispatched order is money owed.
+ * Sales ledger: one row per delivered invoice, oldest first, so the ledger reads down the page the
+ * way a paper one does. Only delivered orders count — an order still open, or cancelled, is not a
+ * completed sale and has no line on the ledger.
  */
 function salesLedgerPipeline(
   range: { start: Date; end: Date },
@@ -284,7 +274,7 @@ function salesLedgerPipeline(
     {
       $match: {
         isTrashed: { $ne: true },
-        status: { $ne: 'cancelled' },
+        status: 'delivered',
         createdAt: { $gte: range.start, $lte: range.end },
         ...(party.dealerId ? { dealerId: party.dealerId } : {}),
         ...(party.employeeId ? { createdBy: party.employeeId } : {}),
@@ -304,27 +294,15 @@ function salesLedgerPipeline(
           $ifNull: ['$employee.fullName', { $ifNull: ['$employee.username', '-'] }],
         },
         itemCount: { $size: { $ifNull: ['$products', []] } },
-        totalQty: { $sum: { $ifNull: ['$products.quantity', []] } },
         totalPrice: { $round: [{ $ifNull: ['$totalPrice', 0] }, 2] },
         discount: { $round: [{ $ifNull: ['$discount', 0] }, 2] },
         grandTotal: { $round: [{ $ifNull: ['$grandTotal', 0] }, 2] },
         paidAmount: { $round: [{ $ifNull: ['$paidAmount', 0] }, 2] },
-        outstanding: {
-          $round: [
-            {
-              $max: [
-                0,
-                { $subtract: [{ $ifNull: ['$grandTotal', 0] }, { $ifNull: ['$paidAmount', 0] }] },
-              ],
-            },
-            2,
-          ],
-        },
         paymentType: { $ifNull: ['$paymentType', '-'] },
         status: 1,
       },
     },
-    // Ascending: a running balance built from the newest row backwards would be meaningless.
+    // Ascending: a ledger is read oldest-first, in the order the invoices were raised.
     { $sort: { date: 1, invoiceNumber: 1 } },
     { $limit: MAX_ROWS + 1 },
   ];
@@ -336,13 +314,10 @@ const SALES_LEDGER_COLUMNS: DetailColumn[] = [
   { key: 'dealerName', title: 'Client' },
   { key: 'employeeName', title: 'Employee' },
   { key: 'itemCount', title: 'Items', type: 'number' },
-  { key: 'totalQty', title: 'Qty', type: 'number' },
   { key: 'totalPrice', title: 'Total', type: 'currency' },
   { key: 'discount', title: 'Discount', type: 'currency' },
   { key: 'grandTotal', title: 'Invoiced', type: 'currency' },
   { key: 'paidAmount', title: 'Received', type: 'currency' },
-  { key: 'outstanding', title: 'Balance', type: 'currency' },
-  { key: 'runningBalance', title: 'Running Balance', type: 'currency' },
   { key: 'paymentType', title: 'Payment' },
   { key: 'status', title: 'Status' },
 ];
@@ -559,27 +534,18 @@ export async function getReportDetail(params: {
     case 'sales-ledger': {
       const { rows, truncated } = await run(salesLedgerPipeline(range, party), OrderModel);
 
-      // Carried forward in JS rather than a `$setWindowFields`: the rows are already capped at
-      // MAX_ROWS, and this keeps the figure honest after the cap trims the tail.
-      let carried = 0;
-      for (const row of rows) {
-        carried = round2(carried + (Number(row.outstanding) || 0));
-        row.runningBalance = carried;
-      }
-
       return {
         ...base,
         truncated,
         title: 'Sales Ledger',
         description:
-          'Every invoice raised in the selected range, oldest first, with what was received and the balance carried forward. Cancelled orders excluded.',
+          'Every delivered invoice in the selected range, oldest first, with what was invoiced and what was received.',
         dateFiltered: true,
         columns: SALES_LEDGER_COLUMNS,
         summary: [
           { label: 'Invoices', value: rows.length, type: 'number' },
           { label: 'Invoiced', value: round2(sum(rows, 'grandTotal')), type: 'currency' },
           { label: 'Received', value: round2(sum(rows, 'paidAmount')), type: 'currency' },
-          { label: 'Closing Balance', value: carried, type: 'currency' },
         ],
         rows,
       };

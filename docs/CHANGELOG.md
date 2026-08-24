@@ -8,6 +8,26 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-08-25 — Fix: a rider is judged once a day, not once per visit
+
+### Fixed
+- **An unfrozen rider was re-frozen on their next visit.** The pardon added on 2026-08-20
+  covered this, but it depended on two dates lining up. A blunter rule now sits in front of
+  it: **if a `late_start` flag already exists for the rider today, the rule stops looking at
+  them until tomorrow.** The flag is written the instant a rider is first evaluated, so its
+  presence means the day's verdict is already in.
+
+  This makes "only the FIRST visit is checked" literally true. A rider refused at their
+  first shop has no `checkedInAt` recorded, so every later attempt still looked like a first
+  check-in and was re-judged. Now the second, third and every subsequent visit of the day
+  pass straight through, whatever happened to the freeze in between. The sweep respects the
+  same verdict (`skippedAlreadyJudged`).
+
+  Enforcement is not weakened: a rider who is frozen and *not* unfrozen simply stays frozen.
+  Tomorrow is judged afresh, so a repeat offender is frozen again. `test:freeze:flow` is now
+  45 integration tests, including one that wipes `freezePardonedFor` by hand to prove the
+  new rule holds on its own.
+
 ## 2026-08-20 — Fix: an unfreeze was undone within seconds
 
 ### Fixed

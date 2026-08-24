@@ -24,6 +24,8 @@ import '../../models/product.model';
 
 import * as dashboardService from './dashboard.service';
 import * as visitsService from '../visits/visits.service';
+import * as ordersService from '../orders/orders.service';
+import { REPORT_TIMEZONE, localDayRangeUtc, todayDayKey } from '../region-sales/region-sales.rules';
 
 let passed = 0;
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -50,10 +52,15 @@ let otherRiderId: string;
 let dealerId: Types.ObjectId;
 let routeId: Types.ObjectId;
 
-/** The `YYYY-MM-DD` the service considers "today", built the same way it does. */
+/**
+ * The `YYYY-MM-DD` the service considers "today".
+ *
+ * This used to read the process clock. The API container has no `TZ`, so that clock is UTC
+ * while the business day is `REPORT_TIMEZONE` — the test agreed with the bug rather than with
+ * the business, and passed all day except during the five hours it should have caught.
+ */
 function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return todayDayKey();
 }
 
 /** A visit dated on `dayKey`, at midday UTC so it sits inside the list's UTC day bounds. */
@@ -238,6 +245,97 @@ async function main(): Promise<void> {
     const completed = await visitsService.findAll({ status: 'completed', startDate: reportedDay, endDate: reportedDay, visibleEmployeeIds: null });
     assert.equal(stats.visitsToday, scheduled.length);
     assert.equal(stats.visitsCompletedToday, completed.length);
+  });
+
+  await test('an order booked in the small hours lands on that business day, not the next', async () => {
+    // Regression: every `createdAt` window was cut on the process clock. The API container sets
+    // no `TZ`, so that clock is UTC while the business runs on Asia/Karachi (UTC+5) — the window
+    // opened five hours late. An order taken at 01:00 PKT falls on the *previous* UTC date, so
+    // it dropped out of "Orders Today", out of "Delivered Sales Today", and out of the list the
+    // card opens. This is what made the cards look random first thing in the morning.
+    await OrderModel.deleteMany({});
+    const today = todayKey();
+    const { start, end } = localDayRangeUtc(today);
+    const oneAm = new Date(start.getTime() + 60 * 60 * 1000);
+    const elevenPm = new Date(end.getTime() - 60 * 60 * 1000);
+    const justBefore = new Date(start.getTime() - 1);
+
+    const created = await OrderModel.create([
+      { dealerId, createdBy: new Types.ObjectId(riderId), status: 'delivered', grandTotal: 700, items: [] },
+      { dealerId, createdBy: new Types.ObjectId(riderId), status: 'pending', grandTotal: 300, items: [] },
+      { dealerId, createdBy: new Types.ObjectId(riderId), status: 'delivered', grandTotal: 5000, items: [] },
+    ]);
+    // `timestamps: true` stamps `createdAt` on save, so backdate it afterwards with the
+    // timestamp plugin switched off for the write.
+    await OrderModel.collection.updateOne({ _id: created[0]._id }, { $set: { createdAt: oneAm } });
+    await OrderModel.collection.updateOne({ _id: created[1]._id }, { $set: { createdAt: elevenPm } });
+    await OrderModel.collection.updateOne({ _id: created[2]._id }, { $set: { createdAt: justBefore } });
+
+    const { stats, today: reportedDay } = await dashboardService.getDashboardStats();
+    assert.equal(reportedDay, today, 'the reported day is the business day');
+    assert.equal(stats.ordersToday, 2, 'both of today\'s orders count, the late-night one included');
+    assert.equal(stats.deliveredSalesToday, 700, 'yesterday\'s 23:59 order stays out');
+    assert.equal(stats.bookedSalesToday, 300);
+
+    // The number on the card must equal the rows the card's link returns.
+    const listed = await ordersService.findAll({ startDate: reportedDay, endDate: reportedDay });
+    assert.equal(
+      listed.length,
+      stats.ordersToday,
+      `card says ${stats.ordersToday} but /orders?startDate=${reportedDay}&endDate=${reportedDay} returns ${listed.length}`,
+    );
+
+    const delivered = await ordersService.findAll({
+      status: 'delivered',
+      startDate: reportedDay,
+      endDate: reportedDay,
+    });
+    const deliveredTotal = delivered.reduce((sum, o) => sum + (o.grandTotal ?? 0), 0);
+    assert.equal(deliveredTotal, stats.deliveredSalesToday, 'the sales card equals its own list');
+  });
+
+  await test('a start-only order filter means that day, not that day and the one before', async () => {
+    // The widening was a workaround for the UTC/Karachi skew above. With the skew gone it only
+    // returned rows the caller never asked for.
+    const today = todayKey();
+    const startOnly = await ordersService.findAll({ startDate: today });
+    const bothBounds = await ordersService.findAll({ startDate: today, endDate: today });
+    assert.equal(startOnly.length, bothBounds.length, 'one bound or two, the same day is meant');
+  });
+
+  await test('Total Clients equals the list that card opens', async () => {
+    // The card counted only `status: 'active'` while `/clients` lists every client that is not
+    // trashed, so the number read lower than the page it opened.
+    await DealerModel.create({
+      name: 'Dormant Shop', shopName: 'Dormant Shop', phone: '0311111102',
+      latitude: 31.5, longitude: 74.3, shopImage: 'shop.jpg', category: 'retailer',
+      route: routeId, createdBy: new Types.ObjectId(adminId), address: { city: 'Lahore' },
+      status: 'inactive',
+    });
+    const { stats } = await dashboardService.getDashboardStats();
+    const listed = await DealerModel.countDocuments({ isTrashed: { $ne: true } });
+    assert.equal(stats.totalClients, listed, 'the card counts what /clients shows');
+    assert.equal(stats.activeClients, listed - 1, 'the inactive one is reported separately');
+  });
+
+  await test('report buckets are labelled in the business timezone', async () => {
+    // A UTC window sliced into Karachi buckets — or the reverse — puts the first and last five
+    // hours of the range into periods only partly covered, so both ends of every trend line
+    // read low for no visible reason.
+    const today = todayKey();
+    const reports = await dashboardService.getDashboardReports({
+      startDate: today,
+      endDate: today,
+      groupBy: 'day',
+    });
+    for (const row of reports.salesTrend) {
+      assert.equal(row.period, today, `a bucket outside the requested day leaked in: ${row.period}`);
+    }
+    assert.equal(
+      reports.kpis.salesInRange,
+      700,
+      `only today's delivered order counts in ${REPORT_TIMEZONE}`,
+    );
   });
 
   await test('the completed-tasks map carries the client pin under the name the page reads', async () => {

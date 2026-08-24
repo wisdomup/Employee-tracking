@@ -121,3 +121,41 @@ export async function setUserRoles(req: Request, res: Response, next: NextFuncti
     next(err);
   }
 }
+
+export async function getUserAccess(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.getUserAccessDetail(req.params.userId));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function saveUserPolicy(req: Request, res: Response, next: NextFunction) {
+  try {
+    const saved = await service.savePolicy(
+      'user',
+      req.params.userId,
+      { permissions: req.body.permissions ?? [], reports: req.body.reports ?? [] },
+      req.user?.userId,
+    );
+    res.json(saved);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function clearUserPolicy(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.clearUserPolicy(req.params.userId));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function overriddenUsers(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({ userIds: await service.listOverriddenUserIds() });
+  } catch (err) {
+    next(err);
+  }
+}

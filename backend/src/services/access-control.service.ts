@@ -17,11 +17,13 @@ import {
  * 1. `admin` gets everything, without touching the database. The super-admin is deliberately
  *    not editable — a matrix that can revoke access to the matrix editor is a lockout waiting
  *    to happen.
- * 2. One role: that role's policy.
- * 3. Two or more roles: the active `PermissionProfile` whose combination matches exactly.
- * 4. Two or more roles with no matching profile: **the primary role's policy only.**
+ * 2. A per-user override, if one exists. Set by hand for one person; wins outright over their
+ *    roles rather than being merged with them, so what the screen shows is what they get.
+ * 3. One role: that role's policy.
+ * 4. Two or more roles: the active `PermissionProfile` whose combination matches exactly.
+ * 5. Two or more roles with no matching profile: **the primary role's policy only.**
  *
- * Step 4 is the interesting one. The obvious fallbacks are both wrong: unioning the roles is
+ * Step 5 is the interesting one. The obvious fallbacks are both wrong: unioning the roles is
  * the auto-merge the requirement forbids, and denying everything locks out a real person
  * because an admin has not finished a configuration screen. Falling back to the primary role
  * grants strictly no more than a single-role user would get, which is safe, deterministic,
@@ -36,7 +38,7 @@ export interface ResolvedAccess {
   /** Report ids this user may view. */
   reports: Set<string>;
   /** Which policy answered — surfaced in the admin UI and in the audit log. */
-  source: 'admin' | 'role' | 'profile' | 'primary-role-fallback' | 'none';
+  source: 'admin' | 'user' | 'role' | 'profile' | 'primary-role-fallback' | 'none';
 }
 
 const ADMIN_ACCESS: ResolvedAccess = Object.freeze({
@@ -173,6 +175,8 @@ function policyToAccess(
 }
 
 export interface AccessSubject {
+  /** Needed to find a per-user override. `req.user` already carries it. */
+  userId?: string;
   role?: string;
   roles?: string[];
 }
@@ -186,6 +190,13 @@ export async function resolveAccess(user: AccessSubject | undefined): Promise<Re
   if (roles.includes(ROLES.ADMIN)) return ADMIN_ACCESS;
 
   const { bySubject, profileByRoleKey } = await getCache();
+
+  // A per-user override replaces the role logic entirely — see the note on the model. Checked
+  // before roles so that what an admin set on this one person is what actually applies.
+  if (user.userId) {
+    const override = bySubject.get(`user:${user.userId}`);
+    if (override) return policyToAccess(override, 'user');
+  }
 
   if (roles.length === 1) {
     return policyToAccess(bySubject.get(`role:${roles[0]}`), 'role');

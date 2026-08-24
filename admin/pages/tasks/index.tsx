@@ -32,6 +32,17 @@ const TasksPage: React.FC = () => {
     user.role !== 'admin' &&
     ['order_taker', 'employee', 'warehouse_manager', 'delivery_man'].includes(user.role);
 
+  /**
+   * Seed the status filter from the URL, so the dashboard's task cards open the rows they
+   * counted instead of the whole list. Same pattern as `/visits` and `/orders`.
+   */
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { status } = router.query as Record<string, string | undefined>;
+    if (status) setStatusFilter(status);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.asPath]);
+
   useEffect(() => {
     fetchTasks();
   }, [statusFilter, user?.id]);

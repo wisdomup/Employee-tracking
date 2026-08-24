@@ -11,7 +11,7 @@ import {
   isValidPermission,
   isValidReport,
 } from '../../constants/permissions';
-import { invalidateAccessCache } from '../../services/access-control.service';
+import { invalidateAccessCache, resolveAccess } from '../../services/access-control.service';
 import { badRequest, notFound } from '../../utils/app-error';
 
 /**
@@ -60,7 +60,7 @@ function grantsToObject(grants: unknown): Record<string, IModuleGrant> {
   return grants as Record<string, IModuleGrant>;
 }
 
-export async function getPolicy(subjectType: 'role' | 'profile', subjectKey: string) {
+export async function getPolicy(subjectType: 'role' | 'profile' | 'user', subjectKey: string) {
   const policy = await AccessPolicyModel.findOne({ subjectType, subjectKey }).lean().exec();
 
   // An unconfigured subject is a legitimate state, not an error — a brand-new profile has no
@@ -84,7 +84,7 @@ export interface SavePolicyInput {
 }
 
 export async function savePolicy(
-  subjectType: 'role' | 'profile',
+  subjectType: 'role' | 'profile' | 'user',
   subjectKey: string,
   input: SavePolicyInput,
   actorId?: string,
@@ -109,9 +109,25 @@ export async function savePolicy(
     if (!Object.values(ROLES).includes(subjectKey as never)) {
       throw badRequest(`Unknown role "${subjectKey}"`);
     }
-  } else {
+  } else if (subjectType === 'profile') {
     const profile = await PermissionProfileModel.findById(subjectKey).lean().exec();
     if (!profile) throw notFound('Permission profile not found');
+  } else {
+    const target = await UserModel.findOne({ _id: subjectKey, isTrashed: { $ne: true } })
+      .select('_id role roles')
+      .lean()
+      .exec();
+    if (!target) throw notFound('User not found');
+
+    // An override on an admin would be dead configuration: the resolver returns full access
+    // before it ever reads a policy. Refusing is clearer than saving something inert.
+    const held = target.roles?.length ? target.roles : [target.role];
+    if (held.includes(ROLES.ADMIN)) {
+      throw badRequest(
+        'Admin accounts always have full access and cannot be given a per-user permission set. ' +
+          'Change their role first if you need to limit them.',
+      );
+    }
   }
 
   const grants = new Map<string, IModuleGrant>();
@@ -306,4 +322,102 @@ export async function setUserRoles(userId: string, roles: string[]) {
     /** The caller shows a warning when true — see `findUncoveredCombinations`. */
     needsProfile: uncovered,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Per-user overrides
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything the editor needs to open on one person: who they are, what they can do right now,
+ * and whether that answer comes from their roles or from an override already set on them.
+ *
+ * The `permissions` and `reports` here are the CURRENT EFFECTIVE set, resolved the same way a
+ * real request resolves. That is what makes the screen usable: an admin editing one person
+ * starts from what that person actually has today and adjusts, rather than from a blank grid
+ * and a memory test. Nothing is saved until they press save, so this is a starting point, not
+ * an automatic grant.
+ */
+export async function getUserAccessDetail(userId: string) {
+  const user = await UserModel.findOne({ _id: userId, isTrashed: { $ne: true } })
+    .select('_id username fullName userID role roles isActive')
+    .lean()
+    .exec();
+
+  if (!user) throw notFound('User not found');
+
+  const override = await AccessPolicyModel.findOne({
+    subjectType: 'user',
+    subjectKey: String(user._id),
+  })
+    .lean()
+    .exec();
+
+  const resolved = await resolveAccess({
+    userId: String(user._id),
+    role: user.role,
+    roles: user.roles,
+  });
+
+  const roles = user.roles?.length ? user.roles : [user.role];
+
+  // Only meaningful when they hold several roles; the UI uses it to explain a fallback.
+  const profile =
+    roles.length >= 2
+      ? await PermissionProfileModel.findOne({ roleKey: buildRoleKey(roles), isActive: true })
+          .select('name')
+          .lean()
+          .exec()
+      : null;
+
+  return {
+    user: {
+      id: String(user._id),
+      username: user.username,
+      fullName: user.fullName ?? '',
+      userID: user.userID ?? '',
+      role: user.role,
+      roles,
+      isActive: user.isActive,
+    },
+    /** True when a per-user policy exists — the roles are no longer deciding anything. */
+    hasOverride: Boolean(override),
+    overrideUpdatedAt: override?.updatedAt ?? null,
+    /** Which policy answered: `user`, `role`, `profile`, `primary-role-fallback` or `none`. */
+    source: resolved.source,
+    /** The profile covering their combination, when there is one. */
+    profileName: profile?.name ?? null,
+    permissions: [...resolved.permissions],
+    reports: [...resolved.reports],
+  };
+}
+
+/**
+ * Remove a person's override so their roles decide again.
+ *
+ * Deleting the document rather than blanking it is deliberate: an empty policy and no policy
+ * mean opposite things to the resolver — the first grants nothing, the second falls through to
+ * the role. Saving an empty grid is a legitimate way to strip someone's access, so "revert to
+ * role" has to be a separate action.
+ */
+export async function clearUserPolicy(userId: string) {
+  const user = await UserModel.findOne({ _id: userId }).select('_id').lean().exec();
+  if (!user) throw notFound('User not found');
+
+  const result = await AccessPolicyModel.deleteOne({
+    subjectType: 'user',
+    subjectKey: String(user._id),
+  }).exec();
+
+  invalidateAccessCache();
+  return { cleared: result.deletedCount > 0 };
+}
+
+/** Ids of every user carrying an override, so the employee list can badge them. */
+export async function listOverriddenUserIds(): Promise<string[]> {
+  const rows = await AccessPolicyModel.find({ subjectType: 'user' })
+    .select('subjectKey')
+    .lean()
+    .exec();
+  return rows.map((r) => r.subjectKey);
 }

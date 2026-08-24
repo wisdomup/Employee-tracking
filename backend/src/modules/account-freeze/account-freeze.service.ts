@@ -124,6 +124,30 @@ async function isPardonedToday(employeeId: Types.ObjectId, now: Date): Promise<b
   return isPardonedOn(user?.freezePardonedFor, now);
 }
 
+/**
+ * Whether this rider has already been judged for the day.
+ *
+ * The `late_start` flag is written the instant a rider is first evaluated, so its presence
+ * means "the verdict for today is already in". Once that exists the rule stops looking at
+ * them for the rest of the day, whatever an admin subsequently does with the freeze.
+ *
+ * This is what makes "only the FIRST visit is checked" literally true. Without it, a rider
+ * who was refused at their first shop has no `checkedInAt` recorded, so every later attempt
+ * still looks like a first check-in and gets re-judged — which is how an unfreeze ended up
+ * being undone seconds later. `freezePardonedFor` covers the same case, but it depends on
+ * two dates agreeing; this depends only on a row existing, so it holds even across a
+ * timezone/day-boundary edge where the two dates could disagree.
+ */
+async function hasBeenJudgedToday(employeeId: Types.ObjectId, day: Date): Promise<boolean> {
+  const { start: flagDate } = utcDayRange(day);
+  const flag = await PerformanceFlagModel.exists({
+    employeeId,
+    type: 'late_start',
+    flagDate,
+  });
+  return flag !== null;
+}
+
 /** The rider's earliest check-in of the day, or null if they have not arrived anywhere. */
 async function findFirstCheckInAt(
   employeeId: Types.ObjectId,
@@ -334,6 +358,11 @@ export async function enforceFirstCheckInDeadline(params: {
   // covers today only; tomorrow they are judged afresh.
   if (await isPardonedToday(params.employeeId, params.now)) return null;
 
+  // Already judged for today — this is the rule that makes "only the FIRST visit is
+  // checked" literal. Whatever the verdict was, and whatever the admin did with it
+  // afterwards, the rider is not re-evaluated again until tomorrow.
+  if (await hasBeenJudgedToday(params.employeeId, params.now)) return null;
+
   // Reported on the flag for context only; it no longer gates the freeze.
   const assignedVisits = await countAssignedVisits(params.employeeId, params.now);
 
@@ -371,6 +400,7 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
   skippedAlreadyFrozen: number;
   skippedExempt: number;
   skippedPardoned: number;
+  skippedAlreadyJudged: number;
 }> {
   const summary = {
     evaluated: 0,
@@ -380,6 +410,7 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
     skippedAlreadyFrozen: 0,
     skippedExempt: 0,
     skippedPardoned: 0,
+    skippedAlreadyJudged: 0,
   };
 
   if (!isFreezeRuleEnabled()) {
@@ -417,6 +448,13 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
     // the manual "Run late-start check now" button makes it easy to trigger by accident.
     if (isPardonedOn(rider.freezePardonedFor, now)) {
       summary.skippedPardoned += 1;
+      continue;
+    }
+
+    // Already judged today (frozen, then possibly unfrozen by an admin). The verdict for
+    // the day stands; re-running the sweep must not overturn it.
+    if (await hasBeenJudgedToday(rider._id, now)) {
+      summary.skippedAlreadyJudged += 1;
       continue;
     }
 

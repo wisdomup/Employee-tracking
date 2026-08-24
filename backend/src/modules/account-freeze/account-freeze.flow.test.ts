@@ -710,6 +710,73 @@ async function main(): Promise<void> {
     assert.equal(status.pardonedToday, true);
   });
 
+  await test('a rider is judged ONCE a day — later visits are never re-checked', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+    await assignVisit(rider);
+    await assignVisit(rider);
+
+    // Shop 1: late, frozen, refused.
+    assert.ok(
+      await freezeService.enforceFirstCheckInDeadline({
+        employeeId: rider, role: 'order_taker', now: AFTER_DEADLINE,
+      }),
+    );
+
+    // Admin lifts it, but the pardon field is wiped by hand — simulating any reason the
+    // pardon date could fail to line up (a day-boundary edge, an older record, a manual
+    // database fix). The "already judged" rule must hold the line on its own.
+    await UserModel.updateOne(
+      { _id: rider },
+      { $set: { isFrozen: false }, $unset: { freezePardonedFor: 1 } },
+    );
+
+    // Shops 2 and 3 must go through regardless.
+    for (const label of ['shop 2', 'shop 3']) {
+      const result = await freezeService.enforceFirstCheckInDeadline({
+        employeeId: rider, role: 'order_taker', now: AFTER_DEADLINE,
+      });
+      assert.equal(result, null, `${label} must not re-freeze`);
+    }
+    assert.notEqual((await reload(rider))?.isFrozen, true);
+  });
+
+  await test('the sweep also respects a verdict already reached today', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider, role: 'order_taker', now: AFTER_DEADLINE,
+    });
+    await UserModel.updateOne(
+      { _id: rider },
+      { $set: { isFrozen: false }, $unset: { freezePardonedFor: 1 } },
+    );
+
+    const summary = await freezeService.sweepLateStarters(AFTER_DEADLINE);
+
+    assert.ok(summary.skippedAlreadyJudged >= 1);
+    assert.notEqual((await reload(rider))?.isFrozen, true);
+  });
+
+  await test('being judged today does NOT carry over to tomorrow', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider, role: 'order_taker', now: AFTER_DEADLINE,
+    });
+    await UserModel.updateOne(
+      { _id: rider },
+      { $set: { isFrozen: false }, $unset: { freezePardonedFor: 1 } },
+    );
+
+    const nextDay = localTimeOn(TEST_DAY.day + 1, deadline.hour + 1, deadline.minute);
+    const refusal = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider, role: 'order_taker', now: nextDay,
+    });
+
+    assert.ok(refusal, 'a new day gets a fresh verdict');
+  });
+
   await test('the frozen list is what the admin queue reads', async () => {
     const rider = await makeRider();
     await assignVisit(rider);

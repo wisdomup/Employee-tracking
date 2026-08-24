@@ -105,6 +105,36 @@ const OrdersPage: React.FC = () => {
     }
   }, [isOrderTaker, isAdmin]);
 
+  /**
+   * Seed the filters from the URL so other pages can link straight into a filtered view —
+   * `/orders?status=delivered&startDate=…&endDate=…` is what the dashboard's sales and order
+   * cards open. Same pattern as `/visits`.
+   *
+   * Only keys actually present are applied, so a plain `/orders` still lands on the full list.
+   * Keyed on `router.asPath` rather than on the filter state: editing a filter in the UI does
+   * not touch the URL, so this cannot fight the user's input, but arriving from a second
+   * dashboard card while already on this page does re-apply.
+   */
+  useEffect(() => {
+    if (!router.isReady) return;
+    const {
+      status,
+      startDate: from,
+      endDate: to,
+      clientId,
+      employeeId,
+      riderId,
+    } = router.query as Record<string, string | undefined>;
+
+    if (status) setStatusFilter(status);
+    if (from) setStartDate(from);
+    if (to) setEndDate(to);
+    if (clientId) setClientFilter(clientId);
+    if (employeeId) setEmployeeFilter(employeeId);
+    if (riderId) setRiderFilter(riderId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.asPath]);
+
   useEffect(() => {
     if (!user) return;
     if (user.role === 'order_taker' && !user.id) return;

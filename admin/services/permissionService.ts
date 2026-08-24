@@ -37,7 +37,7 @@ export interface Catalogue {
 export type ModuleGrant = Partial<Record<ActionId, boolean>>;
 
 export interface Policy {
-  subjectType: 'role' | 'profile';
+  subjectType: 'role' | 'profile' | 'user';
   subjectKey: string;
   grants: Record<string, ModuleGrant>;
   reports: string[];
@@ -54,6 +54,27 @@ export interface Profile {
   isActive: boolean;
   /** How many active users hold exactly this combination. */
   userCount: number;
+}
+
+/** What `GET /permissions/users/:id/policy` returns. */
+export interface UserAccessDetail {
+  user: {
+    id: string;
+    username: string;
+    fullName: string;
+    userID: string;
+    role: string;
+    roles: string[];
+    isActive: boolean;
+  };
+  /** True when a per-user set exists — their roles have stopped deciding anything. */
+  hasOverride: boolean;
+  overrideUpdatedAt: string | null;
+  source: 'admin' | 'user' | 'role' | 'profile' | 'primary-role-fallback' | 'none';
+  profileName: string | null;
+  /** What they can do RIGHT NOW. The editor opens on this rather than on a blank grid. */
+  permissions: string[];
+  reports: string[];
 }
 
 export interface UncoveredCombination {
@@ -144,6 +165,41 @@ export const permissionService = {
       '/permissions/profiles/uncovered',
     );
     return data.combinations;
+  },
+
+  async getUserAccess(userId: string): Promise<UserAccessDetail> {
+    const { data } = await api.get<UserAccessDetail>(`/permissions/users/${userId}/policy`);
+    return data;
+  },
+
+  /**
+   * Create or replace one person's own permission set.
+   *
+   * This WINS over their role and over any profile — nothing is merged. Full replacement:
+   * anything absent is turned off.
+   */
+  async saveUserPolicy(userId: string, permissions: string[], reports: string[]): Promise<Policy> {
+    const { data } = await api.put<Policy>(`/permissions/users/${userId}/policy`, {
+      permissions,
+      reports,
+    });
+    return data;
+  },
+
+  /**
+   * Drop the override so their roles decide again.
+   *
+   * Distinct from saving an empty grid: an empty set grants nothing, no set falls through to
+   * the role. Opposite outcomes, so they are separate actions.
+   */
+  async clearUserPolicy(userId: string): Promise<void> {
+    await api.delete(`/permissions/users/${userId}/policy`);
+  },
+
+  /** Ids of everyone carrying an override, for badging the employee list. */
+  async getOverriddenUserIds(): Promise<string[]> {
+    const { data } = await api.get<{ userIds: string[] }>('/permissions/users/overridden');
+    return data.userIds;
   },
 
   async setUserRoles(

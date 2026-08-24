@@ -7,6 +7,7 @@ import Table from '../../components/UI/Table';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { useAuth } from '../../contexts/AuthContext';
 import { employeeService, Employee } from '../../services/employeeService';
+import { permissionService } from '../../services/permissionService';
 import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
 import { toast } from 'react-toastify';
 import styles from '../../styles/ListPage.module.scss';
@@ -16,10 +17,22 @@ const EmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  /**
+   * Ids of people whose access comes from their own permission set rather than their role.
+   * Badged in the list so an admin can see at a glance who has been customised — otherwise a
+   * per-user override is invisible until you open that one person.
+   */
+  const [overridden, setOverridden] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   useEffect(() => {
     fetchEmployees();
+
+    // Non-blocking: a failed lookup costs the badge, not the list.
+    permissionService
+      .getOverriddenUserIds()
+      .then((ids) => setOverridden(new Set(ids)))
+      .catch(() => setOverridden(new Set()));
   }, []);
 
   const fetchEmployees = async () => {
@@ -180,6 +193,33 @@ const EmployeesPage: React.FC = () => {
           >
             Edit
           </button>
+          {can(undefined, 'employees:change') && (
+            <button
+              className={styles.editButton}
+              title="Set this person's permissions directly, without changing their role"
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/employees/${row._id}/permissions`);
+              }}
+            >
+              User Roles
+              {overridden.has(String(row._id)) && (
+                <span
+                  aria-label="has a custom permission set"
+                  title="Custom permission set — their role is not being used"
+                  style={{
+                    display: 'inline-block',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#b45309',
+                    marginLeft: 6,
+                    verticalAlign: 'middle',
+                  }}
+                />
+              )}
+            </button>
+          )}
           <button
             className={styles.deleteButton}
             onClick={(e) => {

@@ -9,8 +9,14 @@ import { RouteModel } from '../../models/route.model';
 import { VisitModel } from '../../models/visit.model';
 import { Types } from 'mongoose';
 import { badRequest } from '../../utils/app-error';
-// Shared day-key validation, so "is this a real date" has one answer across the app.
-import { isValidDayKey } from '../region-sales/region-sales.rules';
+// Shared day handling, so "which day is it, and where does it start and end" has one answer
+// across the app.
+import {
+  REPORT_TIMEZONE,
+  isValidDayKey,
+  localDayRangeUtc,
+  todayDayKey,
+} from '../region-sales/region-sales.rules';
 import { getRecentActivity } from '../activity-logs/activity-logs.service';
 
 /** Order statuses that count as money actually realised. Mirrors the analytics module. */
@@ -18,20 +24,18 @@ const DELIVERED_ORDER_STATUSES = ['delivered'];
 /** Committed but not yet delivered — the "booked" half of a sale figure. */
 const OPEN_ORDER_STATUSES = ['pending', 'approved', 'packed', 'dispatched'];
 
-/** Local midnight-to-midnight bounds for a day. */
-function dayBounds(date = new Date()): { start: Date; end: Date } {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
-}
-
-/** A `Date` as the `YYYY-MM-DD` key the admin sees and the visits list filter speaks. */
-function toDayKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
+/**
+ * Bounds for a **timestamp** field (`createdAt`, `completedAt`) on one business day.
+ *
+ * This used to be `setHours(0, 0, 0, 0)` on the process clock. The API container sets no `TZ`,
+ * so that clock is UTC while the business day is `REPORT_TIMEZONE` (Asia/Karachi, UTC+5) — the
+ * window ran five hours late. Between midnight and 05:00 PKT every "today" card was still
+ * reporting yesterday, and an order booked at 02:00 was filed under the wrong day for good.
+ * `localDayRangeUtc` gives the real day (19:00Z the previous evening .. 18:59:59.999Z), which
+ * is also what `$dateToString` with the same zone buckets on, so JS-side and DB-side agree.
+ */
+function timestampDayBounds(dayKey: string): { start: Date; end: Date } {
+  return localDayRangeUtc(dayKey);
 }
 
 /**
@@ -39,10 +43,10 @@ function toDayKey(date: Date): string {
  *
  * The visit cards deep-link into `/visits?startDate=&endDate=`, and a card whose number does not
  * match the list it opens is worse than no card. `findAll` bounds a `YYYY-MM-DD` with
- * `setUTCHours`, so this does too — `dayBounds` above uses *local* midnight, which is a
- * different window anywhere east or west of UTC and would have made the two disagree by the
- * offset. All three visit counts also key off `visitDate` for the same reason: it is the only
- * field `findAll` filters on.
+ * `setUTCHours`, so this does too. Deliberately *not* `timestampDayBounds`: `visitDate` is a
+ * date-only field stored at UTC midnight, not an instant, so shifting its window into
+ * Asia/Karachi would drag every visit into the neighbouring day. All three visit counts also
+ * key off `visitDate` for the same reason: it is the only field `findAll` filters on.
  */
 function visitDayBoundsUtc(dayKey: string): { start: Date; end: Date } {
   const start = new Date(dayKey);
@@ -53,14 +57,15 @@ function visitDayBoundsUtc(dayKey: string): { start: Date; end: Date } {
 }
 
 export async function getDashboardStats() {
-  const { start: today, end: tomorrow } = dayBounds();
-  const todayKey = toDayKey(new Date());
+  const todayKey = todayDayKey();
+  const { start: today, end: endOfToday } = timestampDayBounds(todayKey);
   const visitDay = visitDayBoundsUtc(todayKey);
 
   const [
     activeEmployees,
     inactiveEmployees,
     totalClients,
+    activeClients,
     totalTasks,
     tasksCompletedToday,
     tasksInProgress,
@@ -78,10 +83,20 @@ export async function getDashboardStats() {
   ] = await Promise.all([
     UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: true, isTrashed: { $ne: true } }),
     UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: false, isTrashed: { $ne: true } }),
+    // "Total Clients" opens the unfiltered `/clients` list, so it counts what that list holds:
+    // every client that has not been trashed. It previously counted only `status: 'active'`,
+    // which is why the card read lower than the page it opened. `activeClients` carries the
+    // active half separately for the card's sub-line.
+    DealerModel.countDocuments({ isTrashed: { $ne: true } }),
     DealerModel.countDocuments({ status: 'active', isTrashed: { $ne: true } }),
     TaskModel.countDocuments({ isTrashed: { $ne: true } }),
-    TaskModel.countDocuments({ status: 'completed', completedAt: { $gte: today, $lt: tomorrow } }),
-    TaskModel.countDocuments({ status: 'in_progress' }),
+    TaskModel.countDocuments({
+      isTrashed: { $ne: true },
+      status: 'completed',
+      completedAt: { $gte: today, $lte: endOfToday },
+    }),
+    // Same `isTrashed` guard as the total above, so "in progress" can never exceed it.
+    TaskModel.countDocuments({ isTrashed: { $ne: true }, status: 'in_progress' }),
     ProductModel.countDocuments({ isTrashed: { $ne: true } }),
     CategoryModel.countDocuments({ isTrashed: { $ne: true } }),
     OrderModel.countDocuments({ isTrashed: { $ne: true } }),
@@ -108,12 +123,14 @@ export async function getDashboardStats() {
       status: { $in: ['todo', 'in_progress', 'checked_in'] },
       visitDate: { $gte: visitDay.start, $lte: visitDay.end },
     }),
+    // Same business-day window `orders.service#findAll` applies to `startDate`/`endDate`, so
+    // the card's number equals the rows `/orders?startDate=…&endDate=…` returns.
     OrderModel.countDocuments({
       isTrashed: { $ne: true },
       status: { $ne: 'cancelled' },
-      createdAt: { $gte: today, $lt: tomorrow },
+      createdAt: { $gte: today, $lte: endOfToday },
     }),
-    sumOrderAmounts({ $gte: today, $lt: tomorrow }),
+    sumOrderAmounts({ $gte: today, $lte: endOfToday }),
     getRecentActivity(10),
   ]);
 
@@ -128,13 +145,14 @@ export async function getDashboardStats() {
     .exec();
 
   return {
-    // The day the visit figures cover, so the cards can link to exactly the rows they counted
-    // instead of the browser guessing its own "today" from a possibly different clock.
+    // The business day every "today" figure covers, so the cards link to exactly the rows they
+    // counted instead of the browser guessing its own "today" from a different clock.
     today: todayKey,
     stats: {
       activeEmployees,
       inactiveEmployees,
       totalClients,
+      activeClients,
       totalTasks,
       tasksCompletedToday,
       tasksInProgress,
@@ -233,9 +251,11 @@ export async function getMyDashboardStats(userId: string, date?: string) {
   if (date !== undefined && !isValidDayKey(date)) {
     throw badRequest('date must be a valid date in YYYY-MM-DD format');
   }
-  const day = date ? new Date(`${date}T12:00:00`) : new Date();
-  const { start, end } = dayBounds(day);
-  const dayKey = date ?? toDayKey(day);
+  const dayKey = date ?? todayDayKey();
+  // Business-day bounds for the timestamp fields, not the host clock's — see
+  // `timestampDayBounds`. A salesman opening the app at 07:00 PKT was previously shown a window
+  // that had only just started, so "My Sale Today" read zero for the first five hours.
+  const { start, end } = timestampDayBounds(dayKey);
   // Same window and same field the visits list uses, so each card matches the list it opens.
   const visitDay = visitDayBoundsUtc(dayKey);
   const employeeId = new Types.ObjectId(userId);
@@ -256,12 +276,12 @@ export async function getMyDashboardStats(userId: string, date?: string) {
         $match: {
           assignedTo: employeeId,
           isTrashed: { $ne: true },
-          createdAt: { $gte: start, $lt: end },
+          createdAt: { $gte: start, $lte: end },
         },
       },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]),
-    sumOrderAmounts({ $gte: start, $lt: end }, employeeId),
+    sumOrderAmounts({ $gte: start, $lte: end }, employeeId),
   ]);
 
   const countBy = (rows: { _id: string; count: number }[], status: string) =>
@@ -297,27 +317,51 @@ export async function getMyDashboardStats(userId: string, date?: string) {
 type GroupBy = 'day' | 'month' | 'year';
 type ViewBy = 'item' | 'category';
 
-function getDateRange(startDate?: string, endDate?: string) {
-  const end = endDate ? new Date(endDate) : new Date();
-  end.setUTCHours(23, 59, 59, 999);
-
-  const start = startDate ? new Date(startDate) : new Date(end);
-  if (!startDate) {
-    start.setUTCDate(start.getUTCDate() - 29);
+/**
+ * The reporting window, in business days.
+ *
+ * The bounds and the `$dateToString` bucketing below have to use the *same* zone or the chart
+ * disagrees with itself: a UTC window sliced into Asia/Karachi buckets puts the first and last
+ * five hours of the range into periods that are only partly covered, so the end points of every
+ * trend line read low for no visible reason. Both now speak `REPORT_TIMEZONE`.
+ *
+ * Exported because `report-detail.service` has to resolve a range identically — a tile and the
+ * drill-down opened from it must cover the same instants. It used to hold a copy of this, which
+ * is exactly the kind of duplicate that drifts.
+ */
+export function getDateRange(startDate?: string, endDate?: string) {
+  if (startDate !== undefined && !isValidDayKey(startDate)) {
+    throw badRequest('startDate must be a valid date in YYYY-MM-DD format');
   }
-  start.setUTCHours(0, 0, 0, 0);
+  if (endDate !== undefined && !isValidDayKey(endDate)) {
+    throw badRequest('endDate must be a valid date in YYYY-MM-DD format');
+  }
 
-  return { start, end };
+  const endKey = endDate ?? todayDayKey();
+  let startKey = startDate;
+  if (!startKey) {
+    // Default window: the 30 business days ending today, inclusive.
+    const [y, m, d] = endKey.split('-').map(Number);
+    const cursor = new Date(Date.UTC(y, m - 1, d));
+    cursor.setUTCDate(cursor.getUTCDate() - 29);
+    startKey = cursor.toISOString().slice(0, 10);
+  }
+
+  return {
+    start: localDayRangeUtc(startKey).start,
+    end: localDayRangeUtc(endKey).end,
+  };
 }
 
 function getPeriodExpression(groupBy: GroupBy) {
+  const timezone = REPORT_TIMEZONE;
   if (groupBy === 'year') {
-    return { $dateToString: { format: '%Y', date: '$createdAt' } };
+    return { $dateToString: { format: '%Y', date: '$createdAt', timezone } };
   }
   if (groupBy === 'month') {
-    return { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+    return { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone } };
   }
-  return { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
+  return { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone } };
 }
 
 export async function getDashboardReports(params: {

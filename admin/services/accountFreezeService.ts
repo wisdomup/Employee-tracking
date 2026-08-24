@@ -42,6 +42,7 @@ export interface SweepSummary {
   skippedAlreadyFrozen: number;
   skippedExempt: number;
   skippedPardoned: number;
+  skippedAlreadyJudged: number;
 }
 
 export const accountFreezeService = {

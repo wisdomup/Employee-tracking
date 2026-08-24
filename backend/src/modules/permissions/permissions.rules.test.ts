@@ -321,6 +321,9 @@ if (adminPermsExists) {
 const ADMIN_ONLY_PAGES = [
   'attendance/create.tsx',
   'settings/permissions.tsx',
+  // The per-user permission editor. Same reason as the matrix screen: editing who can do
+  // what must not be reachable through a checkbox the matrix itself controls.
+  'employees/[id]/permissions.tsx',
   'warehouse/opening-stock/index.tsx',
   'warehouse/warehouses/create.tsx',
   'warehouse/warehouses/[id]/edit.tsx',

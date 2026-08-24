@@ -451,6 +451,30 @@ const Dashboard: React.FC = () => {
     return `/visits?${params.toString()}`;
   };
 
+  /**
+   * An `/orders` link carrying the same status and the same day the card's number was counted
+   * over. `today: true` uses the server's business day (`stats.today` / `myStats.date`) rather
+   * than `new Date()`: the counts are bounded in `REPORT_TIMEZONE` server-side, so a browser on
+   * another clock asking for its own "today" would open a different day than the card shows.
+   */
+  const ordersLink = (opts?: { status?: string; today?: boolean }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set('status', opts.status);
+    if (opts?.today && visitsDay) {
+      params.set('startDate', visitsDay);
+      params.set('endDate', visitsDay);
+    }
+    const query = params.toString();
+    return query ? `/orders?${query}` : '/orders';
+  };
+
+  /**
+   * A `/tasks` link filtered to the status the card counted. The Tasks list has no date filter,
+   * so a "today" card can only open the superset for its status — more rows than the number,
+   * never fewer, which the admin can read at a glance. The card's sub-line says so.
+   */
+  const tasksLink = (status?: string) => (status ? `/tasks?status=${status}` : '/tasks');
+
   const orderTakerVisitSummary = useMemo(() => {
     return {
       total: orderTakerVisitsForDate.length,
@@ -931,7 +955,12 @@ const Dashboard: React.FC = () => {
                 <div className={styles.statLabel}>Visits To Do</div>
               </div>
             </Link>
-            <Link href="/orders" className={styles.statCard}>
+            {/*
+              Scoped to the same business day the figure was summed over. The orders list
+              already narrows an order taker to their own orders server-side, so the date is
+              the only filter the link has to carry.
+            */}
+            <Link href={ordersLink({ today: true })} className={styles.statCard}>
               <StatCardIcon Icon={CurrencyCircleDollar} />
               <div className={styles.statContent}>
                 {orderTakerStats && (
@@ -947,7 +976,7 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             </Link>
-            <Link href="/tasks" className={styles.statCard}>
+            <Link href={tasksLink()} className={styles.statCard}>
               <StatCardIcon Icon={ClipboardText} />
               <div className={styles.statContent}>
                 {orderTakerStats && (
@@ -1148,6 +1177,11 @@ const Dashboard: React.FC = () => {
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalClients}</div>
               <div className={styles.statLabel}>Total Clients</div>
+              {stats.stats.totalClients > stats.stats.activeClients && (
+                <div className={styles.statSub}>
+                  {stats.stats.totalClients - stats.stats.activeClients} inactive
+                </div>
+              )}
             </div>
           </Link>
 
@@ -1175,7 +1209,7 @@ const Dashboard: React.FC = () => {
             </div>
           </Link>
 
-          <Link href="/orders" className={styles.statCard}>
+          <Link href={ordersLink({ status: 'pending' })} className={styles.statCard}>
             <StatCardIcon Icon={Hourglass} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalPendingOrders}</div>
@@ -1191,7 +1225,7 @@ const Dashboard: React.FC = () => {
             </div>
           </Link>
 
-          <Link href="/tasks" className={styles.statCard}>
+          <Link href={tasksLink()} className={styles.statCard}>
             <StatCardIcon Icon={ClipboardText} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.totalTasks}</div>
@@ -1199,17 +1233,18 @@ const Dashboard: React.FC = () => {
             </div>
           </Link>
 
-          <Link href="/tasks" className={styles.statCard}>
+          <Link href={tasksLink('completed')} className={styles.statCard}>
             <StatCardIcon Icon={CheckCircle} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>
                 {stats.stats.tasksCompletedToday}
               </div>
               <div className={styles.statLabel}>Completed Today</div>
+              <div className={styles.statSub}>opens all completed tasks</div>
             </div>
           </Link>
 
-          <Link href="/tasks" className={styles.statCard}>
+          <Link href={tasksLink('in_progress')} className={styles.statCard}>
             <StatCardIcon Icon={ArrowsClockwise} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.tasksInProgress}</div>
@@ -1255,15 +1290,22 @@ const Dashboard: React.FC = () => {
             </div>
           </Link>
 
-          <Link href="/orders" className={styles.statCard}>
+          {/*
+            Both carry the server's business day, and the orders list resolves `startDate`/
+            `endDate` in that same timezone, so the rows that open are the ones counted here.
+            Cancelled orders are excluded from the count; the list shows them, so the sub-line
+            names the window rather than pretending the two sets are identical.
+          */}
+          <Link href={ordersLink({ today: true })} className={styles.statCard}>
             <StatCardIcon Icon={ShoppingCart} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{stats.stats.ordersToday}</div>
               <div className={styles.statLabel}>Orders Today</div>
+              <div className={styles.statSub}>excludes cancelled</div>
             </div>
           </Link>
 
-          <Link href="/region-sales" className={styles.statCard}>
+          <Link href={ordersLink({ status: 'delivered', today: true })} className={styles.statCard}>
             <StatCardIcon Icon={CurrencyCircleDollar} />
             <div className={styles.statContent}>
               <div className={styles.statValue}>{formatRs(stats.stats.deliveredSalesToday)}</div>
