@@ -130,4 +130,56 @@ router.delete('/profiles/:id', controller.deleteProfile);
  */
 router.put('/users/:userId/roles', controller.setUserRoles);
 
+/**
+ * @openapi
+ * /api/permissions/users/overridden:
+ *   get:
+ *     tags: [Permissions]
+ *     summary: Ids of users carrying a per-user permission override [Admin]
+ *     description: Lets the employee list badge the rows whose access no longer follows their role.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: "{ userIds[] }" }
+ */
+// Before `/users/:userId/...` so Express does not read "overridden" as a user id.
+router.get('/users/overridden', controller.overriddenUsers);
+
+/**
+ * @openapi
+ * /api/permissions/users/{userId}/policy:
+ *   get:
+ *     tags: [Permissions]
+ *     summary: One person's effective access, plus whether it comes from an override [Admin]
+ *     description: >
+ *       `permissions` and `reports` are what this person can do RIGHT NOW, resolved exactly
+ *       as a real request resolves. The editor opens on that so an admin adjusts from reality
+ *       rather than from a blank grid. `hasOverride` says whether their roles still decide.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: "{ user, hasOverride, source, profileName, permissions[], reports[] }" }
+ *       404: { description: User not found }
+ *   put:
+ *     tags: [Permissions]
+ *     summary: Set one person's permissions directly [Admin]
+ *     description: >
+ *       Creates or replaces a per-user override. It WINS over their role and over any profile —
+ *       nothing is merged. Full replacement, not a patch: anything absent is turned off.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: The saved policy }
+ *       400: { description: Unknown permission or report, or the target is an admin }
+ *   delete:
+ *     tags: [Permissions]
+ *     summary: Remove the override so their roles decide again [Admin]
+ *     description: >
+ *       Deletes the policy rather than blanking it. An empty policy grants nothing; no policy
+ *       falls through to the role. The two are opposite outcomes, so reverting is its own verb.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: "{ cleared }" }
+ */
+router.get('/users/:userId/policy', controller.getUserAccess);
+router.put('/users/:userId/policy', controller.saveUserPolicy);
+router.delete('/users/:userId/policy', controller.clearUserPolicy);
+
 export default router;

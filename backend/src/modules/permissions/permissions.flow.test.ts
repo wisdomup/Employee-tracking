@@ -413,6 +413,131 @@ async function main(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------
+  // Per-user overrides
+  // -------------------------------------------------------------------------
+
+  await test('with no override, a user resolves through their role', async () => {
+    const u = await makeUser(ROLES.ORDER_TAKER, '010');
+    const detail = await service.getUserAccessDetail(String(u._id));
+
+    assert.equal(detail.hasOverride, false);
+    assert.equal(detail.source, 'role');
+    assert.ok(detail.permissions.includes('orders:add'), "should report the role's real grants");
+  });
+
+  await test('an override wins over the role outright', async () => {
+    const u = await makeUser(ROLES.ORDER_TAKER, '011');
+
+    await service.savePolicy(
+      'user',
+      String(u._id),
+      { permissions: ['dashboard:view', 'warehouse:view'], reports: [] },
+      undefined,
+    );
+
+    const access = await resolveAccess({
+      userId: String(u._id),
+      role: ROLES.ORDER_TAKER,
+      roles: [ROLES.ORDER_TAKER],
+    });
+
+    assert.equal(access.source, 'user');
+    assert.equal(accessAllows(access, 'warehouse:view'), true, 'the override grant is missing');
+    assert.equal(
+      accessAllows(access, 'orders:add'),
+      false,
+      'a role grant survived the override — the two were merged instead of replaced',
+    );
+  });
+
+  await test('an override beats a profile too', async () => {
+    const u = await makeUser(ROLES.DELIVERY_MAN, '012');
+    await service.setUserRoles(String(u._id), combo);
+
+    const created = await service.createProfile({ name: 'Combo For Override', roles: combo });
+    await service.savePolicy(
+      'profile',
+      created.id,
+      { permissions: ['collections:view'], reports: [] },
+      undefined,
+    );
+
+    let access = await resolveAccess({ userId: String(u._id), role: ROLES.DELIVERY_MAN, roles: combo });
+    assert.equal(access.source, 'profile');
+
+    await service.savePolicy(
+      'user',
+      String(u._id),
+      { permissions: ['dashboard:view'], reports: [] },
+      undefined,
+    );
+
+    access = await resolveAccess({ userId: String(u._id), role: ROLES.DELIVERY_MAN, roles: combo });
+    assert.equal(access.source, 'user');
+    assert.equal(accessAllows(access, 'collections:view'), false, 'the profile still applied');
+  });
+
+  await test('clearing an override falls back to the role, it does not blank them', async () => {
+    const u = await makeUser(ROLES.ORDER_TAKER, '013');
+    await service.savePolicy('user', String(u._id), { permissions: ['dashboard:view'], reports: [] }, undefined);
+
+    let access = await resolveAccess({ userId: String(u._id), role: ROLES.ORDER_TAKER, roles: [ROLES.ORDER_TAKER] });
+    assert.equal(access.source, 'user');
+
+    const { cleared } = await service.clearUserPolicy(String(u._id));
+    assert.equal(cleared, true);
+
+    access = await resolveAccess({ userId: String(u._id), role: ROLES.ORDER_TAKER, roles: [ROLES.ORDER_TAKER] });
+    assert.equal(access.source, 'role');
+    assert.equal(accessAllows(access, 'orders:add'), true, 'the role did not come back');
+  });
+
+  await test('an EMPTY override is not the same as no override', async () => {
+    // Saving a blank grid is a legitimate way to strip someone. If it fell through to the role
+    // instead, an admin could not take access away, only add it.
+    const u = await makeUser(ROLES.ORDER_TAKER, '014');
+    await service.savePolicy('user', String(u._id), { permissions: [], reports: [] }, undefined);
+
+    const access = await resolveAccess({ userId: String(u._id), role: ROLES.ORDER_TAKER, roles: [ROLES.ORDER_TAKER] });
+    assert.equal(access.source, 'user');
+    assert.equal(access.permissions.size, 0);
+    assert.equal(accessAllows(access, 'orders:add'), false);
+  });
+
+  await test('an override cannot be put on an admin', async () => {
+    const u = await makeUser(ROLES.ADMIN, '015');
+    await rejectsWith(
+      service.savePolicy('user', String(u._id), { permissions: ['dashboard:view'], reports: [] }, undefined),
+      /always have full access/i,
+    );
+  });
+
+  await test('the detail payload opens the editor on current reality', async () => {
+    const u = await makeUser(ROLES.WAREHOUSE_STAFF, '016');
+    const detail = await service.getUserAccessDetail(String(u._id));
+
+    // Not a blank grid: an admin adjusting one person starts from what that person has today.
+    assert.ok(detail.permissions.length > 10, "came back empty instead of the role's set");
+    assert.ok(detail.reports.length > 0);
+    assert.equal(detail.user.role, ROLES.WAREHOUSE_STAFF);
+  });
+
+  await test('overridden users are listed for the employee-list badge', async () => {
+    const ids = await service.listOverriddenUserIds();
+    const u = await UserModel.findOne({ username: 'user-011' }).select('_id').lean();
+    assert.ok(ids.includes(String(u!._id)), 'a user with an override was not listed');
+  });
+
+  await test('an unknown user is a 404, not a silent empty policy', async () => {
+    const ghost = new Types.ObjectId();
+    await rejectsWith(service.getUserAccessDetail(String(ghost)), /not found/i);
+    await rejectsWith(
+      service.savePolicy('user', String(ghost), { permissions: [], reports: [] }, undefined),
+      /not found/i,
+    );
+  });
+
+  // -------------------------------------------------------------------------
   // The client payload
   // -------------------------------------------------------------------------
 

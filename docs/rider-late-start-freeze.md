@@ -83,7 +83,9 @@ When a rider tries to check in, and **all** of these hold:
 1. their role is freeze-eligible, **and**
 2. the deadline has passed, **and**
 3. this would be their **first** check-in of the day, **and**
-4. they have at least one assigned visit today
+4. it is not the company holiday and they are not on approved leave, **and**
+5. an admin has not already pardoned them today, **and**
+6. they have not already been judged today at all (see 3a)
 
 …the account is frozen and the check-in is **refused with 403**. They never get to start.
 
@@ -100,7 +102,7 @@ user's.
 A no-show performs no action, so rule (a) can never catch them and the admin would see
 nothing all day. The cron runs at **deadline + 5 minutes** (default `35 12 * * 0,1,2,3,4,6`
 — every day except Friday, the company holiday the visit cron already skips) and freezes
-every eligible rider who had assigned visits and still has no check-in.
+every eligible rider who still has no check-in — assigned visits or not.
 
 The 5-minute grace means a rider checking in at 12:29:58 is never raced by the sweep.
 `sweepLateStarters` re-checks the deadline itself and no-ops when called early, so a
@@ -125,6 +127,7 @@ there is one flag per rider per day rather than one per run.
 | `frozenReason` | shown verbatim to the rider and the admin |
 | `frozenBy` | **absent** when the system froze them; set when an admin did it by hand |
 | `unfrozenAt` / `unfrozenBy` | cleared again on the next freeze |
+| `freezePardonedFor` | UTC midnight of the day an admin lifted a freeze — the pardon. See 3a. |
 
 **`isFrozen` is deliberately separate from `isActive`.** `isActive` is the admin's
 permanent on/off switch for an account; this is an automatic, admin-clearable discipline
@@ -159,6 +162,69 @@ they compare directly; `/flags` renders them back as times. `value` is absent fo
 no-show — there is no arrival to record — and `meta.neverArrived` distinguishes the case.
 
 ---
+
+## 3a. The pardon — what an unfreeze actually does
+
+Lifting a freeze does more than flip `isFrozen`. It stamps
+**`User.freezePardonedFor`** with UTC midnight of that day, and while that matches today
+neither enforcement path will re-freeze the rider.
+
+**Without it an unfreeze is useless.** The rider is handed straight back into the exact
+state that froze them — still past the deadline, still with no check-in — so the check-in
+guard fires again on their very next action and re-locks them within seconds of the admin
+letting them go. The admin's "Run late-start check now" button would do the same.
+
+The pardon is scoped to **one day, one rider**:
+
+| | |
+| --- | --- |
+| Rest of today | The rider works normally. Check-ins, orders, everything. |
+| Tomorrow, on time | Nothing happens; the pardon is irrelevant. |
+| Tomorrow, late again | **Frozen again.** The pardon forgave a day, it did not exempt the rider. |
+| A colleague, same day | Unaffected. The pardon is per-rider. |
+
+An admin can repeat the cycle indefinitely: freeze → unfreeze → work → next-day freeze →
+unfreeze. The repeat offence is visible either way, because each freeze still writes its
+own `late_start` flag into `/flags`.
+
+`freezeUser` clears `freezePardonedFor` whenever it actually freezes someone. A fresh
+freeze can only be a later day than the pardon covered, so leaving it would be stale data
+the sweep has to reason about.
+
+
+### Judged once a day
+
+Sitting in front of the pardon is a blunter rule: **if a `late_start` flag already exists
+for this rider today, the rule stops looking at them until tomorrow.** The flag is written
+the instant a rider is first evaluated, so its presence means the day's verdict is already
+in.
+
+This is what makes "only the FIRST visit is checked" literally true. A rider refused at
+their first shop has no `checkedInAt` recorded, so without it every later attempt still
+looks like a first check-in and gets re-judged — which is how an unfreeze ended up being
+undone seconds later.
+
+It overlaps with `freezePardonedFor` on purpose. The pardon depends on two dates agreeing;
+this depends only on a row existing, so it still holds if those dates could ever disagree
+(a timezone/day-boundary edge, a hand-edited record). The sweep reports it as
+`skippedAlreadyJudged`.
+
+Enforcement is not weakened: a rider who is frozen and *not* unfrozen simply stays frozen.
+
+### Clocks
+
+`unfreezeUser` and `getFreezeStatus` take an optional `now` (defaulting to real time) purely
+so the pardon date is testable, matching `sweepLateStarters(now)` and
+`enforceFirstCheckInDeadline({ now })`. Production always passes real time.
+
+### What each side sees
+
+- **Rider** — the red frozen banner is replaced by a green *"Your account has been
+  unfrozen"* note for the rest of the day, telling them they are cleared and reminding them
+  of tomorrow's deadline. `GET /api/account-freeze/me` returns `pardonedToday` for this.
+- **Admin** — the unfreeze confirmation spells out that the rider is clear for the rest of
+  today and will be frozen again if late tomorrow. `sweepLateStarters` reports
+  `skippedPardoned`.
 
 ## 4. API
 
@@ -241,7 +307,11 @@ everybody at 00:00. `parseTimeOfDay` rejects `noon`, `1230`, `12:30pm`, `24:00`,
 | Server down over the deadline | The check-in guard still freezes them when they try to start. `POST /sweep` re-runs the no-show half. |
 | Sweep runs twice | One flag, original `frozenAt` preserved. |
 | Rider frozen mid-session | Next write returns 403; the banner appears on the next page load. No forced logout. |
-| Admin unfreezes | Effective on the rider's very next request — no re-login needed. |
+| Admin unfreezes | Effective on the rider's very next request — no re-login needed, and they are NOT re-frozen for the rest of that day. |
+| Pardoned rider checks in at 4pm | Allowed. The pardon covers the whole day. |
+| Rider judged earlier today, by any route | Never re-judged today, whatever happened to the freeze afterwards. |
+| Admin re-runs the sweep after unfreezing | The rider stays unfrozen (`skippedPardoned`). |
+| Pardoned rider is late again tomorrow | Frozen again; the admin can unfreeze again, and so on. |
 | Unfrozen rider is late again tomorrow | Frozen again; stale `unfrozenAt`/`unfrozenBy` are cleared. |
 | Unfreezing someone not frozen | 400 `This account is not frozen`. |
 | Frozen rider opens the app | Everything readable; every write refused with the stored reason. |
@@ -252,7 +322,7 @@ everybody at 00:00. `parseTimeOfDay` rejects `noon`, `1230`, `12:30pm`, `24:00`,
 
 ```bash
 npm run test:freeze        # 32 unit tests — deadline maths, timezone, holiday, formatting
-npm run test:freeze:flow   # 33 integration tests against in-memory MongoDB
+npm run test:freeze:flow   # 45 integration tests against in-memory MongoDB
 ```
 
 Note `visits.flow.test.ts` sets `RIDER_FREEZE_ENABLED=false`. It drives check-in at the

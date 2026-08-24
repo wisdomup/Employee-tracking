@@ -15,6 +15,8 @@ export interface FreezeStatus {
   frozenReason: string | null;
   /** Human-readable deadline, e.g. "12:30 PM". Server-formatted in the business timezone. */
   deadline: string;
+  /** True when an admin lifted a freeze for them earlier today; they are clear until tomorrow. */
+  pardonedToday: boolean;
   /** False for roles the rule does not apply to — the banner stays hidden for them. */
   subjectToRule: boolean;
 }
@@ -38,6 +40,9 @@ export interface SweepSummary {
   frozenWithNoAssignedVisits: number;
   skippedAlreadyStarted: number;
   skippedAlreadyFrozen: number;
+  skippedExempt: number;
+  skippedPardoned: number;
+  skippedAlreadyJudged: number;
 }
 
 export const accountFreezeService = {

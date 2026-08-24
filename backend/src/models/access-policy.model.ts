@@ -3,15 +3,20 @@ import { Schema, model, Document, Types } from 'mongoose';
 /**
  * One editable permission set — the saved state of a matrix screen.
  *
- * A policy belongs to either a single role or a named multi-role profile. Both are stored in
- * the same collection because they are the same shape and the resolver treats them
- * interchangeably; splitting them would mean two near-identical schemas and two code paths
- * that must never drift.
+ * A policy belongs to a single role, a named multi-role profile, or ONE INDIVIDUAL USER. All
+ * three are stored in the same collection because they are the same shape and the resolver
+ * treats them interchangeably; splitting them would mean three near-identical schemas and
+ * three code paths that must never drift.
+ *
+ * A `user` policy is a per-person override. It wins outright over that person's role and over
+ * any profile — it is not layered on top of them and nothing is merged. Once set, the user's
+ * roles stop deciding what they can do, which is why the editor shows a clear banner and a
+ * one-click way to remove the override and fall back to normal role behaviour.
  *
  * `admin` deliberately has NO policy document. `resolveAccess()` short-circuits on it before
  * ever reaching this collection, so the super-admin cannot be edited into a lockout.
  */
-export type PolicySubjectType = 'role' | 'profile';
+export type PolicySubjectType = 'role' | 'profile' | 'user';
 
 /** The five actions, as stored. Absent field reads as `false`. */
 export interface IModuleGrant {
@@ -28,6 +33,7 @@ export interface IAccessPolicy extends Document {
   /**
    * For `role`: the role identifier (`order_taker`, `delivery_man`, …).
    * For `profile`: the string form of the `PermissionProfile` `_id`.
+   * For `user`: the string form of the `User` `_id`.
    */
   subjectKey: string;
   /**
@@ -66,7 +72,7 @@ const moduleGrantSchema = new Schema<IModuleGrant>(
 
 const accessPolicySchema = new Schema<IAccessPolicy>(
   {
-    subjectType: { type: String, required: true, enum: ['role', 'profile'] },
+    subjectType: { type: String, required: true, enum: ['role', 'profile', 'user'] },
     subjectKey: { type: String, required: true, trim: true },
     grants: {
       type: Map,

@@ -85,6 +85,18 @@ export interface IUser extends Document {
   frozenBy?: Types.ObjectId;
   unfrozenAt?: Date;
   unfrozenBy?: Types.ObjectId;
+  /**
+   * UTC midnight of the day an admin last lifted a freeze — the rider's pardon for that day.
+   * While it matches today, the late-start rule will not re-freeze them.
+   *
+   * Without it an unfreeze is useless: the rider is still past the deadline with no check-in,
+   * so their very next check-in attempt trips the guard and re-freezes them within seconds of
+   * the admin letting them go.
+   *
+   * Scoped to ONE day on purpose. Tomorrow this no longer matches today, so a rider who is
+   * late again is frozen again — the pardon forgives a day, it does not exempt the rider.
+   */
+  freezePardonedFor?: Date;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -140,6 +152,7 @@ const userSchema = new Schema<IUser>(
     frozenBy: { type: Schema.Types.ObjectId, ref: 'User' },
     unfrozenAt: { type: Date },
     unfrozenBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    freezePardonedFor: { type: Date },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },

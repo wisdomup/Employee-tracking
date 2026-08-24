@@ -48,8 +48,6 @@ const NO_TOTAL_KEYS = new Set([
   'price',
   'salePrice',
   'survivalQuantity',
-  // A carried-forward balance is already cumulative; summing the column would double-count it.
-  'runningBalance',
 ]);
 
 function formatCell(value: unknown, type?: ReportDetailColumnType): string {

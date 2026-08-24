@@ -6,7 +6,12 @@ import { VisitModel } from '../../models/visit.model';
 import { UserModel } from '../../models/user.model';
 import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
 import { ROLES } from '../../constants/global';
-import { normalizeCityKey, UNASSIGNED_REGION_KEY } from '../region-sales/region-sales.rules';
+import {
+  isValidDayKey,
+  localDayRangeUtc,
+  normalizeCityKey,
+  UNASSIGNED_REGION_KEY,
+} from '../region-sales/region-sales.rules';
 import { notFound, badRequest, conflict } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextOrderInvoiceNumber } from './order-invoice-counter';
@@ -426,24 +431,23 @@ export async function findAll(filters?: {
     query.assignedRiderId = new Types.ObjectId(filters.assignedRiderId);
   }
 
+  // `createdAt` is an instant, so a `YYYY-MM-DD` filter has to be resolved in the business
+  // timezone (`REPORT_TIMEZONE`), not UTC. It was resolved in UTC, which in Asia/Karachi (UTC+5)
+  // pushed the window five hours late: orders booked between midnight and 05:00 vanished from
+  // their own day and reappeared in the next one. A start-only filter used to compensate by
+  // silently widening back a whole day — a workaround for this skew that returned the previous
+  // day's orders as well. Both are gone: each bound now means exactly the day it names, which is
+  // also what the dashboard's "Orders Today" card counts, so the card and this list agree.
   if (filters?.startDate || filters?.endDate) {
-    query.createdAt = {} as Record<string, Date>;
-    const q = query.createdAt as Record<string, Date>;
-    const startOnly = filters.startDate && !filters.endDate;
-    if (filters.startDate) {
-      const start = new Date(filters.startDate);
-      start.setUTCHours(0, 0, 0, 0);
-      if (startOnly) {
-        start.setUTCDate(start.getUTCDate() - 1);
-      }
-      q.$gte = start;
+    const fromKey = filters.startDate ?? filters.endDate!;
+    const toKey = filters.endDate ?? filters.startDate!;
+    if (!isValidDayKey(fromKey) || !isValidDayKey(toKey)) {
+      throw badRequest('startDate and endDate must be valid dates in YYYY-MM-DD format');
     }
-    const endDateToUse = filters.endDate ?? (startOnly ? filters.startDate : undefined);
-    if (endDateToUse) {
-      const end = new Date(endDateToUse);
-      end.setUTCHours(23, 59, 59, 999);
-      q.$lte = end;
-    }
+    query.createdAt = {
+      $gte: localDayRangeUtc(fromKey).start,
+      $lte: localDayRangeUtc(toKey).end,
+    };
   }
 
   return OrderModel.find(query)

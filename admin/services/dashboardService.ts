@@ -29,7 +29,10 @@ export interface DashboardStats {
   stats: {
     activeEmployees: number;
     inactiveEmployees: number;
+    /** Every non-trashed client — what the unfiltered `/clients` list holds. */
     totalClients: number;
+    /** The `status: 'active'` subset of `totalClients`, for the card's sub-line. */
+    activeClients: number;
     totalTasks: number;
     tasksCompletedToday: number;
     tasksInProgress: number;

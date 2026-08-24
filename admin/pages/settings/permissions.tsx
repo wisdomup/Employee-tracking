@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
+import PermissionEditor from '../../components/Permissions/PermissionEditor';
+import { usePermissionGrid } from '../../hooks/usePermissionGrid';
 import {
   permissionService,
-  type ActionId,
+  grantsToPermissions,
   type Catalogue,
-  type ModuleGrant,
   type Profile,
   type UncoveredCombination,
 } from '../../services/permissionService';
@@ -16,7 +17,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import styles from '../../styles/Permissions.module.scss';
 
 /**
- * The permission matrix editor.
+ * The role and profile permission matrix.
  *
  * Two things are edited here and they are deliberately different shapes:
  *
@@ -28,15 +29,10 @@ import styles from '../../styles/Permissions.module.scss';
  *
  * The Admin role has no tab. It resolves to full access before any policy is read, which is
  * exactly what stops this screen from being able to lock you out of this screen.
+ *
+ * The grid itself lives in `components/Permissions/PermissionEditor`, shared with the per-user
+ * editor at `/employees/[id]/permissions` so the two cannot drift apart.
  */
-
-const ACTION_LABELS: Record<ActionId, string> = {
-  view: 'View',
-  add: 'Add',
-  edit: 'Edit',
-  delete: 'Delete',
-  change: 'Change',
-};
 
 type Subject = { type: 'role'; key: string } | { type: 'profile'; key: string; name: string };
 
@@ -47,10 +43,6 @@ function PermissionsPage() {
 
   const [subject, setSubject] = useState<Subject>({ type: 'role', key: 'sales_manager' });
 
-  const [grants, setGrants] = useState<Record<string, ModuleGrant>>({});
-  const [reports, setReports] = useState<Set<string>>(new Set());
-  const [dirty, setDirty] = useState(false);
-
   const [loading, setLoading] = useState(true);
   const [policyLoading, setPolicyLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,6 +50,8 @@ function PermissionsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRoles, setNewRoles] = useState<string[]>([]);
+
+  const grid = usePermissionGrid(catalogue);
 
   // ── Loading ────────────────────────────────────────────────────────────────
 
@@ -86,14 +80,14 @@ function PermissionsPage() {
         s.type === 'role'
           ? await permissionService.getRolePolicy(s.key)
           : await permissionService.getProfilePolicy(s.key);
-      setGrants(policy.grants ?? {});
-      setReports(new Set(policy.reports ?? []));
-      setDirty(false);
+      grid.reset(grantsToPermissions(policy.grants ?? {}), policy.reports ?? []);
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Could not load this permission set'));
     } finally {
       setPolicyLoading(false);
     }
+    // `grid.reset` is stable; listing `grid` would re-run this on every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -104,103 +98,18 @@ function PermissionsPage() {
     void loadPolicy(subject);
   }, [subject, loadPolicy]);
 
-  // Unsaved ticks are easy to lose to a stray click on another tab, and the only signal that
-  // it happened would be the permissions quietly not changing.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
-
   // ── Editing ────────────────────────────────────────────────────────────────
 
   const switchSubject = (next: Subject) => {
-    if (dirty && !window.confirm('You have unsaved changes. Discard them?')) return;
+    if (grid.dirty && !window.confirm('You have unsaved changes. Discard them?')) return;
     setSubject(next);
   };
 
-  const toggle = (moduleId: string, action: ActionId) => {
-    setGrants((prev) => {
-      const grant = { ...(prev[moduleId] ?? {}) };
-      grant[action] = !grant[action];
-      return { ...prev, [moduleId]: grant };
-    });
-    setDirty(true);
-  };
-
-  /** Tick or clear every action a module supports. */
-  const toggleRow = (moduleId: string, actions: ActionId[]) => {
-    setGrants((prev) => {
-      const grant = prev[moduleId] ?? {};
-      const allOn = actions.every((a) => grant[a]);
-      const next: ModuleGrant = {};
-      for (const a of actions) next[a] = !allOn;
-      return { ...prev, [moduleId]: next };
-    });
-    setDirty(true);
-  };
-
-  /** Tick or clear one action down every module that supports it. */
-  const toggleColumn = (action: ActionId) => {
-    if (!catalogue) return;
-    const applicable = catalogue.modules.filter((m) => m.actions.includes(action));
-    const allOn = applicable.every((m) => grants[m.id]?.[action]);
-
-    setGrants((prev) => {
-      const next = { ...prev };
-      for (const m of applicable) {
-        next[m.id] = { ...(next[m.id] ?? {}), [action]: !allOn };
-      }
-      return next;
-    });
-    setDirty(true);
-  };
-
-  const toggleReport = (reportId: string) => {
-    setReports((prev) => {
-      const next = new Set(prev);
-      if (next.has(reportId)) next.delete(reportId);
-      else next.add(reportId);
-      return next;
-    });
-    setDirty(true);
-  };
-
-  const toggleSurface = (surface: string) => {
-    if (!catalogue) return;
-    const ids = catalogue.reports.filter((r) => r.surface === surface).map((r) => r.id);
-    const allOn = ids.every((id) => reports.has(id));
-
-    setReports((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (allOn) next.delete(id);
-        else next.add(id);
-      }
-      return next;
-    });
-    setDirty(true);
-  };
-
   const save = async () => {
-    if (!catalogue) return;
     setSaving(true);
     try {
-      // Only send cells the module actually supports. A stale `true` on an action that was
-      // removed from a module would be rejected by the API, and the admin would see a
-      // validation error for a checkbox no longer on their screen.
-      const permissions: string[] = [];
-      for (const m of catalogue.modules) {
-        for (const a of m.actions) {
-          if (grants[m.id]?.[a]) permissions.push(`${m.id}:${a}`);
-        }
-      }
-
-      const reportIds = [...reports].filter((id) => catalogue.reports.some((r) => r.id === id));
+      const permissions = grid.toPermissions();
+      const reportIds = grid.toReports();
 
       if (subject.type === 'role') {
         await permissionService.saveRolePolicy(subject.key, permissions, reportIds);
@@ -208,7 +117,7 @@ function PermissionsPage() {
         await permissionService.saveProfilePolicy(subject.key, permissions, reportIds);
       }
 
-      setDirty(false);
+      grid.markClean();
       toast.success('Permissions saved. They take effect on the next request.');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Could not save these permissions'));
@@ -258,26 +167,6 @@ function PermissionsPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const surfaces = useMemo(() => {
-    if (!catalogue) return [];
-    const order: string[] = [];
-    for (const r of catalogue.reports) if (!order.includes(r.surface)) order.push(r.surface);
-    return order.map((surface) => ({
-      surface,
-      items: catalogue.reports.filter((r) => r.surface === surface),
-    }));
-  }, [catalogue]);
-
-  const groups = useMemo(() => {
-    if (!catalogue) return [];
-    const order: string[] = [];
-    for (const m of catalogue.modules) if (!order.includes(m.group)) order.push(m.group);
-    return order.map((group) => ({
-      group,
-      items: catalogue.modules.filter((m) => m.group === group),
-    }));
-  }, [catalogue]);
-
   const subjectLabel =
     subject.type === 'role'
       ? roleLabel(subject.key)
@@ -290,11 +179,6 @@ function PermissionsPage() {
       </Layout>
     );
   }
-
-  const grantedCount = catalogue.modules.reduce(
-    (n, m) => n + m.actions.filter((a) => grants[m.id]?.[a]).length,
-    0,
-  );
 
   return (
     <Layout>
@@ -314,6 +198,12 @@ function PermissionsPage() {
           <strong>Admin is not listed.</strong>
           The admin role always has full access and is not editable. That is deliberate: a matrix
           able to revoke access to the matrix editor could lock you out of your own system.
+        </div>
+
+        <div className={styles.notice}>
+          <strong>Need to change one person, not a whole role?</strong>
+          Open <em>Employees</em>, then <em>User Roles</em> on their row. That sets permissions for
+          that person alone, without creating a role or a profile for them.
         </div>
 
         {uncovered.length > 0 && (
@@ -377,129 +267,17 @@ function PermissionsPage() {
           <Loader />
         ) : (
           <>
-            {/* ── Module matrix ── */}
-            <h2 className={styles.sectionTitle}>
-              Modules — {subjectLabel}{' '}
-              <span className={styles.reportCount}>({grantedCount} granted)</span>
-            </h2>
-
-            <div className={styles.matrixWrap}>
-              <table className={styles.matrix}>
-                <thead>
-                  <tr>
-                    <th>Module</th>
-                    {catalogue.actions.map((a) => (
-                      <th key={a} className={styles.actionCell}>
-                        {ACTION_LABELS[a]}
-                        <button
-                          type="button"
-                          className={styles.colToggle}
-                          onClick={() => toggleColumn(a)}
-                        >
-                          all
-                        </button>
-                      </th>
-                    ))}
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map(({ group, items }) => (
-                    <React.Fragment key={group}>
-                      <tr className={styles.groupRow}>
-                        <td colSpan={catalogue.actions.length + 2}>{group}</td>
-                      </tr>
-                      {items.map((m) => (
-                        <tr key={m.id}>
-                          <td className={styles.moduleCell}>
-                            {m.label}
-                            {m.changeMeans && (
-                              <span className={styles.changeHint}>Change: {m.changeMeans}</span>
-                            )}
-                          </td>
-                          {catalogue.actions.map((a) =>
-                            m.actions.includes(a) ? (
-                              <td key={a} className={styles.actionCell}>
-                                <input
-                                  type="checkbox"
-                                  className={styles.check}
-                                  checked={!!grants[m.id]?.[a]}
-                                  onChange={() => toggle(m.id, a)}
-                                  aria-label={`${m.label} — ${ACTION_LABELS[a]}`}
-                                />
-                              </td>
-                            ) : (
-                              <td
-                                key={a}
-                                className={styles.naCell}
-                                title={`${ACTION_LABELS[a]} does not apply to ${m.label}`}
-                              >
-                                n/a
-                              </td>
-                            ),
-                          )}
-                          <td>
-                            <button
-                              type="button"
-                              className={styles.rowToggle}
-                              onClick={() => toggleRow(m.id, m.actions)}
-                            >
-                              all
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* ── Reports ── */}
-            <h2 className={styles.sectionTitle}>
-              Reports — {subjectLabel}{' '}
-              <span className={styles.reportCount}>
-                ({reports.size} of {catalogue.reports.length})
-              </span>
-            </h2>
-
-            {surfaces.map(({ surface, items }) => {
-              const on = items.filter((r) => reports.has(r.id)).length;
-              return (
-                <div key={surface} className={styles.reportSurface}>
-                  <div className={styles.reportSurfaceHead}>
-                    <h3>{surface}</h3>
-                    <span className={styles.reportCount}>
-                      {on} / {items.length}
-                      <button
-                        type="button"
-                        className={styles.colToggle}
-                        onClick={() => toggleSurface(surface)}
-                      >
-                        {on === items.length ? 'clear all' : 'select all'}
-                      </button>
-                    </span>
-                  </div>
-                  <div className={styles.reportList}>
-                    {items.map((r) => (
-                      <label key={r.id} className={styles.reportItem}>
-                        <input
-                          type="checkbox"
-                          className={styles.check}
-                          checked={reports.has(r.id)}
-                          onChange={() => toggleReport(r.id)}
-                        />
-                        {r.label}
-                      </label>
-                    ))}
-                  </div>
-                  <p className={styles.viewOnlyNote}>
-                    View only. No export, print or download is available on these reports for any
-                    role.
-                  </p>
-                </div>
-              );
-            })}
+            <PermissionEditor
+              catalogue={catalogue}
+              grants={grid.grants}
+              reports={grid.reports}
+              onToggle={grid.toggle}
+              onToggleRow={grid.toggleRow}
+              onToggleColumn={grid.toggleColumn}
+              onToggleReport={grid.toggleReport}
+              onToggleSurface={grid.toggleSurface}
+              subjectLabel={subjectLabel}
+            />
 
             {/* ── Profiles ── */}
             <h2 className={styles.sectionTitle}>Multi-role profiles</h2>
@@ -513,9 +291,7 @@ function PermissionsPage() {
               {profiles.map((p) => (
                 <div key={p.id} className={styles.profileCard}>
                   <h4>{p.name}</h4>
-                  <span className={styles.profileRoles}>
-                    {p.roles.map(roleLabel).join(' + ')}
-                  </span>
+                  <span className={styles.profileRoles}>{p.roles.map(roleLabel).join(' + ')}</span>
                   <div className={styles.profileMeta}>
                     <span>
                       {p.userCount} user{p.userCount === 1 ? '' : 's'}
@@ -530,11 +306,7 @@ function PermissionsPage() {
                     >
                       Edit permissions
                     </button>
-                    <button
-                      type="button"
-                      className={styles.dangerButton}
-                      onClick={() => removeProfile(p)}
-                    >
+                    <button type="button" className={styles.dangerButton} onClick={() => removeProfile(p)}>
                       Delete
                     </button>
                   </div>
@@ -603,7 +375,7 @@ function PermissionsPage() {
           </>
         )}
 
-        {dirty && (
+        {grid.dirty && (
           <div className={styles.dirtyBar}>
             <span>Unsaved changes to {subjectLabel}</span>
             <div className={styles.headerActions}>
@@ -615,12 +387,7 @@ function PermissionsPage() {
               >
                 Discard
               </button>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={save}
-                disabled={saving}
-              >
+              <button type="button" className={styles.primaryButton} onClick={save} disabled={saving}>
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
