@@ -185,6 +185,8 @@ function CreateStockInPage() {
             showLastPurchaseRate
             defaultRateFor={(p) => p.lastPurchaseRate ?? p.purchasePrice ?? 0}
             disabled={loading || noMain}
+            exportFileName="stock-in-draft-lines"
+            exportPdfTitle="Stock In — draft line items"
           />
 
           <div className={styles.formGroup}>

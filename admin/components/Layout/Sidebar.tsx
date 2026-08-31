@@ -63,7 +63,9 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: '/activity-logs', label: 'Activity Logs', Icon: TrendUp, permission: 'activity-logs:view' },
   { path: '/categories', label: 'Categories', Icon: Tag, adminOnly: true },
   { path: '/catalogs', label: 'Catalogs', Icon: BookOpen, permission: 'catalogs:view' },
-  { path: '/products', label: 'Products', Icon: Package, permission: 'products:view' },
+  // `products:view-catalog`, not `products:view` — order takers and warehouse staff read products
+  // inside their line-item pickers but never browse the catalog page.
+  { path: '/products', label: 'Products', Icon: Package, permission: 'products:view-catalog' },
   // One entry for the whole warehouse module; `isActive` uses startsWith, so every nested
   // /warehouse/** page keeps it lit. Adding a sibling /warehouse* entry would break that.
   { path: '/warehouse', label: 'Warehouse', Icon: Warehouse, permission: 'warehouse:view' },

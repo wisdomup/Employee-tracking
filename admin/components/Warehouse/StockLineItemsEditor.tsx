@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import SearchableSelect from '../UI/SearchableSelect';
+import DataExportButton from '../UI/DataExportButton';
 import { Product } from '../../services/productService';
 import { formatRsExact } from '../../utils/formatCurrency';
+import type { TableExportColumn } from '../../utils/tableExport';
 import styles from '../../styles/FormPage.module.scss';
 
 /**
@@ -42,6 +44,10 @@ export interface StockLineItemsEditorProps {
   availableLabel?: string;
   defaultRateFor?: (product: Product) => number;
   disabled?: boolean;
+  /** Base download name for the line-items export. Omit to hide the export control. */
+  exportFileName?: string;
+  /** Title line at the top of the exported PDF. */
+  exportPdfTitle?: string;
 }
 
 const emptyLine = (): StockLine => ({ productId: '', qty: 1, rate: 0 });
@@ -91,6 +97,8 @@ const StockLineItemsEditor: React.FC<StockLineItemsEditorProps> = ({
   availableLabel = 'Available',
   defaultRateFor,
   disabled = false,
+  exportFileName,
+  exportPdfTitle,
 }) => {
   const productById = useMemo(() => {
     const map = new Map<string, Product>();
@@ -139,6 +147,69 @@ const StockLineItemsEditor: React.FC<StockLineItemsEditorProps> = ({
   const availableOf = (productId: string) =>
     availableByProduct ? availableByProduct[productId] ?? 0 : null;
 
+  /**
+   * Only lines that name a product. A freshly added blank row still carries the default qty of 1,
+   * which is noise on screen but would read as a real line in a file — so the export totals are
+   * summed over these rows rather than reusing the on-screen figures.
+   */
+  const exportRows = useMemo(() => value.filter((line) => line.productId), [value]);
+
+  const exportColumns = useMemo<TableExportColumn[]>(() => {
+    const nameOf = (productId: string) => productById.get(productId)?.name ?? '';
+    return [
+      {
+        key: 'product',
+        title: 'Product',
+        exportValue: (row) => nameOf((row as StockLine).productId),
+      },
+      {
+        key: 'barcode',
+        title: 'Barcode',
+        exportValue: (row) => productById.get((row as StockLine).productId)?.barcode ?? '',
+      },
+      ...(availableByProduct
+        ? [
+            {
+              key: 'available',
+              title: availableLabel,
+              exportValue: (row: unknown) =>
+                String(availableByProduct[(row as StockLine).productId] ?? 0),
+            },
+          ]
+        : []),
+      { key: 'qty', title: qtyLabel, exportValue: (row) => String((row as StockLine).qty || 0) },
+      ...(showRate
+        ? [
+            {
+              key: 'rate',
+              title: 'Rate (per piece)',
+              exportValue: (row: unknown) => formatRsExact((row as StockLine).rate || 0),
+            },
+            {
+              key: 'amount',
+              title: 'Amount',
+              exportValue: (row: unknown) => {
+                const line = row as StockLine;
+                return formatRsExact((line.qty || 0) * (line.rate || 0));
+              },
+            },
+          ]
+        : []),
+    ];
+  }, [availableByProduct, availableLabel, productById, qtyLabel, showRate]);
+
+  const exportTotalRow = useMemo(() => {
+    const pieces = exportRows.reduce((sum, l) => sum + (l.qty || 0), 0);
+    const amount = exportRows.reduce((sum, l) => sum + (l.qty || 0) * (l.rate || 0), 0);
+    return [
+      'Total',
+      '',
+      ...(availableByProduct ? [''] : []),
+      `${pieces} pcs`,
+      ...(showRate ? ['', formatRsExact(amount)] : []),
+    ];
+  }, [availableByProduct, exportRows, showRate]);
+
   return (
     <div style={{ marginBottom: '1.5rem' }}>
       <div
@@ -150,15 +221,27 @@ const StockLineItemsEditor: React.FC<StockLineItemsEditorProps> = ({
         }}
       >
         <label style={{ fontWeight: 600, color: '#374151' }}>Products *</label>
-        <button
-          type="button"
-          onClick={addRow}
-          disabled={disabled}
-          className={styles.cancelButton}
-          style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-        >
-          + Add Row
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {exportFileName && (
+            <DataExportButton
+              columns={exportColumns}
+              rows={exportRows}
+              fileName={exportFileName}
+              pdfTitle={exportPdfTitle}
+              grandTotalRow={exportTotalRow}
+              adminOnly={false}
+            />
+          )}
+          <button
+            type="button"
+            onClick={addRow}
+            disabled={disabled}
+            className={styles.cancelButton}
+            style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+          >
+            + Add Row
+          </button>
+        </div>
       </div>
 
       {/* Desktop: a real table. Editable cells rule out the shared Table component, which is

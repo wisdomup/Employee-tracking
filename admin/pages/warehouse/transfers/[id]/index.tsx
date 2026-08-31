@@ -11,8 +11,11 @@ import ReasonModal from '../../../../components/Warehouse/ReasonModal';
 import {
   stockTransferService,
   StockTransfer,
+  TransferLine,
   TRANSFER_STATUS_LABELS,
 } from '../../../../services/stockTransferService';
+import DataExportButton from '../../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../../utils/tableExport';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../../utils/employeeDisplayLabel';
 import { formatPieces } from '../../../../utils/formatCurrency';
@@ -21,6 +24,48 @@ import { can } from '../../../../utils/permissions';
 import { useAuth } from '../../../../contexts/AuthContext';
 import styles from '../../../../styles/DetailPage.module.scss';
 import modalStyles from '../../../../styles/Modal.module.scss';
+
+/** Mirrors the on-screen Products table, including the sent-vs-received difference. */
+const transferExportColumns: TableExportColumn[] = [
+  {
+    key: 'product',
+    title: 'Product',
+    exportValue: (row) => (row as TransferLine).productId?.name ?? '',
+  },
+  {
+    key: 'barcode',
+    title: 'Barcode',
+    exportValue: (row) => (row as TransferLine).productId?.barcode ?? '',
+  },
+  {
+    key: 'sentQty',
+    title: 'Sent',
+    exportValue: (row) => formatPieces((row as TransferLine).sentQty),
+  },
+  {
+    key: 'receivedQty',
+    title: 'Received',
+    exportValue: (row) => {
+      const received = (row as TransferLine).receivedQty;
+      return received === undefined ? '' : formatPieces(received);
+    },
+  },
+  {
+    key: 'difference',
+    title: 'Difference',
+    exportValue: (row) => {
+      const line = row as TransferLine;
+      if (line.receivedQty === undefined) return '';
+      const diff = line.sentQty - line.receivedQty;
+      return diff === 0 ? '' : `-${diff}`;
+    },
+  },
+  {
+    key: 'receiveNote',
+    title: 'Note',
+    exportValue: (row) => (row as TransferLine).receiveNote || '',
+  },
+];
 
 type ModalKind = 'reject' | 'cancel' | null;
 
@@ -388,7 +433,15 @@ function TransferDetailPage() {
           )}
 
           <div className={styles.section}>
-            <h2>Products</h2>
+            <div className={styles.sectionHeadRow}>
+              <h2>Products</h2>
+              <DataExportButton
+                columns={transferExportColumns}
+                rows={transfer.products}
+                fileName={`stock-transfer-${transfer._id}-products`}
+                pdfTitle="Stock Transfer — Products"
+              />
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table
                 style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: '0.875rem' }}

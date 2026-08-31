@@ -155,6 +155,8 @@ const AssignmentsPage: React.FC = () => {
               columns={routeAssignmentColumns}
               data={routeAssignments}
               loading={loading}
+              exportFileName="route-assignments"
+              exportPdfTitle="Route Assignments"
             />
           </div>
         </div>

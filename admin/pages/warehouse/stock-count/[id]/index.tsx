@@ -18,6 +18,8 @@ import { employeeDisplayLabel } from '../../../../utils/employeeDisplayLabel';
 import { formatPieces } from '../../../../utils/formatCurrency';
 import { can } from '../../../../utils/permissions';
 import { useAuth } from '../../../../contexts/AuthContext';
+import DataExportButton from '../../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../../utils/tableExport';
 import formStyles from '../../../../styles/FormPage.module.scss';
 import detailStyles from '../../../../styles/DetailPage.module.scss';
 import reportStyles from '../../../../styles/StockReports.module.scss';
@@ -42,6 +44,54 @@ interface DraftLine {
 }
 
 type ModalKind = 'reject' | 'cancel' | null;
+
+/** The count sheet as exportable data — same columns and signed differences as on screen. */
+const countExportColumns: TableExportColumn[] = [
+  { key: 'productName', title: 'Product' },
+  { key: 'barcode', title: 'Barcode' },
+  {
+    key: 'systemSellable',
+    title: 'System sellable',
+    exportValue: (row) => formatPieces((row as DraftLine).systemSellable),
+  },
+  {
+    key: 'countedSellable',
+    title: 'Counted sellable',
+    exportValue: (row) => formatPieces(Number((row as DraftLine).countedSellable || 0)),
+  },
+  {
+    key: 'sellableDiff',
+    title: 'Sellable diff',
+    exportValue: (row) => {
+      const l = row as DraftLine;
+      return signedDiff(Number(l.countedSellable || 0) - l.systemSellable);
+    },
+  },
+  {
+    key: 'systemDamaged',
+    title: 'System damaged',
+    exportValue: (row) => formatPieces((row as DraftLine).systemDamaged),
+  },
+  {
+    key: 'countedDamaged',
+    title: 'Counted damaged',
+    exportValue: (row) => formatPieces(Number((row as DraftLine).countedDamaged || 0)),
+  },
+  {
+    key: 'damagedDiff',
+    title: 'Damaged diff',
+    exportValue: (row) => {
+      const l = row as DraftLine;
+      return signedDiff(Number(l.countedDamaged || 0) - l.systemDamaged);
+    },
+  },
+  { key: 'note', title: 'Note' },
+];
+
+function signedDiff(diff: number): string {
+  if (diff === 0) return '';
+  return diff > 0 ? `+${diff}` : String(diff);
+}
 
 function StockCountDetailPage() {
   const router = useRouter();
@@ -342,6 +392,21 @@ function StockCountDetailPage() {
             </span>
           </div>
         )}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginBottom: '0.5rem',
+          }}
+        >
+          <DataExportButton
+            columns={countExportColumns}
+            rows={visibleLines}
+            fileName={`stock-count-${count.periodMonth}-${count.warehouseId?.name ?? 'warehouse'}`}
+            pdfTitle={`Stock Count ${count.periodMonth} — ${count.warehouseId?.name ?? ''}`}
+          />
+        </div>
 
         <div style={{ overflowX: 'auto', marginBottom: '1rem' }}>
           <table

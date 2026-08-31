@@ -312,6 +312,8 @@ const RouteDetailPage: React.FC = () => {
                   data={visits}
                   loading={false}
                   onRowClick={handleVisitRowClick}
+                  exportFileName={`route-visits-${route?.name || id}`}
+                  exportPdfTitle={`Visits — ${route?.name || "Route"}`}
                 />
                 <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
                   Click on a row to view or edit the visit

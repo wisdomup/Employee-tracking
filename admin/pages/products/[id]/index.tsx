@@ -190,7 +190,10 @@ const ProductDetailPage: React.FC = () => {
 
 export default function ProductDetailPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute
+      allowedRoles={['admin', 'sales_manager', 'order_taker']}
+      requiredPermission="products:view-catalog"
+    >
       <ProductDetailPage />
     </ProtectedRoute>
   );

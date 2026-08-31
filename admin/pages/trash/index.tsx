@@ -214,7 +214,13 @@ const TrashPage: React.FC = () => {
               </button>
             </div>
 
-            <Table columns={columns} data={filteredItems} loading={loading} />
+            <Table
+              columns={columns}
+              data={filteredItems}
+              loading={loading}
+              exportFileName="trash"
+              exportPdfTitle="Trash"
+            />
           </div>
         </div>
       </div>

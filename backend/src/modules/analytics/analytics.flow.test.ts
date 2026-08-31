@@ -23,6 +23,15 @@ import { PerformanceFlagModel } from '../../models/performance-flag.model';
 import * as analyticsService from './analytics.service';
 import * as targetsService from '../targets/targets.service';
 import { toPeriodMonth } from './analytics.rules';
+import { invalidateAnalyticsCache, analyticsCacheSize } from './analytics.cache';
+
+/**
+ * These tests write fixtures and immediately read them back, which is exactly the pattern
+ * the report cache is designed to short-circuit. Every assertion below is about the
+ * aggregation, so the cache is off by default and switched on only for the section that
+ * tests the cache itself.
+ */
+process.env.ANALYTICS_CACHE_DISABLED = '1';
 
 let passed = 0;
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -514,6 +523,93 @@ async function main(): Promise<void> {
       Object.keys(populated.kpis).sort(),
       'shape drift would make the frontend read undefined KPIs',
     );
+  });
+
+  // eslint-disable-next-line no-console
+  console.log('\nReport cache');
+
+  await test('a repeated identical request is served from the cache', async () => {
+    delete process.env.ANALYTICS_CACHE_DISABLED;
+    invalidateAnalyticsCache();
+    try {
+      const first = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+      assert.equal(analyticsCacheSize(), 1, 'the first call should populate the cache');
+
+      // Written behind the cache's back: a second call inside the TTL must NOT see it.
+      await DealerModel.create({
+        name: 'Cache Probe Store',
+        phone: '0399999999',
+        createdBy: RIDER_A,
+        createdAt: inThisMonth(),
+      });
+
+      const second = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+      assert.equal(second.kpis.newClients, first.kpis.newClients);
+
+      // ...and must see it again once the cache is dropped.
+      invalidateAnalyticsCache();
+      const third = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+      assert.equal(third.kpis.newClients, first.kpis.newClients + 1);
+    } finally {
+      process.env.ANALYTICS_CACHE_DISABLED = '1';
+    }
+  });
+
+  await test('the cache NEVER serves one viewer the report of another', async () => {
+    delete process.env.ANALYTICS_CACHE_DISABLED;
+    invalidateAnalyticsCache();
+    try {
+      // Admin first, so the widest report is the one sitting in the cache.
+      const asAdmin = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+      assert.ok(asAdmin.rows.length > 1, 'admin should see the whole field staff');
+
+      // Same period, different viewer: must recompute against that viewer's own scope.
+      const asManagerB = await analyticsService.getPerformance(
+        {},
+        String(MANAGER_B),
+        'sales_manager',
+      );
+      assert.ok(
+        !asManagerB.rows.some((r) => r.employeeId === String(RIDER_A)),
+        "manager B must never receive manager A's rider from the cache",
+      );
+
+      const asRider = await analyticsService.getPerformance({}, String(RIDER_A), 'employee');
+      assert.equal(asRider.rows.length, 1, 'a rider sees only themselves');
+      assert.equal(asRider.rows[0].employeeId, String(RIDER_A));
+
+      // Four distinct viewer/role pairs must have produced four distinct entries; a
+      // collision here is the leak this cache has to be incapable of.
+      await analyticsService.getPerformance({}, String(MANAGER_A), 'sales_manager');
+      assert.equal(analyticsCacheSize(), 4, 'each viewer/role pair needs its own entry');
+    } finally {
+      process.env.ANALYTICS_CACHE_DISABLED = '1';
+    }
+  });
+
+  await test('saving a target busts the cache', async () => {
+    delete process.env.ANALYTICS_CACHE_DISABLED;
+    invalidateAnalyticsCache();
+    try {
+      await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+      assert.ok(analyticsCacheSize() > 0);
+
+      await targetsService.upsertTarget(
+        { employeeId: String(RIDER_A), periodMonth: PERIOD, salesAmount: 999999 },
+        String(ADMIN_ID),
+        'admin',
+      );
+      assert.equal(analyticsCacheSize(), 0, 'a target write must drop every cached report');
+
+      const after = await analyticsService.getPerformance({}, String(ADMIN_ID), 'admin');
+      assert.equal(rowFor(after, RIDER_A)!.targetSalesAmount, 999999);
+
+      // upsertTarget fires its activity log without awaiting; let it land before the
+      // suite disconnects, or teardown races it and prints a spurious client-closed error.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      process.env.ANALYTICS_CACHE_DISABLED = '1';
+    }
   });
 
   // eslint-disable-next-line no-console

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter } from 'next/router';
 import { authService, User, LoginCredentials, mapApiUserToAuthUser } from '../services/authService';
 import { profileService } from '../services/profileService';
+import { clearAnalyticsCache } from '../services/analyticsService';
 
 interface AuthContextType {
   user: User | null;
@@ -48,6 +49,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = () => {
     authService.logout();
+    // The analytics cache holds this user's scope-filtered reports. Dropping it here stops
+    // the next person to sign in on this browser from being shown the previous user's
+    // team data while their own request is still in flight.
+    clearAnalyticsCache();
     setUser(null);
     router.push('/login');
   };

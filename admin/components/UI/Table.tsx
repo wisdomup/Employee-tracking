@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CaretDown } from '@phosphor-icons/react';
+import React, { useCallback, useMemo } from 'react';
 import GlobalDataTable, { TableColumn } from './GlobalDataTable';
+import ExportMenu from './ExportMenu';
 import {
   exportTableToCsv,
   exportTableToPdf,
@@ -15,7 +15,6 @@ import {
 } from '../../utils/tableGrandTotal';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './GlobalDataTable.module.scss';
-import { toast } from 'react-toastify';
 
 /** Table export UI (CSV/PDF sub-header). Set to `false` to hide the Export button. */
 const ENABLE_TABLE_EXPORT_UI = true;
@@ -101,125 +100,30 @@ function TableExportControl({
   exportPdfTitle?: string;
   grandTotalRow?: string[] | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  const hasCsv = exportFormats.includes('csv');
-  const hasPdf = exportFormats.includes('pdf');
-  const multi = hasCsv && hasPdf;
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   const runCsv = useCallback(() => {
     exportTableToCsv({ filename: exportFileName, columns, data, grandTotalRow });
-    setOpen(false);
   }, [columns, data, exportFileName, grandTotalRow]);
 
-  const runPdf = useCallback(async () => {
-    setPdfBusy(true);
-    try {
-      await exportTableToPdf({
+  const runPdf = useCallback(
+    () =>
+      exportTableToPdf({
         filename: exportFileName,
         columns,
         data,
         title: exportPdfTitle,
         grandTotalRow,
-      });
-      setOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast.error('Could not generate PDF. Try again or use CSV.');
-    } finally {
-      setPdfBusy(false);
-    }
-  }, [columns, data, exportFileName, exportPdfTitle, grandTotalRow]);
-
-  if (hasCsv && !hasPdf) {
-    return (
-      <button
-        type="button"
-        className={styles.exportButton}
-        onClick={runCsv}
-        disabled={disabled}
-        aria-label="Export table as CSV"
-      >
-        Export CSV
-      </button>
-    );
-  }
-
-  if (!hasCsv && hasPdf) {
-    return (
-      <button
-        type="button"
-        className={styles.exportButton}
-        onClick={() => void runPdf()}
-        disabled={disabled || pdfBusy}
-        aria-label="Export table as PDF"
-      >
-        {pdfBusy ? 'Generating…' : 'Export PDF'}
-      </button>
-    );
-  }
+      }),
+    [columns, data, exportFileName, exportPdfTitle, grandTotalRow],
+  );
 
   return (
-    <div className={styles.exportWrap} ref={wrapRef}>
-      <button
-        type="button"
-        className={styles.exportButton}
-        onClick={() => setOpen((v) => !v)}
-        disabled={disabled || pdfBusy}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Export table"
-      >
-        Export
-        <CaretDown className={styles.exportCaret} size={14} weight="bold" aria-hidden />
-      </button>
-      {open && multi && (
-        <ul className={styles.exportMenu} role="menu">
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.exportMenuItem}
-              onClick={runCsv}
-              disabled={disabled}
-            >
-              Export as CSV
-            </button>
-          </li>
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.exportMenuItem}
-              onClick={() => void runPdf()}
-              disabled={disabled || pdfBusy}
-            >
-              {pdfBusy ? 'Generating PDF…' : 'Export as PDF'}
-            </button>
-          </li>
-        </ul>
-      )}
-    </div>
+    <ExportMenu
+      disabled={disabled}
+      formats={exportFormats}
+      onExportCsv={runCsv}
+      onExportPdf={runPdf}
+      ariaLabel="Export table"
+    />
   );
 }
 

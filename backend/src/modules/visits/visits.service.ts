@@ -131,13 +131,25 @@ export async function findAll(filters?: {
     }
   }
 
-  return VisitModel.find(query)
-    .populate('dealerId')
-    .populate('employeeId', '-password')
-    .populate('routeId')
-    .populate('createdBy', '-password')
-    .sort({ createdAt: -1 })
-    .exec();
+  return (
+    VisitModel.find(query)
+      // The list, calendar and day views never read the per-visit media or notes, and those
+      // arrays dominated the response. Anything that needs them (the detail and edit
+      // pages) loads a single visit through `findById`, which stays unprojected.
+      .select('-completionImages -galleryImages -visitNotes')
+      // Only the fields these views actually render. The full documents were being joined
+      // in for every row: the whole dealer record (address, coordinates, contact), the
+      // whole route, and two whole user records.
+      .populate('dealerId', 'name shopName latitude longitude')
+      .populate('employeeId', 'username userID fullName')
+      .populate('routeId', 'name')
+      .populate('createdBy', 'username userID fullName role')
+      .sort({ createdAt: -1 })
+      // Plain objects: the result is serialised straight to JSON by the controller and
+      // never uses a document method, so hydrating a Mongoose document per row is waste.
+      .lean()
+      .exec()
+  );
 }
 
 export async function findById(id: string, visibleEmployeeIds?: Types.ObjectId[] | null) {

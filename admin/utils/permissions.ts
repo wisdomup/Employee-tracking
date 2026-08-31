@@ -8,6 +8,23 @@ export type Role =
   | 'delivery_man';
 
 /**
+ * The two product keys are deliberately separate:
+ *
+ * - `products:view`         — read product records where a product must be *picked*: the order,
+ *                             return and warehouse-document line-item selectors. Every role that
+ *                             books a document needs it.
+ * - `products:view-catalog` — open the /products catalog browser (list page + product detail).
+ *                             Held only by admin and sales_manager.
+ *
+ * A salesman therefore selects products while writing an order but has no route into the catalog:
+ * no sidebar entry, no bottom-nav tab, and ProtectedRoute bounces /products and /products/[id].
+ *
+ * Note the backend GET /api/products stays open to every authenticated role — the order form
+ * calls it. `products:view-catalog` is a navigation gate, not a data gate; a salesman who hits
+ * the API by hand still gets the list back. Splitting the endpoint would break order taking.
+ */
+
+/**
  * Permissions granted to the order_taker role.
  * Admins implicitly have all permissions.
  * All other employee roles have no permissions (Coming Soon).
@@ -19,6 +36,8 @@ const ORDER_TAKER_PERMISSIONS = new Set([
   // Phone, category, route and status stay on the admin edit form.
   'dealers:fix-location',
   'catalogs:view',
+  // Read product data for the order/return line-item pickers only. The /products catalog page
+  // is a separate key (`products:view-catalog`) the salesman deliberately does NOT have.
   'products:view',
   'activity-logs:view',
   'routes:view',
@@ -51,6 +70,7 @@ const ORDER_TAKER_PERMISSIONS = new Set([
 const SALES_MANAGER_PERMISSIONS = new Set([
   'dealers:view',
   'products:view',
+  'products:view-catalog',
   'catalogs:view',
   'routes:view',
   'orders:view',

@@ -8,6 +8,9 @@ import StatusBadge from '../../../components/UI/StatusBadge';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import WarehouseModuleNav from '../../../components/Warehouse/WarehouseModuleNav';
+import AnalyticsExportButton from '../../../components/UI/AnalyticsExportButton';
+import type { AnalyticsExportPayload } from '../../../utils/analyticsExport';
+import type { TableExportColumn } from '../../../utils/tableExport';
 import {
   warehouseService,
   Warehouse,
@@ -609,17 +612,21 @@ function WarehouseReportsPage() {
     { key: 'approvedByName', title: 'Approved by', render: (v: string) => v || '—' },
   ];
 
-  const bestSellerColumns: TableColumnConfig[] = [
-    { key: 'productName', title: 'Product' },
-    { key: 'barcode', title: 'Barcode' },
-    { key: 'qtySold', title: 'Pieces sold', render: (v: number) => formatPieces(v) },
-    { key: 'revenue', totalFormat: formatRsExact, title: 'Revenue', render: (v: number) => formatRsExact(v) },
-    {
-      key: 'currentSellableQty',
-      title: 'Sellable now',
-      render: (v: number) => formatPieces(v),
-    },
-  ];
+  // Memoized because the valuation export builder depends on it.
+  const bestSellerColumns = useMemo<TableColumnConfig[]>(
+    () => [
+      { key: 'productName', title: 'Product' },
+      { key: 'barcode', title: 'Barcode' },
+      { key: 'qtySold', title: 'Pieces sold', render: (v: number) => formatPieces(v) },
+      { key: 'revenue', totalFormat: formatRsExact, title: 'Revenue', render: (v: number) => formatRsExact(v) },
+      {
+        key: 'currentSellableQty',
+        title: 'Sellable now',
+        render: (v: number) => formatPieces(v),
+      },
+    ],
+    [],
+  );
 
   const handleApply = () => setAppliedFilters(filters);
   const handleReset = () => {
@@ -658,7 +665,7 @@ function WarehouseReportsPage() {
     }
   };
 
-  function valuationCards() {
+  const valuationCards = useCallback(() => {
     const s = valuation?.summary;
     if (!s) return [];
     const cards = [
@@ -682,7 +689,7 @@ function WarehouseReportsPage() {
       });
     }
     return cards;
-  }
+  }, [showCost, valuation]);
 
   const showDateFilters =
     activeTab === 'movement' ||
@@ -692,6 +699,24 @@ function WarehouseReportsPage() {
   const mismatchCount = useMemo(
     () => new Set(transferRows.filter((r) => r.status === 'mismatch').map((r) => r.documentNo)).size,
     [transferRows],
+  );
+
+  /** Valuation is a card summary plus the best-seller table; the export carries both. */
+  const buildValuationExport = useCallback(
+    (): AnalyticsExportPayload => ({
+      filename: 'warehouse-valuation',
+      title: 'Warehouse Valuation',
+      subtitle: exportPdfTitle,
+      kpis: valuationCards().map((card) => ({ label: card.label, value: card.value })),
+      tables: [
+        {
+          title: 'Best sellers',
+          columns: bestSellerColumns as TableExportColumn[],
+          rows: valuation?.bestSellers ?? [],
+        },
+      ],
+    }),
+    [bestSellerColumns, exportPdfTitle, valuation, valuationCards],
   );
 
   return (
@@ -1061,6 +1086,15 @@ function WarehouseReportsPage() {
 
         {activeTab === 'valuation' && (
           <>
+            <div
+              style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}
+            >
+              <AnalyticsExportButton
+                buildPayload={buildValuationExport}
+                disabled={loading}
+                ariaLabel="Export warehouse valuation"
+              />
+            </div>
             <div className={styles.plGrid}>
               {valuationCards().map((card) => (
                 <div key={card.label} className={styles.plCard}>

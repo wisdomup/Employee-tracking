@@ -69,12 +69,11 @@ export async function getDashboardStats() {
     totalOrders,
     totalPendingOrders,
     totalRoutes,
-    visitsToday,
-    visitsCompletedToday,
-    visitsOpenToday,
+    visitCounts,
     ordersToday,
     salesToday,
     recentActivity,
+    completedTasksForMap,
   ] = await Promise.all([
     UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: true, isTrashed: { $ne: true } }),
     UserModel.countDocuments({ role: { $ne: 'admin' }, isActive: false, isTrashed: { $ne: true } }),
@@ -94,20 +93,27 @@ export async function getDashboardStats() {
     // subset. Counting the completed ones by `completedAt` instead would let a visit scheduled
     // yesterday and finished this morning into the numerator but not the denominator — and
     // "48 of 46" is exactly the kind of figure that costs a dashboard its credibility.
-    VisitModel.countDocuments({
-      isTrashed: { $ne: true },
-      visitDate: { $gte: visitDay.start, $lte: visitDay.end },
-    }),
-    VisitModel.countDocuments({
-      isTrashed: { $ne: true },
-      status: 'completed',
-      visitDate: { $gte: visitDay.start, $lte: visitDay.end },
-    }),
-    VisitModel.countDocuments({
-      isTrashed: { $ne: true },
-      status: { $in: ['todo', 'in_progress', 'checked_in'] },
-      visitDate: { $gte: visitDay.start, $lte: visitDay.end },
-    }),
+    // One pass over today's visits rather than three counts over the same matched set.
+    VisitModel.aggregate<{ total: number; completed: number; open: number }>([
+      {
+        $match: {
+          isTrashed: { $ne: true },
+          visitDate: { $gte: visitDay.start, $lte: visitDay.end },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          open: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['todo', 'in_progress', 'checked_in']] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]),
     OrderModel.countDocuments({
       isTrashed: { $ne: true },
       status: { $ne: 'cancelled' },
@@ -115,17 +121,25 @@ export async function getDashboardStats() {
     }),
     sumOrderAmounts({ $gte: today, $lt: tomorrow }),
     getRecentActivity(10),
+    // Was awaited separately after this block, costing an extra serial round trip for no
+    // reason. Only pin coordinates and two labels are read, so nothing else is fetched.
+    TaskModel.find({
+      status: 'completed',
+      latitude: { $exists: true },
+      longitude: { $exists: true },
+    })
+      .select('taskName latitude longitude completedAt dealerId assignedTo')
+      .populate('dealerId', 'name latitude longitude')
+      .populate('assignedTo', 'username')
+      .limit(50)
+      .lean()
+      .exec(),
   ]);
 
-  const completedTasksForMap = await TaskModel.find({
-    status: 'completed',
-    latitude: { $exists: true },
-    longitude: { $exists: true },
-  })
-    .populate('dealerId')
-    .populate('assignedTo', 'username')
-    .limit(50)
-    .exec();
+  const visits = visitCounts[0];
+  const visitsToday = visits?.total ?? 0;
+  const visitsCompletedToday = visits?.completed ?? 0;
+  const visitsOpenToday = visits?.open ?? 0;
 
   return {
     // The day the visit figures cover, so the cards can link to exactly the rows they counted
@@ -494,7 +508,18 @@ export async function getDashboardReports(params: {
     { $project: { _id: 0, period: '$_id', soldQty: 1 } },
   ]);
 
-  const stockByItemPromise = ProductModel.aggregate([
+  /**
+   * Stock per product, assembled from three independent passes instead of one pipeline
+   * with correlated sub-lookups.
+   *
+   * The previous version ran a `$lookup` sub-pipeline over orders AND another over returns
+   * *for every product row*, each one scanning the whole collection and unwinding every
+   * line item before filtering to that single product. That is O(products x orders): a
+   * catalogue of 500 items re-read the entire order history 500 times on every dashboard
+   * load. Grouping by product once and joining the three results in memory is the same
+   * answer for a fraction of the work.
+   */
+  const productCatalogPromise = ProductModel.aggregate([
     { $match: { isTrashed: { $ne: true } } },
     {
       $lookup: {
@@ -506,87 +531,6 @@ export async function getDashboardReports(params: {
     },
     { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
     {
-      $lookup: {
-        from: 'orders',
-        let: { pid: '$_id' },
-        pipeline: [
-          {
-            $match: {
-              isTrashed: { $ne: true },
-              status: { $in: ['pending', 'approved', 'packed', 'dispatched'] },
-            },
-          },
-          { $unwind: '$products' },
-          { $match: { $expr: { $eq: ['$products.productId', '$$pid'] } } },
-          { $group: { _id: null, qty: { $sum: '$products.quantity' } } },
-        ],
-        as: 'holdAgg',
-      },
-    },
-    {
-      $lookup: {
-        from: 'returns',
-        let: { pid: '$_id' },
-        pipeline: [
-          { $match: { isTrashed: { $ne: true }, status: 'completed' } },
-          { $unwind: '$products' },
-          { $match: { $expr: { $eq: ['$products.productId', '$$pid'] } } },
-          {
-            $group: {
-              _id: '$returnType',
-              qty: { $sum: { $ifNull: ['$products.quantity', 0] } },
-            },
-          },
-        ],
-        as: 'returnAgg',
-      },
-    },
-    {
-      $addFields: {
-        onHoldQty: { $ifNull: [{ $arrayElemAt: ['$holdAgg.qty', 0] }, 0] },
-        returnedQty: {
-          $ifNull: [
-            {
-              $first: {
-                $map: {
-                  input: {
-                    $filter: {
-                      input: '$returnAgg',
-                      as: 'r',
-                      cond: { $eq: ['$$r._id', 'return'] },
-                    },
-                  },
-                  as: 'r',
-                  in: '$$r.qty',
-                },
-              },
-            },
-            0,
-          ],
-        },
-        damagedQty: {
-          $ifNull: [
-            {
-              $first: {
-                $map: {
-                  input: {
-                    $filter: {
-                      input: '$returnAgg',
-                      as: 'r',
-                      cond: { $eq: ['$$r._id', 'damage'] },
-                    },
-                  },
-                  as: 'r',
-                  in: '$$r.qty',
-                },
-              },
-            },
-            0,
-          ],
-        },
-      },
-    },
-    {
       $project: {
         _id: 0,
         productId: '$_id',
@@ -594,12 +538,50 @@ export async function getDashboardReports(params: {
         categoryId: '$category._id',
         categoryName: '$category.name',
         availableQty: { $ifNull: ['$quantity', 0] },
-        onHoldQty: 1,
-        returnedQty: 1,
-        damagedQty: 1,
       },
     },
     { $sort: { productName: 1 } },
+  ]);
+
+  /** Committed-but-undelivered quantity per product, in one pass over the open orders. */
+  const onHoldByProductPromise = OrderModel.aggregate([
+    { $match: { isTrashed: { $ne: true }, status: { $in: OPEN_ORDER_STATUSES } } },
+    { $unwind: '$products' },
+    {
+      $group: {
+        _id: '$products.productId',
+        qty: { $sum: { $ifNull: ['$products.quantity', 0] } },
+      },
+    },
+  ]);
+
+  /** Returned and damaged quantity per product, split by the return's type. */
+  const returnsByProductPromise = ReturnModel.aggregate([
+    { $match: { isTrashed: { $ne: true }, status: 'completed' } },
+    { $unwind: '$products' },
+    {
+      $group: {
+        _id: '$products.productId',
+        returnedQty: {
+          $sum: {
+            $cond: [
+              { $eq: ['$returnType', 'return'] },
+              { $ifNull: ['$products.quantity', 0] },
+              0,
+            ],
+          },
+        },
+        damagedQty: {
+          $sum: {
+            $cond: [
+              { $eq: ['$returnType', 'damage'] },
+              { $ifNull: ['$products.quantity', 0] },
+              0,
+            ],
+          },
+        },
+      },
+    },
   ]);
 
   const salesByItemPromise = OrderModel.aggregate([
@@ -662,7 +644,21 @@ export async function getDashboardReports(params: {
     { $sort: { productName: 1 } },
   ]);
 
-  const [salesTrend, soldQtyTrend, bookedSalesTrend, bookedSalesRows, categoryGrowth, productGrowth, returnTrend, returnPayoutRows, returnPayoutTrend, stockByItem, salesByItem] = await Promise.all([
+  const [
+    salesTrend,
+    soldQtyTrend,
+    bookedSalesTrend,
+    bookedSalesRows,
+    categoryGrowth,
+    productGrowth,
+    returnTrend,
+    returnPayoutRows,
+    returnPayoutTrend,
+    productCatalog,
+    onHoldByProduct,
+    returnsByProduct,
+    salesByItem,
+  ] = await Promise.all([
     salesTrendPromise,
     soldQtyTrendPromise,
     bookedSalesTrendPromise,
@@ -672,9 +668,34 @@ export async function getDashboardReports(params: {
     returnTrendPromise,
     returnPayoutPromise,
     returnPayoutTrendPromise,
-    stockByItemPromise,
+    productCatalogPromise,
+    onHoldByProductPromise,
+    returnsByProductPromise,
     salesByItemPromise,
   ]);
+
+  // Join the three stock passes back together. Keyed on the string form of the id because
+  // an ObjectId is compared by identity, not value, in a Map.
+  const onHoldMap = new Map(
+    (onHoldByProduct as { _id: unknown; qty: number }[]).map((r) => [String(r._id), r.qty]),
+  );
+  const returnsMap = new Map(
+    (returnsByProduct as { _id: unknown; returnedQty: number; damagedQty: number }[]).map((r) => [
+      String(r._id),
+      r,
+    ]),
+  );
+
+  const stockByItem = (productCatalog as Record<string, unknown>[]).map((product) => {
+    const key = String(product.productId);
+    const returns = returnsMap.get(key);
+    return {
+      ...product,
+      onHoldQty: onHoldMap.get(key) ?? 0,
+      returnedQty: returns?.returnedQty ?? 0,
+      damagedQty: returns?.damagedQty ?? 0,
+    };
+  });
 
   const stockByCategoryMap = new Map<
     string,

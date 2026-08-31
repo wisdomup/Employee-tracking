@@ -21,6 +21,20 @@ export async function findAll(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+/**
+ * Line-item selector list. The projection in `findForPicker` is the privacy boundary, so no
+ * `serializeProductsForRole` call is needed here — there is nothing left to strip.
+ */
+export async function findAllForPicker(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { categoryId, search } = req.query as Record<string, string>;
+    const products = await productsService.findForPicker({ categoryId, search });
+    res.json(products);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function findOne(req: Request, res: Response, next: NextFunction) {
   try {
     const product = await productsService.findById(req.params.id);

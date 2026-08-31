@@ -19,7 +19,10 @@ const ProductsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const router = useRouter();
   const { user } = useAuth();
-  const canManage = can(user?.role, 'products:view') && user?.role === 'admin';
+  // `products:manage` is in no permission Set, so this is an exact admin test — the same idiom
+  // the warehouse pages use. It is no longer `products:view`, which now only means "may pick a
+  // product in a line-item selector" and is held by every order-booking role.
+  const canManage = can(user?.role, 'products:manage');
 
   useEffect(() => {
     fetchCategories();
@@ -268,7 +271,10 @@ const ProductsPage: React.FC = () => {
 
 export default function ProductsPageWrapper() {
   return (
-    <ProtectedRoute allowedRoles={['admin', 'sales_manager', 'order_taker']}>
+    <ProtectedRoute
+      allowedRoles={['admin', 'sales_manager', 'order_taker']}
+      requiredPermission="products:view-catalog"
+    >
       <ProductsPage />
     </ProtectedRoute>
   );

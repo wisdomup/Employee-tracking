@@ -66,6 +66,41 @@ export async function findAll(filters?: {
     .exec();
 }
 
+/**
+ * Fields a line-item selector needs, and nothing else. Everything a picker caller must NOT see is
+ * absent by omission rather than stripped afterwards: `purchasePrice`, `lastPurchaseRate` (the rate
+ * on the last Stock In — purchase cost by another name), `survivalQuantity`, `description`,
+ * `onlinePrice`, `extras`, and above all `createdBy`, whose populated user document carries the
+ * creator's salary, notes, home address, phone and email.
+ *
+ * Add a field here only after checking it is safe for an order taker to read.
+ */
+const PICKER_FIELDS = 'barcode name salePrice quantity categoryId';
+
+/**
+ * Product list for the order/return line-item selectors — see `PICKER_FIELDS`.
+ * Open to every order-booking role, unlike `findAll`, which is catalogue-grade data.
+ * Sort matches `findAll` so the dropdown order does not change.
+ */
+export async function findForPicker(filters?: { categoryId?: string; search?: string }) {
+  const query: Record<string, unknown> = { isTrashed: { $ne: true } };
+
+  if (filters?.categoryId) query.categoryId = new Types.ObjectId(filters.categoryId);
+
+  if (filters?.search) {
+    query.$or = [
+      { name: { $regex: filters.search, $options: 'i' } },
+      { barcode: { $regex: filters.search, $options: 'i' } },
+    ];
+  }
+
+  return ProductModel.find(query)
+    .select(PICKER_FIELDS)
+    .populate('categoryId', 'name')
+    .sort({ createdAt: -1 })
+    .exec();
+}
+
 export async function findById(id: string) {
   const product = await ProductModel.findOne({ _id: id, isTrashed: { $ne: true } })
     .populate('categoryId')

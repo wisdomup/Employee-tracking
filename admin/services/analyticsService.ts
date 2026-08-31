@@ -214,24 +214,96 @@ export function recentPeriodMonths(count = 12): string[] {
   return months;
 }
 
+/**
+ * Per-tab cache of analytics responses.
+ *
+ * The reports are expensive to compute and the page re-requests the same month whenever
+ * the user navigates back to analytics or flips the period picker to somewhere they have
+ * already been. Holding the last response for each query lets those repeats render
+ * immediately while a fresh copy is fetched in the background (stale-while-revalidate).
+ *
+ * SECURITY: entries are the signed-in user's own scope-filtered reports, so the cache is
+ * cleared on logout. Without that, the next person to sign in on a shared browser would
+ * be shown the previous user's team data until their own request came back.
+ *
+ * In memory only — a reload starts cold, and nothing is written to storage.
+ */
+const responseCache = new Map<string, { at: number; data: unknown }>();
+
+/** How long a cached response may be shown before it is treated as a plain miss. */
+const CLIENT_CACHE_TTL_MS = 5 * 60_000;
+
+/** Called on logout. See the SECURITY note above — this is not optional. */
+export function clearAnalyticsCache(): void {
+  responseCache.clear();
+}
+
+/**
+ * Fetch `url`, serving a cached copy first when one is fresh enough.
+ *
+ * `onRevalidated` is invoked only when a background refresh actually returns something
+ * different from what the caller was already handed, so a component can skip a redundant
+ * re-render on the common case of nothing having changed.
+ */
+async function cachedGet<T>(url: string, onRevalidated?: (data: T) => void): Promise<T> {
+  const hit = responseCache.get(url);
+  const fresh = hit && Date.now() - hit.at < CLIENT_CACHE_TTL_MS;
+
+  if (fresh) {
+    // Revalidate in the background; the caller renders the cached copy immediately.
+    api
+      .get(url)
+      .then((response) => {
+        responseCache.set(url, { at: Date.now(), data: response.data });
+        const previous = JSON.stringify(hit!.data);
+        if (onRevalidated && JSON.stringify(response.data) !== previous) {
+          onRevalidated(response.data as T);
+        }
+      })
+      .catch(() => {
+        // A failed refresh leaves the cached copy in place; the next call retries.
+      });
+    return hit!.data as T;
+  }
+
+  const response = await api.get(url);
+  responseCache.set(url, { at: Date.now(), data: response.data });
+  return response.data as T;
+}
+
 export const analyticsService = {
-  async getPerformance(filters?: {
-    periodMonth?: string;
-    employeeId?: string;
-  }): Promise<PerformanceReport> {
+  async getPerformance(
+    filters?: {
+      periodMonth?: string;
+      employeeId?: string;
+    },
+    onRevalidated?: (data: PerformanceReport) => void,
+  ): Promise<PerformanceReport> {
     const params = new URLSearchParams();
     if (filters?.periodMonth) params.append('periodMonth', filters.periodMonth);
     if (filters?.employeeId) params.append('employeeId', filters.employeeId);
-    const response = await api.get(`/analytics/performance?${params.toString()}`);
-    return response.data;
+    return cachedGet<PerformanceReport>(
+      `/analytics/performance?${params.toString()}`,
+      onRevalidated,
+    );
   },
 
-  async getTrend(filters?: { employeeId?: string; months?: number }): Promise<PerformanceTrend> {
+  async getTrend(
+    filters?: { employeeId?: string; months?: number },
+    onRevalidated?: (data: PerformanceTrend) => void,
+  ): Promise<PerformanceTrend> {
     const params = new URLSearchParams();
     if (filters?.employeeId) params.append('employeeId', filters.employeeId);
     if (filters?.months) params.append('months', String(filters.months));
-    const response = await api.get(`/analytics/trend?${params.toString()}`);
-    return response.data;
+    return cachedGet<PerformanceTrend>(`/analytics/trend?${params.toString()}`, onRevalidated);
+  },
+
+  /**
+   * Drops the cached reports so the next read hits the server.
+   * Call after anything that changes what the reports say — saving a target, for instance.
+   */
+  invalidate(): void {
+    responseCache.clear();
   },
 };
 
