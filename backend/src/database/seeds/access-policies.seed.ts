@@ -76,7 +76,25 @@ interface RoleSeed {
  */
 const BASELINE_PERMISSIONS = [
   'dashboard:view',
-  'products:view',
+  /*
+   * `products:view` is NOT baseline any more.
+   *
+   * The requirement: a Salesman takes orders but must not browse the product catalogue. As
+   * baseline it was granted to every role, so the /products screen and the catalogue API stayed
+   * open to them however the matrix was ticked — and that response carries what the company PAID
+   * (`lastPurchaseRate`), the low-stock level, and a populated `createdBy` user document with the
+   * creator's salary, notes, home address and phone.
+   *
+   * Selecting a product while booking an order does NOT need it: that reads
+   * GET /api/products/picker, which is gated on being able to write the document it feeds
+   * (`orders:add` and friends) and returns barcode, name, sale price, quantity and the category
+   * name only.
+   *
+   * The roles whose screens genuinely browse products keep the cell explicitly below —
+   * sales_manager, and both warehouse roles, whose stock-in, transfer, damage and opening-stock
+   * forms load the full product list. Recorded in the parity test's INTENTIONAL list for
+   * order_taker, delivery_man and employee.
+   */
   'categories:view',
   'catalogs:view',
   'attendance:view',
@@ -110,6 +128,9 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
   [ROLES.SALES_MANAGER]: {
     note: 'Read across their team, target setting, and the performance-flag queue.',
     permissions: [
+      // Held explicitly now that `products:view` is no longer baseline: a manager reviews the
+      // catalogue and its prices.
+      'products:view',
       'dealers:view',
       'employees:view',
       'orders:view',
@@ -144,6 +165,8 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
   [ROLES.WAREHOUSE_MANAGER]: {
     note: 'Warehouse operations company-wide, plus the task list and visit status routes.',
     permissions: [
+      // Same reason as warehouse_staff: every stock document form loads the product list.
+      'products:view',
       'warehouse:view',
       'stock-in:view',
       'stock-in:add',
@@ -245,6 +268,8 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
   [ROLES.WAREHOUSE_STAFF]: {
     note: 'Day-to-day stock work at one warehouse. Raises documents, never approves them.',
     permissions: [
+      // The stock-in, transfer, damage and opening-stock forms each load the full product list.
+      'products:view',
       'warehouse:view',
       'stock-in:view',
       'stock-in:add',

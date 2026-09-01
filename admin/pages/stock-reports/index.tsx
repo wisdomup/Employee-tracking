@@ -17,6 +17,9 @@ import { toast } from 'react-toastify';
 
 import { canViewReport } from '../../utils/permissions';
 import { useAuth } from '../../contexts/AuthContext';
+import { printTableAsPdf } from '../../utils/tableExport';
+import AnalyticsExportButton from '../../components/UI/AnalyticsExportButton';
+import type { AnalyticsExportPayload } from '../../utils/analyticsExport';
 import styles from '../../styles/StockReports.module.scss';
 
 type TabId = 'current' | 'hold' | 'damage' | 'pl' | 'lowstock';
@@ -267,24 +270,33 @@ const StockReportsPage: React.FC = () => {
   // ─── P&L KPI card helper ──────────────────────────────────────────────────
   const pl = profitLoss?.summary;
 
-  const plCards = pl
-    ? [
-        { label: 'Revenue', value: formatCurrency(pl.revenue) },
-        { label: 'Cost of Goods (COGS)', value: formatCurrency(pl.cogs) },
-        { label: 'Gross Profit', value: formatCurrency(pl.grossProfit), highlight: pl.grossProfit >= 0 ? 'profit' : 'loss' },
-        { label: 'Return Payouts', value: formatCurrency(pl.totalReturnPayout) },
-        { label: 'Damage Value', value: formatCurrency(pl.damageValue) },
-        {
-          label: 'Net P&L',
-          value: formatCurrency(pl.netProfitLoss),
-          highlight: pl.netProfitLoss >= 0 ? 'profit' : 'loss',
-        },
-        { label: 'Orders Delivered', value: String(pl.orderCount) },
-        { label: 'Units Sold', value: String(pl.soldQty) },
-        { label: 'Return Records', value: String(pl.returnCount) },
-        { label: 'Units Damaged', value: String(pl.damagedQty) },
-      ]
-    : [];
+  // Memoized because the Profit & Loss export builder depends on it.
+  const plCards = useMemo(
+    () =>
+      pl
+        ? [
+            { label: 'Revenue', value: formatCurrency(pl.revenue) },
+            { label: 'Cost of Goods (COGS)', value: formatCurrency(pl.cogs) },
+            {
+              label: 'Gross Profit',
+              value: formatCurrency(pl.grossProfit),
+              highlight: pl.grossProfit >= 0 ? 'profit' : 'loss',
+            },
+            { label: 'Return Payouts', value: formatCurrency(pl.totalReturnPayout) },
+            { label: 'Damage Value', value: formatCurrency(pl.damageValue) },
+            {
+              label: 'Net P&L',
+              value: formatCurrency(pl.netProfitLoss),
+              highlight: pl.netProfitLoss >= 0 ? 'profit' : 'loss',
+            },
+            { label: 'Orders Delivered', value: String(pl.orderCount) },
+            { label: 'Units Sold', value: String(pl.soldQty) },
+            { label: 'Return Records', value: String(pl.returnCount) },
+            { label: 'Units Damaged', value: String(pl.damagedQty) },
+          ]
+        : [],
+    [pl],
+  );
 
   const tabPeriodLabel = (f: typeof appliedFilters) => {
     if (!f.startDate && !f.endDate) return 'Period: Last 30 days (default)';
@@ -334,6 +346,17 @@ const StockReportsPage: React.FC = () => {
       .join('_');
     return `${base}-${filterSuffix}`;
   }, [activeTab, activeFilterLabels]);
+
+  /** The P&L tab is KPI cards only, so its export is the card list rather than a table. */
+  const buildProfitLossExport = useCallback(
+    (): AnalyticsExportPayload => ({
+      filename: exportFileName,
+      title: 'Profit & Loss',
+      subtitle: exportPdfTitle,
+      kpis: plCards.map((card) => ({ label: card.label, value: card.value })),
+    }),
+    [exportFileName, exportPdfTitle, plCards],
+  );
 
   return (
     <Layout>
@@ -472,6 +495,18 @@ const StockReportsPage: React.FC = () => {
               <p className={styles.periodLabel}>Loading…</p>
             ) : pl ? (
               <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    marginBottom: '0.75rem',
+                  }}
+                >
+                  <AnalyticsExportButton
+                    buildPayload={buildProfitLossExport}
+                    ariaLabel="Export profit and loss summary"
+                  />
+                </div>
                 <div className={styles.plGrid}>
                   {plCards.map((card) => (
                     <div

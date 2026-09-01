@@ -47,11 +47,21 @@ export function getClientAssignedRouteId(client: Client | undefined | null): str
 }
 
 export const clientService = {
-  async getClients(filters?: { status?: string; search?: string; routeId?: string }) {
+  async getClients(filters?: {
+    status?: string;
+    search?: string;
+    routeId?: string;
+    /**
+     * Ask for the picker-sized payload (`_id`, `name`, `shopName`) rather than full client
+     * records. Use it wherever the clients only populate a dropdown.
+     */
+    fields?: 'options';
+  }) {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.search) params.append('search', filters.search);
     if (filters?.routeId) params.append('routeId', filters.routeId);
+    if (filters?.fields) params.append('fields', filters.fields);
 
     const response = await api.get(`/dealers?${params.toString()}`);
     return response.data;

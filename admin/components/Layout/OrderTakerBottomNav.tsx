@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { House, ShoppingCart, Storefront, Package } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import styles from './OrderTakerBottomNav.module.scss';
 
 const NAV_ITEMS = [
@@ -29,6 +30,9 @@ const NAV_ITEMS = [
     label: 'Products',
     Icon: Package,
     isActive: (pathname: string) => pathname.startsWith('/products'),
+    // Catalogue browsing, not order-form product selection. Without this permission the tab is
+    // dropped and the nav renders three items; booking an order still works.
+    permission: 'products:view',
   },
 ] as const;
 
@@ -41,9 +45,13 @@ const OrderTakerBottomNav: React.FC = () => {
     return null;
   }
 
+  const items = NAV_ITEMS.filter(
+    (item) => !('permission' in item) || can(user?.role, item.permission),
+  );
+
   return (
     <nav className={styles.nav} aria-label="Quick navigation">
-      {NAV_ITEMS.map(({ href, label, Icon, isActive }) => {
+      {items.map(({ href, label, Icon, isActive }) => {
         const active = isActive(pathname);
         return (
           <Link

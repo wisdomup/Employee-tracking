@@ -4,7 +4,14 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
-import { returnService, Return, getReturnImageUrl } from '../../../services/returnService';
+import {
+  returnService,
+  Return,
+  ReturnProduct,
+  getReturnImageUrl,
+} from '../../../services/returnService';
+import DataExportButton from '../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../utils/tableExport';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -42,6 +49,42 @@ const ReturnDetailPage: React.FC = () => {
 
   const statusColors = STATUS_COLORS[returnItem.status] || { bg: '#f3f4f6', color: '#374151' };
   const invoiceUrl = returnItem.invoiceImage ? getReturnImageUrl(returnItem.invoiceImage) : '';
+
+  /** The Products table as exportable data — same rows, columns and total as on screen. */
+  const productExportColumns: TableExportColumn[] = [
+    {
+      key: 'product',
+      title: 'Product',
+      exportValue: (row) => (row as ReturnProduct).productId?.name || '',
+    },
+    {
+      key: 'barcode',
+      title: 'Barcode',
+      exportValue: (row) => (row as ReturnProduct).productId?.barcode || '',
+    },
+    {
+      key: 'quantity',
+      title: 'Qty',
+      exportValue: (row) => String((row as ReturnProduct).quantity ?? 0),
+    },
+    {
+      key: 'price',
+      title: 'Unit Price',
+      exportValue: (row) => ((row as ReturnProduct).price ?? 0).toFixed(2),
+    },
+    {
+      key: 'subtotal',
+      title: 'Subtotal',
+      exportValue: (row) => {
+        const p = row as ReturnProduct;
+        return ((p.quantity ?? 0) * (p.price ?? 0)).toFixed(2);
+      },
+    },
+  ];
+  const productsTotal = (returnItem.products || []).reduce(
+    (sum, p) => sum + (p.quantity ?? 0) * (p.price ?? 0),
+    0,
+  );
   const returnCreatorId =
     returnItem.createdBy == null
       ? ''
@@ -179,9 +222,16 @@ const ReturnDetailPage: React.FC = () => {
 
           {/* Products Table */}
           <div className={styles.section} style={{ marginTop: '1.5rem' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#374151', marginBottom: '0.75rem' }}>
-              Products
-            </h2>
+            <div className={styles.sectionHeadRow}>
+              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#374151' }}>Products</h2>
+              <DataExportButton
+                columns={productExportColumns}
+                rows={returnItem.products || []}
+                fileName={`return-${returnItem._id}-products`}
+                pdfTitle="Return — Products"
+                grandTotalRow={['Products Total', '', '', '', productsTotal.toFixed(2)]}
+              />
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table
                 style={{

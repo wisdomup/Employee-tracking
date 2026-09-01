@@ -42,6 +42,25 @@ const NON_ADMIN_ROLES = Object.values(ROLES).filter((r) => r !== ROLES.ADMIN);
  * a threshold.
  */
 const INTENTIONAL: Record<string, { roles: string[]; why: string }> = {
+  // --- The requirement: "a Salesman takes orders but must not view all the products" ---
+  //
+  // `products:view` left BASELINE_PERMISSIONS, so these three roles lose the catalogue list and
+  // detail endpoints. They are not losing the ability to work: the order and return forms read
+  // GET /api/products/picker, gated on `orders:add` / `returns:add` and projected down to
+  // barcode, name, sale price, quantity and category name.
+  //
+  // What they stop being able to read is the catalogue response itself — `lastPurchaseRate`
+  // (what the company paid), `survivalQuantity`, and a populated `createdBy` user document
+  // carrying the creator's salary, notes, home address and phone.
+  'products_products.routes.ts|GET|/': {
+    roles: ['order_taker', 'delivery_man', 'employee'],
+    why: 'Requirement: field roles select products in a line item but do not browse the catalogue. They use GET /picker.',
+  },
+  'products_products.routes.ts|GET|/:id': {
+    roles: ['order_taker', 'delivery_man', 'employee'],
+    why: 'Requirement: no product detail page for field roles. Nothing in the order flow opens it.',
+  },
+
   // --- The requirement: "Rider/Delivery Boy should also include Order Taker capability" ---
   'orders_orders.routes.ts|POST|/': {
     roles: ['delivery_man'],
@@ -229,8 +248,23 @@ for (const [file, oldEps] of Object.entries(baseline.routes)) {
   const newEps = endpoints(fs.readFileSync(full, 'utf8'));
 
   for (const o of oldEps) {
-    const n = newEps[o.index];
-    if (!n || n.verb !== o.verb) {
+    // Match on verb + path, with the frozen index only as a tie-break for a file that declares
+    // the same verb and path twice.
+    //
+    // This used to be `newEps[o.index]` alone, which read a legitimately INSERTED route as four
+    // endpoints having vanished: adding `GET /picker` above `GET /:id` (it has to be above, or
+    // Express matches "picker" as an id) shifted every later index by one, and the frozen #3–#6
+    // came back unmatched while the access they carry had not moved at all.
+    //
+    // A genuinely removed or renamed endpoint still fails, which is what this check is for.
+    const sameSignature = newEps.filter((n) => n.verb === o.verb && n.path === o.path);
+    const n = sameSignature.length > 1
+      ? (newEps[o.index]?.verb === o.verb && newEps[o.index]?.path === o.path
+          ? newEps[o.index]
+          : sameSignature[0])
+      : sameSignature[0];
+
+    if (!n) {
       unmatched.push(`${file} #${o.index} ${o.verb.toUpperCase()} ${o.path}: no matching endpoint now`);
       continue;
     }

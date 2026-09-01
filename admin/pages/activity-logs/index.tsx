@@ -5,6 +5,7 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Table from '../../components/UI/Table';
 import { activityLogService, ActivityLog } from '../../services/activityLogService';
 import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
@@ -87,7 +88,9 @@ const ActivityLogsPage: React.FC = () => {
             break;
           case 'product':
             label = `${meta.name || 'Product'}${meta.barcode ? ` (${meta.barcode})` : ''}`;
-            href = `/products/${entityId}`;
+            // Plain text for roles without catalog access — the detail page would bounce them
+            // to /login. `columns` is a plain array, so reading `user` here needs no memo deps.
+            href = can(undefined, 'products:view') ? `/products/${entityId}` : null;
             break;
           case 'order':
             label = `Order ${entityId ? entityId.slice(-8).toUpperCase() : ''}`.trim();
@@ -162,7 +165,13 @@ const ActivityLogsPage: React.FC = () => {
 
         <div className={styles.listCard}>
           <div className={styles.listCardBody}>
-            <Table columns={columns} data={logs} loading={loading} />
+            <Table
+              columns={columns}
+              data={logs}
+              loading={loading}
+              exportFileName="activity-logs"
+              exportPdfTitle="Activity Logs"
+            />
           </div>
         </div>
       </div>

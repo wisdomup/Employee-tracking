@@ -106,6 +106,8 @@ const CatalogsPage: React.FC = () => {
               data={filtered}
               loading={loading}
               onRowClick={(row) => router.push('/catalogs/' + row._id)}
+              exportFileName="catalogs"
+              exportPdfTitle="Catalogs"
             />
           </div>
         </div>

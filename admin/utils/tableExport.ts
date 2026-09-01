@@ -53,10 +53,11 @@ export function formatTotalForDisplay(value: number): string {
 
 export type TableExportFormat = 'csv' | 'pdf';
 
+/** Row controls (buttons, checkboxes) carry nothing exportable, whatever key they use. */
+const CONTROL_COLUMN_KEY = /^_?(actions|select)$/;
+
 function filterExportColumns(columns: TableExportColumn[]): TableExportColumn[] {
-  return columns.filter(
-    (c) => !c.omitFromExport && c.key !== 'actions' && c.key !== 'select',
-  );
+  return columns.filter((c) => !c.omitFromExport && !CONTROL_COLUMN_KEY.test(c.key));
 }
 
 /** Headers and cell strings used by CSV and PDF export. */
@@ -98,7 +99,7 @@ function buildTotalsRow(exportCols: TableExportColumn[], data: unknown[]): strin
   });
 }
 
-function escapeCsvField(val: string): string {
+export function escapeCsvField(val: string): string {
   const s = String(val).replace(/"/g, '""');
   if (/[",\n\r]/.test(s)) return `"${s}"`;
   return s;
@@ -176,7 +177,7 @@ export function exportTableToCsv(options: {
   downloadCsv(filename, csv);
 }
 
-function safeDownloadFilename(filename: string, ext: 'csv' | 'pdf'): string {
+export function safeDownloadFilename(filename: string, ext: 'csv' | 'pdf'): string {
   const base = filename.replace(/\.(csv|pdf)$/i, '').trim() || 'export';
   return `${base}.${ext}`.replace(/[/\\?%*:|"<>]/g, '-');
 }

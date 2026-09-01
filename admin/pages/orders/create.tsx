@@ -9,7 +9,7 @@ import { orderService } from '../../services/orderService';
 const OrderTermsEditor = dynamic(() => import('../../components/OrderTermsEditor'), { ssr: false });
 import { clientService, Client, formatClientSelectLabel, getClientAssignedRouteId } from '../../services/clientService';
 import { routeService, Route } from '../../services/routeService';
-import { productService, Product } from '../../services/productService';
+import { productService, ProductOption } from '../../services/productService';
 import {
   warehouseService,
   Warehouse,
@@ -18,6 +18,8 @@ import {
 import { toast } from 'react-toastify';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../components/UI/SearchableSelect';
+import DataExportButton from '../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../utils/tableExport';
 import styles from '../../styles/FormPage.module.scss';
 import { withDefaultInvoiceTerms } from '../../utils/defaultInvoiceTerms';
 
@@ -37,7 +39,7 @@ const CreateOrderPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   /** '' means "let the server resolve it from the salesman's city" (the normal case). */
   const [sourceWarehouseId, setSourceWarehouseId] = useState('');
@@ -67,7 +69,7 @@ const CreateOrderPage: React.FC = () => {
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
     routeService.getRoutes().then(setRoutes).catch(() => {});
-    productService.getProducts().then(setProducts).catch(() => {});
+    productService.getProductOptions().then(setProducts).catch(() => {});
     // Only an admin may override the source warehouse, so only they need the list.
     if (isAdmin) {
       warehouseService.getWarehouses({ isActive: true }).then(setWarehouses).catch(() => {});
@@ -161,6 +163,50 @@ const CreateOrderPage: React.FC = () => {
   const itemsDiscountTotal = lineItems.reduce((sum, item) => sum + effectiveLineDiscount(item), 0);
   const discount = parseFloat(formData.discount) || 0;
   const grandTotal = totalPrice - itemsDiscountTotal - discount;
+
+  /**
+   * The line-item table as exportable data. Blank rows are dropped — a fresh row carries a
+   * default qty of 1, which reads as a real line once it is in a file.
+   */
+  const exportLineItems = lineItems.filter((item) => item.productId);
+  const productOf = (productId: string) => products.find((p) => p._id === productId);
+  const lineExportColumns: TableExportColumn[] = [
+    {
+      key: 'product',
+      title: 'Product',
+      exportValue: (row) => productOf((row as LineItem).productId)?.name ?? '',
+    },
+    {
+      key: 'barcode',
+      title: 'Barcode',
+      exportValue: (row) => productOf((row as LineItem).productId)?.barcode ?? '',
+    },
+    {
+      key: 'stock',
+      title: sourceWarehouseId ? 'Stock at warehouse' : 'Stock (all warehouses)',
+      exportValue: (row) => String(getStockForProduct((row as LineItem).productId)),
+    },
+    {
+      key: 'remaining',
+      title: 'Remaining',
+      exportValue: (row) => String(getRemainingForProduct((row as LineItem).productId)),
+    },
+    { key: 'quantity', title: 'Qty', exportValue: (row) => String((row as LineItem).quantity) },
+    {
+      key: 'price',
+      title: 'Unit Price',
+      exportValue: (row) => (row as LineItem).price.toFixed(2),
+    },
+    {
+      key: 'subtotal',
+      title: 'Subtotal',
+      exportValue: (row) => {
+        const item = row as LineItem;
+        return (item.quantity * item.price).toFixed(2);
+      },
+    },
+  ];
+  const lineExportTotalRow = ['Grand Total', '', '', '', '', '', grandTotal.toFixed(2)];
 
   /**
    * Stock available to this order.
@@ -362,14 +408,24 @@ const CreateOrderPage: React.FC = () => {
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <label style={{ fontWeight: 600, color: '#374151' }}>Products *</label>
-              <button
-                type="button"
-                onClick={addLineItem}
-                className={`${styles.cancelButton} ${styles.desktopOnly}`}
-                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-              >
-                + Add Row
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <DataExportButton
+                  columns={lineExportColumns}
+                  rows={exportLineItems}
+                  fileName="order-draft-line-items"
+                  pdfTitle="New Order — draft line items"
+                  grandTotalRow={lineExportTotalRow}
+                  adminOnly={false}
+                />
+                <button
+                  type="button"
+                  onClick={addLineItem}
+                  className={`${styles.cancelButton} ${styles.desktopOnly}`}
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                >
+                  + Add Row
+                </button>
+              </div>
             </div>
             <div className={styles.desktopOnly} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
               <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>

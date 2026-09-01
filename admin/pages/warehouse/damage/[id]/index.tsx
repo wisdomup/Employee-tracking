@@ -10,8 +10,11 @@ import ReasonModal from '../../../../components/Warehouse/ReasonModal';
 import {
   damageClaimService,
   DamageClaim,
+  DamageClaimLine,
   DAMAGE_SOURCE_LABELS,
 } from '../../../../services/damageClaimService';
+import DataExportButton from '../../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../../utils/tableExport';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../../utils/employeeDisplayLabel';
 import { formatPieces } from '../../../../utils/formatCurrency';
@@ -21,6 +24,25 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import styles from '../../../../styles/DetailPage.module.scss';
 
 type ModalKind = 'reject' | 'cancel' | null;
+
+/** The Products table as exportable data — same columns as the on-screen table. */
+const damageExportColumns: TableExportColumn[] = [
+  {
+    key: 'product',
+    title: 'Product',
+    exportValue: (row) => (row as DamageClaimLine).productId?.name ?? '',
+  },
+  {
+    key: 'barcode',
+    title: 'Barcode',
+    exportValue: (row) => (row as DamageClaimLine).productId?.barcode ?? '',
+  },
+  {
+    key: 'quantity',
+    title: 'Pieces',
+    exportValue: (row) => formatPieces((row as DamageClaimLine).quantity),
+  },
+];
 
 function DamageDetailPage() {
   const router = useRouter();
@@ -281,7 +303,15 @@ function DamageDetailPage() {
           )}
 
           <div className={styles.section}>
-            <h2>Products</h2>
+            <div className={styles.sectionHeadRow}>
+              <h2>Products</h2>
+              <DataExportButton
+                columns={damageExportColumns}
+                rows={claim.products}
+                fileName={`damage-claim-${claim._id}-products`}
+                pdfTitle="Damage / Claim Entry — Products"
+              />
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 420, borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>

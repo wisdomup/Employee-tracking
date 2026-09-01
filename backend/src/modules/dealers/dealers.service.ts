@@ -117,6 +117,15 @@ export async function findAll(filters?: {
    * Resolved from the caller by `resolveCityScope` in users.service.
    */
   cityScope?: string | null;
+  /**
+   * Return only what a picker needs (`_id`, `name`, `shopName`) instead of the full
+   * client records with their route and creator joined in.
+   *
+   * Pages that show a client *filter* — visits, for one — were pulling every dealer
+   * document in the tenant just to label a dropdown. Opt-in, so existing callers that do
+   * render the full record are untouched.
+   */
+  slim?: boolean;
 }) {
   const query: Record<string, unknown> = { isTrashed: { $ne: true } };
 
@@ -131,6 +140,10 @@ export async function findAll(filters?: {
       { phone: { $regex: filters.search, $options: 'i' } },
       { email: { $regex: filters.search, $options: 'i' } },
     ];
+  }
+
+  if (filters?.slim) {
+    return DealerModel.find(query).select('_id name shopName').sort({ name: 1 }).lean().exec();
   }
 
   return DealerModel.find(query).populate('route').populate('createdBy', '-password').sort({ createdAt: -1 }).exec();

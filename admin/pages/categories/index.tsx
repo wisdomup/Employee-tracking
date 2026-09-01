@@ -137,7 +137,13 @@ const CategoriesPage: React.FC = () => {
                 className={styles.searchInput}
               />
             </div>
-            <Table columns={columns} data={filtered} loading={loading} />
+            <Table
+              columns={columns}
+              data={filtered}
+              loading={loading}
+              exportFileName="categories"
+              exportPdfTitle="Categories"
+            />
           </div>
         </div>
       </div>

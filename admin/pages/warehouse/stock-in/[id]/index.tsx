@@ -7,7 +7,13 @@ import ProtectedRoute from '../../../../components/Auth/ProtectedRoute';
 import Loader from '../../../../components/UI/Loader';
 import StatusBadge from '../../../../components/UI/StatusBadge';
 import ReasonModal from '../../../../components/Warehouse/ReasonModal';
-import { stockInService, StockReceipt } from '../../../../services/stockInService';
+import {
+  stockInService,
+  StockReceipt,
+  StockReceiptLine,
+} from '../../../../services/stockInService';
+import DataExportButton from '../../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../../utils/tableExport';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../../utils/employeeDisplayLabel';
 import { formatRsExact, formatPieces } from '../../../../utils/formatCurrency';
@@ -29,6 +35,42 @@ function StockInDetailPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const showMoney = can(user?.role, 'stock:set-low-level'); // admin-only, matches the API
+
+  /** Mirrors the on-screen Products table, money columns included only when they are shown. */
+  const productExportColumns: TableExportColumn[] = [
+    {
+      key: 'product',
+      title: 'Product',
+      exportValue: (row) => (row as StockReceiptLine).productId?.name ?? '',
+    },
+    {
+      key: 'barcode',
+      title: 'Barcode',
+      exportValue: (row) => (row as StockReceiptLine).productId?.barcode ?? '',
+    },
+    {
+      key: 'quantity',
+      title: 'Pieces',
+      exportValue: (row) => formatPieces((row as StockReceiptLine).quantity),
+    },
+    ...(showMoney
+      ? [
+          {
+            key: 'rate',
+            title: 'Rate',
+            exportValue: (row: unknown) => formatRsExact((row as StockReceiptLine).rate),
+          },
+          {
+            key: 'amount',
+            title: 'Amount',
+            exportValue: (row: unknown) => {
+              const line = row as StockReceiptLine;
+              return formatRsExact(line.quantity * line.rate);
+            },
+          },
+        ]
+      : []),
+  ];
 
   const fetchReceipt = useCallback(async () => {
     if (!id || typeof id !== 'string') return;
@@ -288,7 +330,15 @@ function StockInDetailPage() {
           ) : null}
 
           <div className={styles.section}>
-            <h2>Products</h2>
+            <div className={styles.sectionHeadRow}>
+              <h2>Products</h2>
+              <DataExportButton
+                columns={productExportColumns}
+                rows={receipt.products}
+                fileName={`stock-in-${receipt._id}-products`}
+                pdfTitle="Stock-in Receipt — Products"
+              />
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table
                 style={{

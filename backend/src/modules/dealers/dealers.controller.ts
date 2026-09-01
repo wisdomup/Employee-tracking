@@ -14,10 +14,17 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function findAll(req: Request, res: Response, next: NextFunction) {
   try {
-    const { status, search, routeId } = req.query as Record<string, string>;
+    const { status, search, routeId, fields } = req.query as Record<string, string>;
     // Riders only see clients in their own city; office roles see everything.
     const cityScope = await resolveCityScope(req.user!.userId, req.user!.role);
-    const dealers = await dealersService.findAll({ status, search, routeId, cityScope });
+    const dealers = await dealersService.findAll({
+      status,
+      search,
+      routeId,
+      cityScope,
+      // `?fields=options` asks for the picker-sized payload. Scope still applies.
+      slim: fields === 'options',
+    });
     res.json(dealers);
   } catch (err) {
     next(err);

@@ -6,12 +6,14 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import { orderService, Order } from '../../../services/orderService';
 import { clientService, Client, formatClientSelectLabel, getClientAssignedRouteId } from '../../../services/clientService';
 import { routeService, Route } from '../../../services/routeService';
-import { productService, Product } from '../../../services/productService';
+import { productService, ProductOption } from '../../../services/productService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import Loader from '../../../components/UI/Loader';
 import DatePickerFilter from '../../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
+import DataExportButton from '../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../utils/tableExport';
 import styles from '../../../styles/FormPage.module.scss';
 import { withDefaultInvoiceTerms } from '../../../utils/defaultInvoiceTerms';
 
@@ -35,7 +37,7 @@ const EditOrderPage: React.FC = () => {
   const [termsHtml, setTermsHtml] = useState('');
   const [clients, setClients] = useState<Client[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([{ productId: '', quantity: 1, price: 0, discount: 0 }]);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]);
   const [formData, setFormData] = useState({
@@ -52,7 +54,7 @@ const EditOrderPage: React.FC = () => {
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
     routeService.getRoutes().then(setRoutes).catch(() => {});
-    productService.getProducts().then(setProducts).catch(() => {});
+    productService.getProductOptions().then(setProducts).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -185,6 +187,47 @@ const EditOrderPage: React.FC = () => {
     const additionalRequired = getAdditionalRequiredForProduct(productId);
     return stock - additionalRequired;
   };
+
+  /** The line-item table as exportable data; blank rows are dropped. */
+  const exportLineItems = lineItems.filter((item) => item.productId);
+  const productOf = (productId: string) => products.find((p) => p._id === productId);
+  const lineExportColumns: TableExportColumn[] = [
+    {
+      key: 'product',
+      title: 'Product',
+      exportValue: (row) => productOf((row as LineItem).productId)?.name ?? '',
+    },
+    {
+      key: 'barcode',
+      title: 'Barcode',
+      exportValue: (row) => productOf((row as LineItem).productId)?.barcode ?? '',
+    },
+    {
+      key: 'stock',
+      title: 'Stock (all warehouses)',
+      exportValue: (row) => String(getStockForProduct((row as LineItem).productId)),
+    },
+    {
+      key: 'remaining',
+      title: 'Remaining',
+      exportValue: (row) => String(getRemainingForProduct((row as LineItem).productId)),
+    },
+    { key: 'quantity', title: 'Qty', exportValue: (row) => String((row as LineItem).quantity) },
+    {
+      key: 'price',
+      title: 'Unit Price',
+      exportValue: (row) => (row as LineItem).price.toFixed(2),
+    },
+    {
+      key: 'subtotal',
+      title: 'Subtotal',
+      exportValue: (row) => {
+        const item = row as LineItem;
+        return (item.quantity * item.price).toFixed(2);
+      },
+    },
+  ];
+  const lineExportTotalRow = ['Grand Total', '', '', '', '', '', grandTotal.toFixed(2)];
   const getStockExceededError = (): { name: string; stock: number; ordered: number } | null => {
     const currentMap = aggregateByProduct(lineItems);
     const originalMap = aggregateByProduct(originalLineItems);
@@ -313,14 +356,24 @@ const EditOrderPage: React.FC = () => {
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <label style={{ fontWeight: 600, color: '#374151' }}>Products *</label>
-              <button
-                type="button"
-                onClick={addLineItem}
-                className={`${styles.cancelButton} ${styles.desktopOnly}`}
-                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-              >
-                + Add Row
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <DataExportButton
+                  columns={lineExportColumns}
+                  rows={exportLineItems}
+                  fileName={`order-${id ?? 'draft'}-line-items`}
+                  pdfTitle="Edit Order — line items"
+                  grandTotalRow={lineExportTotalRow}
+                  adminOnly={false}
+                />
+                <button
+                  type="button"
+                  onClick={addLineItem}
+                  className={`${styles.cancelButton} ${styles.desktopOnly}`}
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                >
+                  + Add Row
+                </button>
+              </div>
             </div>
             <div className={styles.desktopOnly} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
               <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>

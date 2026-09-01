@@ -4,6 +4,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
 import Table from '../../components/UI/Table';
+import AnalyticsExportButton from '../../components/UI/AnalyticsExportButton';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import { employeeDisplayLabel } from '../../utils/employeeDisplayLabel';
 import {
@@ -21,6 +22,8 @@ import {
   shiftDayKey,
 } from '../../services/regionSalesService';
 import { toast } from 'react-toastify';
+import type { AnalyticsExportPayload, AnalyticsKpi } from '../../utils/analyticsExport';
+import type { TableExportColumn } from '../../utils/tableExport';
 import styles from '../../styles/Reports.module.scss';
 
 const LineTrendChart = dynamic(() => import('../../components/UI/LineTrendChart'), { ssr: false });
@@ -240,6 +243,95 @@ const RegionSalesPage: React.FC = () => {
     };
   }, [daily]);
 
+  /** The four headline figures, in the same order the KPI cards show them. */
+  const totalsKpis = useCallback(
+    (totals: SaleTotals): AnalyticsKpi[] => [
+      { label: 'Total Sale', value: formatRs(totals.totalAmount) },
+      { label: 'Delivered', value: formatRs(totals.deliveredAmount) },
+      { label: 'Booked (not yet delivered)', value: formatRs(totals.bookedAmount) },
+      { label: 'Orders', value: totals.orderCount },
+    ],
+    [],
+  );
+
+  /** Exports whichever drill-down level is on screen — totals, chart and table together. */
+  const buildExportPayload = useCallback((): AnalyticsExportPayload => {
+    if (level.kind === 'salesmen' && salesmen) {
+      return {
+        filename: `region-sales-${salesmen.regionKey || 'unassigned'}-${salesmen.from}-to-${salesmen.to}`,
+        title: `${salesmen.region} — Salesmen`,
+        subtitle: `${formatWindowLabel(salesmen.from, salesmen.to)} · times in ${salesmen.timezone}`,
+        kpis: totalsKpis(salesmen.totals),
+        tables: [
+          {
+            title: `Salesmen (${salesmen.salesmen.length})`,
+            columns: salesmanColumns as TableExportColumn[],
+            rows: salesmen.salesmen,
+          },
+        ],
+      };
+    }
+
+    if (level.kind === 'daily' && daily) {
+      const who = daily.employee
+        ? employeeDisplayLabel(daily.employee) || daily.employee.username
+        : 'Salesman';
+      return {
+        filename: `sale-${daily.employee?.username ?? 'salesman'}-${daily.from}-to-${daily.to}`,
+        title: `${who} — Day-wise Sale`,
+        subtitle: `${daily.employee?.region ?? ''} · ${formatDayLabel(daily.from)} – ${formatDayLabel(daily.to)}`,
+        kpis: totalsKpis(daily.totals),
+        charts: dailyChart
+          ? [
+              {
+                title: 'Day-wise Trend',
+                elementId: 'region-sales-daily-chart',
+                labelHeader: 'Day',
+                ...dailyChart,
+              },
+            ]
+          : [],
+        tables: [
+          {
+            title: `Day-wise Breakdown (${daily.days.length} days)`,
+            columns: dayColumns as TableExportColumn[],
+            rows: daily.days,
+          },
+        ],
+      };
+    }
+
+    return {
+      filename: `region-sales-${regions?.from ?? from}-to-${regions?.to ?? to}`,
+      title: 'Region Sales',
+      subtitle: regions
+        ? `${formatWindowLabel(regions.from, regions.to)} · all regions · times in ${regions.timezone}`
+        : formatWindowLabel(from, to),
+      kpis: regions ? totalsKpis(regions.totals) : [],
+      tables: regions
+        ? [
+            {
+              title: `Region-wise Sale (${regions.regions.length})`,
+              columns: regionColumns as TableExportColumn[],
+              rows: regions.regions,
+            },
+          ]
+        : [],
+    };
+  }, [
+    daily,
+    dailyChart,
+    dayColumns,
+    from,
+    level.kind,
+    regionColumns,
+    regions,
+    salesmanColumns,
+    salesmen,
+    to,
+    totalsKpis,
+  ]);
+
   const crumb = (label: string, onClick?: () => void, current = false) =>
     onClick ? (
       <button
@@ -297,7 +389,14 @@ const RegionSalesPage: React.FC = () => {
     <Layout>
       <div className={styles.page}>
         <div className={styles.header}>
-          <h1>Region Sales</h1>
+          <div className={styles.headerRow}>
+            <h1>Region Sales</h1>
+            <AnalyticsExportButton
+              buildPayload={buildExportPayload}
+              disabled={loading}
+              ariaLabel="Export region sales report"
+            />
+          </div>
         </div>
 
         {breadcrumb}
@@ -435,7 +534,7 @@ const RegionSalesPage: React.FC = () => {
 
             <div className={styles.section}>
               <h2>Day-wise Trend</h2>
-              <div className={styles.trendChartWrap}>
+              <div className={styles.trendChartWrap} id="region-sales-daily-chart">
                 {dailyChart ? (
                   <LineTrendChart labels={dailyChart.labels} datasets={dailyChart.datasets} />
                 ) : (

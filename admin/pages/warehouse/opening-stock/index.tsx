@@ -20,6 +20,8 @@ import { productService, Product } from '../../../services/productService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../utils/employeeDisplayLabel';
 import { formatRsExact } from '../../../utils/formatCurrency';
+import DataExportButton from '../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../utils/tableExport';
 import formStyles from '../../../styles/FormPage.module.scss';
 import listStyles from '../../../styles/ListPage.module.scss';
 import reportStyles from '../../../styles/StockReports.module.scss';
@@ -205,6 +207,60 @@ function OpeningStockPage() {
     () => filledLines.reduce((sum, l) => sum + (l.sellableQty + l.damagedQty) * l.rate, 0),
     [filledLines],
   );
+
+  /**
+   * The grid as exportable data. Rows follow what is on screen — the search filter included — and
+   * products already posted export as 'already entered', the same as the cell shows.
+   */
+  const gridExportColumns = useMemo<TableExportColumn[]>(() => {
+    const cellFor = (product: Product, read: (draft: DraftLine) => string) =>
+      postedIds.has(product._id) ? 'already entered' : read(drafts[product._id] ?? emptyDraft());
+    return [
+      { key: 'name', title: 'Product' },
+      { key: 'barcode', title: 'Barcode' },
+      {
+        key: 'sellableQty',
+        title: 'Sellable pcs',
+        exportValue: (row) => cellFor(row as Product, (d) => d.sellableQty),
+      },
+      {
+        key: 'damagedQty',
+        title: 'Damaged pcs',
+        exportValue: (row) => cellFor(row as Product, (d) => d.damagedQty),
+      },
+      {
+        key: 'rate',
+        title: 'Rate / piece',
+        exportValue: (row) => cellFor(row as Product, (d) => d.rate),
+      },
+      {
+        key: 'value',
+        title: 'Value',
+        exportValue: (row) => {
+          const product = row as Product;
+          if (postedIds.has(product._id)) return '';
+          const draft = drafts[product._id] ?? emptyDraft();
+          const value =
+            (Number(draft.sellableQty || 0) + Number(draft.damagedQty || 0)) *
+            Number(draft.rate || 0);
+          return value > 0 ? formatRsExact(value) : '';
+        },
+      },
+    ];
+  }, [drafts, postedIds]);
+
+  /** Summed over the exported (visible) rows, so the file's own figures add up. */
+  const gridExportTotalRow = useMemo(() => {
+    const total = visibleProducts.reduce((sum, product) => {
+      if (postedIds.has(product._id)) return sum;
+      const draft = drafts[product._id] ?? emptyDraft();
+      return (
+        sum +
+        (Number(draft.sellableQty || 0) + Number(draft.damagedQty || 0)) * Number(draft.rate || 0)
+      );
+    }, 0);
+    return ['Total opening value', '', '', '', '', formatRsExact(total)];
+  }, [drafts, postedIds, visibleProducts]);
 
   const handleSubmit = async () => {
     if (!warehouseId) {

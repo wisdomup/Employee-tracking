@@ -67,6 +67,9 @@ const performanceFlagSchema = new Schema<IPerformanceFlag>(
 performanceFlagSchema.index({ employeeId: 1, type: 1, flagDate: 1 }, { unique: true });
 // The admin "open flags" feed.
 performanceFlagSchema.index({ resolved: 1, flagDate: -1 });
+// Flags for one employee over a period. The unique index above leads with employeeId but
+// puts `type` before `flagDate`, so it cannot bound the date range on its own.
+performanceFlagSchema.index({ employeeId: 1, flagDate: 1 });
 
 export const PerformanceFlagModel = model<IPerformanceFlag>(
   'PerformanceFlag',

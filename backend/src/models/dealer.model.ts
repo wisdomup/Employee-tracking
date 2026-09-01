@@ -66,5 +66,7 @@ dealerSchema.index({ shopName: 1 });
 dealerSchema.index({ latitude: 1, longitude: 1 });
 dealerSchema.index({ isTrashed: 1, createdAt: -1 });
 dealerSchema.index({ isTrashed: 1, trashedAt: -1 });
+// "New clients this month", credited to whoever registered the shop (analytics).
+dealerSchema.index({ createdBy: 1, createdAt: -1 });
 
 export const DealerModel = model<IDealer>('Dealer', dealerSchema);

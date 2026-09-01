@@ -3,6 +3,7 @@ import ProductCombobox from '../UI/ProductCombobox';
 import { Product } from '../../services/productService';
 import { buildProductIndex, ProductIndex } from '../../utils/productSearch';
 import { formatRsExact } from '../../utils/formatCurrency';
+import type { TableExportColumn } from '../../utils/tableExport';
 import styles from '../../styles/FormPage.module.scss';
 
 /**
@@ -414,6 +415,69 @@ const StockLineItemsEditor: React.FC<StockLineItemsEditorProps> = ({
 
   const showAvailable = Boolean(availableByProduct);
   const availableOf = (productId: string) => availableByProduct?.[productId] ?? 0;
+
+  /**
+   * Only lines that name a product. A freshly added blank row still carries the default qty of 1,
+   * which is noise on screen but would read as a real line in a file — so the export totals are
+   * summed over these rows rather than reusing the on-screen figures.
+   */
+  const exportRows = useMemo(() => value.filter((line) => line.productId), [value]);
+
+  const exportColumns = useMemo<TableExportColumn[]>(() => {
+    const nameOf = (productId: string) => productById.get(productId)?.name ?? '';
+    return [
+      {
+        key: 'product',
+        title: 'Product',
+        exportValue: (row) => nameOf((row as StockLine).productId),
+      },
+      {
+        key: 'barcode',
+        title: 'Barcode',
+        exportValue: (row) => productById.get((row as StockLine).productId)?.barcode ?? '',
+      },
+      ...(availableByProduct
+        ? [
+            {
+              key: 'available',
+              title: availableLabel,
+              exportValue: (row: unknown) =>
+                String(availableByProduct[(row as StockLine).productId] ?? 0),
+            },
+          ]
+        : []),
+      { key: 'qty', title: qtyLabel, exportValue: (row) => String((row as StockLine).qty || 0) },
+      ...(showRate
+        ? [
+            {
+              key: 'rate',
+              title: 'Rate (per piece)',
+              exportValue: (row: unknown) => formatRsExact((row as StockLine).rate || 0),
+            },
+            {
+              key: 'amount',
+              title: 'Amount',
+              exportValue: (row: unknown) => {
+                const line = row as StockLine;
+                return formatRsExact((line.qty || 0) * (line.rate || 0));
+              },
+            },
+          ]
+        : []),
+    ];
+  }, [availableByProduct, availableLabel, productById, qtyLabel, showRate]);
+
+  const exportTotalRow = useMemo(() => {
+    const pieces = exportRows.reduce((sum, l) => sum + (l.qty || 0), 0);
+    const amount = exportRows.reduce((sum, l) => sum + (l.qty || 0) * (l.rate || 0), 0);
+    return [
+      'Total',
+      '',
+      ...(availableByProduct ? [''] : []),
+      `${pieces} pcs`,
+      ...(showRate ? ['', formatRsExact(amount)] : []),
+    ];
+  }, [availableByProduct, exportRows, showRate]);
 
   return (
     <div style={{ marginBottom: '1.5rem' }}>

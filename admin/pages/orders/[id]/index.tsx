@@ -5,7 +5,7 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Loader from '../../../components/UI/Loader';
-import { orderService, Order } from '../../../services/orderService';
+import { orderService, Order, OrderProduct } from '../../../services/orderService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -19,6 +19,8 @@ import {
   warehouseSelectOptions,
 } from '../../../services/warehouseService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import DataExportButton from '../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../utils/tableExport';
 import styles from '../../../styles/DetailPage.module.scss';
 import modalStyles from '../../../styles/Modal.module.scss';
 import { withDefaultInvoiceTerms } from '../../../utils/defaultInvoiceTerms';
@@ -133,6 +135,35 @@ const OrderDetailPage: React.FC = () => {
     order.products?.reduce((sum, item) => sum + lineDiscountOf(item), 0) ?? 0;
   const discount = order.discount ?? 0;
   const grandTotal = order.grandTotal ?? totalPrice - itemsDiscountTotal - discount;
+
+  /** The Products table as exportable data — same rows, columns and totals as on screen. */
+  const productExportColumns: TableExportColumn[] = [
+    {
+      key: 'product',
+      title: 'Product',
+      exportValue: (row) => (row as OrderProduct).productId?.name || 'Unknown Product',
+    },
+    {
+      key: 'barcode',
+      title: 'Barcode',
+      exportValue: (row) => (row as OrderProduct).productId?.barcode || '',
+    },
+    { key: 'quantity', title: 'Qty', exportValue: (row) => String((row as OrderProduct).quantity) },
+    {
+      key: 'price',
+      title: 'Unit Price',
+      exportValue: (row) => (row as OrderProduct).price.toFixed(2),
+    },
+    {
+      key: 'subtotal',
+      title: 'Subtotal',
+      exportValue: (row) => {
+        const r = row as OrderProduct;
+        return (r.quantity * r.price).toFixed(2);
+      },
+    },
+  ];
+  const productExportTotalRow = ['Grand Total', '', '', '', grandTotal.toFixed(2)];
 
   return (
     <Layout>
@@ -289,7 +320,16 @@ const OrderDetailPage: React.FC = () => {
 
           {/* Products breakdown */}
           <div className={styles.section}>
-            <h2>Products</h2>
+            <div className={styles.sectionHeadRow}>
+              <h2>Products</h2>
+              <DataExportButton
+                columns={productExportColumns}
+                rows={order.products ?? []}
+                fileName={`order-${order.invoiceNumber ?? order._id}-products`}
+                pdfTitle={`Order ${order.invoiceNumber ? `#${order.invoiceNumber}` : order._id} — Products`}
+                grandTotalRow={productExportTotalRow}
+              />
+            </div>
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
               <table style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse', color: '#1f2937' }}>
                 <thead>

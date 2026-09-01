@@ -612,6 +612,8 @@ const ClientDetailPage: React.FC = () => {
                   data={visits}
                   loading={false}
                   onRowClick={handleVisitRowClick}
+                  exportFileName={`client-visits-${client?.shopName || client?.name || id}`}
+                  exportPdfTitle={`Visits — ${client?.shopName || client?.name || "Client"}`}
                 />
                 <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
                   Click on a row to view or edit the visit

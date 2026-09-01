@@ -78,6 +78,9 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: '/activity-logs', label: 'Activity Logs', Icon: TrendUp, permission: 'activity-logs:view' },
   { path: '/categories', label: 'Categories', Icon: Tag, permission: 'categories:view' },
   { path: '/catalogs', label: 'Catalogs', Icon: BookOpen, permission: 'catalogs:view' },
+  // Untick `products:view` for a Salesman and this entry disappears while order taking keeps
+  // working: the order form reads GET /api/products/picker, which is gated on being able to book
+  // an order rather than on catalogue access.
   { path: '/products', label: 'Products', Icon: Package, permission: 'products:view' },
   // One entry for the whole warehouse module; `isActive` uses startsWith, so every nested
   // /warehouse/** page keeps it lit. Adding a sibling /warehouse* entry would break that.

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
@@ -20,7 +20,7 @@ import { employeeService, Employee } from '../../services/employeeService';
 import { useAuth } from '../../contexts/AuthContext';
 import { can, ALL_ROLES } from '../../utils/permissions';
 import { toast } from 'react-toastify';
-import { format } from 'date-fns';
+import { endOfMonth, format, startOfMonth } from 'date-fns';
 import styles from '../../styles/ListPage.module.scss';
 import calendarStyles from '../../styles/VisitsCalendar.module.scss';
 
@@ -48,6 +48,14 @@ const VisitsPage: React.FC = () => {
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [assignDate, setAssignDate] = useState<Date | null>(null);
   const [assignExistingVisits, setAssignExistingVisits] = useState<Visit[]>([]);
+  /**
+   * False until the list's default date bound has been decided. The fetch waits on it so
+   * the page cannot fire one unbounded request before the default lands and a second one
+   * after it — which would cost more than having no default at all.
+   */
+  const [listBoundsReady, setListBoundsReady] = useState(false);
+  /** The default is a starting point, not a rule: once decided, never re-imposed. */
+  const listDefaultDecided = useRef(false);
 
   const activeFilterLabels = useMemo(() => {
     const parts: string[] = [];
@@ -75,7 +83,9 @@ const VisitsPage: React.FC = () => {
     : 'visits';
 
   useEffect(() => {
-    clientService.getClients().then(setClients).catch(() => {});
+    // Both lists only label filter dropdowns, so ask for the picker-sized payload rather
+    // than every client record with its route and creator joined in.
+    clientService.getClients({ fields: 'options' }).then(setClients).catch(() => {});
     if (isAdmin) {
       employeeService.getEmployees().then(setEmployees).catch(() => {});
     }
@@ -114,10 +124,35 @@ const VisitsPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.asPath]);
 
+  /**
+   * The list has no inherent bound: with no date filter it asks the API for every visit
+   * ever recorded, which the table then paginates in the browser. Default it to the
+   * current month the first time the list is shown.
+   *
+   * The dates are written into the filter inputs rather than applied invisibly, so the
+   * range is visible in the pickers and the filter summary, and the user can widen or
+   * clear it like any other filter. The URL query is read directly rather than the filter
+   * state so this cannot race the effect above: a link that already carries a range keeps
+   * it, and nothing is defaulted over the top.
+   */
   useEffect(() => {
-    if (!user || view !== 'list') return;
+    if (view !== 'list' || listDefaultDecided.current || !router.isReady) return;
+    listDefaultDecided.current = true;
+
+    const { startDate: from, endDate: to } = router.query as Record<string, string | undefined>;
+    if (!from && !to && !startDate && !endDate) {
+      const now = new Date();
+      setStartDate(format(startOfMonth(now), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(now), 'yyyy-MM-dd'));
+    }
+    setListBoundsReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, router.isReady]);
+
+  useEffect(() => {
+    if (!user || view !== 'list' || !listBoundsReady) return;
     fetchVisits();
-  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, overstayOnly, user?.id, seesOnlyOwnVisits, view]);
+  }, [clientFilter, statusFilter, employeeFilter, startDate, endDate, overstayOnly, user?.id, seesOnlyOwnVisits, view, listBoundsReady]);
 
   const fetchVisits = async () => {
     setLoading(true);

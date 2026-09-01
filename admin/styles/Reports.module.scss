@@ -13,6 +13,29 @@
   }
 }
 
+/* Page title on the left, page-level export control on the right. */
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Section heading with its own export control (charts, grouped report blocks). */
+.sectionHeadRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+
+  h2 {
+    margin: 0;
+  }
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;

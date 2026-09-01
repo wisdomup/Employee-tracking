@@ -5,9 +5,11 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
 import { returnService, getReturnImageUrl } from '../../../services/returnService';
 import { clientService, Client, formatClientSelectLabel } from '../../../services/clientService';
-import { productService, Product } from '../../../services/productService';
+import { productService, ProductOption } from '../../../services/productService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import DataExportButton from '../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../utils/tableExport';
 import styles from '../../../styles/FormPage.module.scss';
 import SearchableSelect from '../../../components/UI/SearchableSelect';
 
@@ -25,7 +27,7 @@ const EditReturnPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [clients, setClients] = useState<Client[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoicePreview, setInvoicePreview] = useState<string>('');
   const [existingInvoiceUrl, setExistingInvoiceUrl] = useState<string>('');
@@ -44,7 +46,7 @@ const EditReturnPage: React.FC = () => {
 
   useEffect(() => {
     clientService.getClients().then(setClients).catch(() => {});
-    productService.getProducts().then(setProducts).catch(() => {});
+    productService.getProductOptions().then(setProducts).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -137,6 +139,46 @@ const EditReturnPage: React.FC = () => {
   };
 
   const addLineItem = () => setLineItems([...lineItems, { productId: '', quantity: 1, price: 0 }]);
+
+  /**
+   * The line-item table as exportable data. Blank rows are dropped — a fresh row carries a
+   * default qty of 1, which reads as a real line once it is in a file.
+   */
+  const exportLineItems = lineItems.filter((item) => item.productId);
+  const productOf = (productId: string) => products.find((p) => p._id === productId);
+  const lineExportColumns: TableExportColumn[] = [
+    {
+      key: 'product',
+      title: 'Product',
+      exportValue: (row) => productOf((row as LineItem).productId)?.name ?? '',
+    },
+    {
+      key: 'barcode',
+      title: 'Barcode',
+      exportValue: (row) => productOf((row as LineItem).productId)?.barcode ?? '',
+    },
+    { key: 'quantity', title: 'Qty', exportValue: (row) => String((row as LineItem).quantity) },
+    {
+      key: 'price',
+      title: 'Unit Price',
+      exportValue: (row) => Number((row as LineItem).price || 0).toFixed(2),
+    },
+    {
+      key: 'subtotal',
+      title: 'Subtotal',
+      exportValue: (row) => {
+        const item = row as LineItem;
+        return (item.quantity * item.price).toFixed(2);
+      },
+    },
+  ];
+  const lineExportTotalRow = [
+    'Products Total',
+    '',
+    '',
+    '',
+    exportLineItems.reduce((s, i) => s + i.quantity * i.price, 0).toFixed(2),
+  ];
 
   const removeLineItem = (index: number) => {
     if (lineItems.length === 1) return;
@@ -323,14 +365,24 @@ const EditReturnPage: React.FC = () => {
               }}
             >
               <label style={{ fontWeight: 600, color: '#374151' }}>Products *</label>
-              <button
-                type="button"
-                onClick={addLineItem}
-                className={styles.cancelButton}
-                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-              >
-                + Add Row
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <DataExportButton
+                  columns={lineExportColumns}
+                  rows={exportLineItems}
+                  fileName={`return-${id ?? 'draft'}-line-items`}
+                  pdfTitle="Edit Return — line items"
+                  grandTotalRow={lineExportTotalRow}
+                  adminOnly={false}
+                />
+                <button
+                  type="button"
+                  onClick={addLineItem}
+                  className={styles.cancelButton}
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                >
+                  + Add Row
+                </button>
+              </div>
             </div>
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
               <table

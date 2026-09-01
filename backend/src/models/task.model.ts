@@ -68,7 +68,8 @@ const taskSchema = new Schema<ITask>(
 taskSchema.index({ dealerId: 1 });
 taskSchema.index({ routeId: 1 });
 taskSchema.index({ createdBy: 1 });
-taskSchema.index({ assignedTo: 1 });
+// Task throughput per assignee over a period (analytics).
+taskSchema.index({ assignedTo: 1, createdAt: -1 });
 taskSchema.index({ status: 1 });
 
 export const TaskModel = model<ITask>('Task', taskSchema);

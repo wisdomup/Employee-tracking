@@ -8,10 +8,18 @@ import StatusBadge from '../../components/UI/StatusBadge';
 import SearchableSelect from '../../components/UI/SearchableSelect';
 import NavigateButton from '../../components/Map/NavigateButton';
 import StartVisitButton from '../../components/Visits/StartVisitButton';
+import WhatsAppButton from '../../components/Clients/WhatsAppButton';
 import { clientService, Client, RouteRef } from '../../services/clientService';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import {
+  DEFAULT_WHATSAPP_GREETING,
+  WHATSAPP_MESSAGE_PLACEHOLDERS,
+} from '../../utils/whatsapp';
 import styles from '../../styles/ListPage.module.scss';
+
+/** Per-browser greeting override, so staff keep their own wording between visits. */
+const GREETING_STORAGE_KEY = 'clients:whatsappGreeting';
 
 const ClientsPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
@@ -21,6 +29,7 @@ const ClientsPage: React.FC = () => {
   const [routeFilter, setRouteFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [greeting, setGreeting] = useState(DEFAULT_WHATSAPP_GREETING);
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -41,6 +50,26 @@ const ClientsPage: React.FC = () => {
   useEffect(() => {
     fetchClients();
   }, []);
+
+  // Restore the saved greeting after mount — localStorage is client-only, so reading it
+  // during render would break hydration.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(GREETING_STORAGE_KEY);
+      if (saved != null) setGreeting(saved);
+    } catch {
+      // Private mode / blocked storage — the default greeting still works.
+    }
+  }, []);
+
+  const handleGreetingChange = (value: string) => {
+    setGreeting(value);
+    try {
+      window.localStorage.setItem(GREETING_STORAGE_KEY, value);
+    } catch {
+      // Failing to persist the wording shouldn't stop them using it.
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -158,6 +187,20 @@ const ClientsPage: React.FC = () => {
       render: (value: string) => value || '-',
     },
     { key: 'phone', title: 'Phone' },
+    {
+      key: 'whatsapp',
+      title: 'WhatsApp',
+      omitFromExport: true,
+      render: (_: unknown, row: Client) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <WhatsAppButton
+            phone={row.phone}
+            message={greeting}
+            vars={{ name: row.name, shop: row.shopName }}
+          />
+        </div>
+      ),
+    },
     {
       key: 'email',
       title: 'Email',
@@ -342,6 +385,32 @@ const ClientsPage: React.FC = () => {
                 <strong>{activeFilterLabels.join(' · ')}</strong>
               </p>
             )}
+
+            <div className={styles.greetingBar}>
+              <label htmlFor="whatsappGreeting" className={styles.greetingLabel}>
+                WhatsApp greeting
+              </label>
+              <input
+                id="whatsappGreeting"
+                type="text"
+                value={greeting}
+                onChange={(e) => handleGreetingChange(e.target.value)}
+                placeholder={DEFAULT_WHATSAPP_GREETING}
+                className={styles.greetingInput}
+              />
+              <button
+                type="button"
+                className={styles.greetingReset}
+                onClick={() => handleGreetingChange(DEFAULT_WHATSAPP_GREETING)}
+                disabled={greeting === DEFAULT_WHATSAPP_GREETING}
+              >
+                Reset
+              </button>
+              <span className={styles.greetingHint}>
+                Pre-filled in every chat. Use{' '}
+                {WHATSAPP_MESSAGE_PLACEHOLDERS.join(' / ')} for the client and shop name.
+              </span>
+            </div>
 
             <Table
               columns={columns}

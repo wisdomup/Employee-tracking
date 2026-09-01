@@ -10,6 +10,8 @@ import { stockTransferService, StockTransfer } from '../../../../services/stockT
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../../utils/employeeDisplayLabel';
 import { formatPieces } from '../../../../utils/formatCurrency';
+import DataExportButton from '../../../../components/UI/DataExportButton';
+import type { TableExportColumn } from '../../../../utils/tableExport';
 import formStyles from '../../../../styles/FormPage.module.scss';
 import reportStyles from '../../../../styles/StockReports.module.scss';
 
@@ -28,6 +30,36 @@ interface DraftLine {
   receivedQty: string;
   receiveNote: string;
 }
+
+/** The receiving grid as exportable data — same columns and signed difference as on screen. */
+const receiveExportColumns: TableExportColumn[] = [
+  { key: 'productName', title: 'Product' },
+  { key: 'barcode', title: 'Barcode' },
+  {
+    key: 'sentQty',
+    title: 'Sent',
+    exportValue: (row) => formatPieces((row as DraftLine).sentQty),
+  },
+  {
+    key: 'receivedQty',
+    title: 'Received',
+    exportValue: (row) => {
+      const value = (row as DraftLine).receivedQty;
+      return value === '' ? '' : formatPieces(Number(value || 0));
+    },
+  },
+  {
+    key: 'difference',
+    title: 'Difference',
+    exportValue: (row) => {
+      const line = row as DraftLine;
+      if (line.receivedQty === '') return '';
+      const diff = line.sentQty - Number(line.receivedQty || 0);
+      return diff === 0 ? '' : String(-diff);
+    },
+  },
+  { key: 'receiveNote', title: 'Note' },
+];
 
 function ReceiveTransferPage() {
   const router = useRouter();
@@ -205,6 +237,18 @@ function ReceiveTransferPage() {
             {transfer.notes && (
               <span className={formStyles.hint}>Note from the sender: {transfer.notes}</span>
             )}
+          </div>
+
+          <div
+            style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}
+          >
+            <DataExportButton
+              columns={receiveExportColumns}
+              rows={lines}
+              fileName={`stock-transfer-${transfer.documentNo ?? transfer._id}-receiving`}
+              pdfTitle="Stock Transfer — receiving sheet"
+              adminOnly={false}
+            />
           </div>
 
           {/* Hand-rolled grid: the shared Table is read-only and loses input focus on its own

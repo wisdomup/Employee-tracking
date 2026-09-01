@@ -60,7 +60,8 @@ const returnSchema = new Schema<IReturn>(
 );
 
 returnSchema.index({ dealerId: 1 });
-returnSchema.index({ createdBy: 1 });
+// Returns/damages raised by one employee in a period — the analytics quality signal.
+returnSchema.index({ createdBy: 1, createdAt: -1 });
 returnSchema.index({ status: 1 });
 returnSchema.index({ isTrashed: 1, createdAt: -1 });
 returnSchema.index({ isTrashed: 1, trashedAt: -1 });

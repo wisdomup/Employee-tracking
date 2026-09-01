@@ -332,6 +332,8 @@ const EmployeeDetailPage: React.FC = () => {
                   data={assignedVisits}
                   loading={false}
                   onRowClick={handleVisitRowClick}
+                  exportFileName={`employee-visits-${employee?.username || id}`}
+                  exportPdfTitle={`Assigned Visits — ${employee?.fullName || employee?.username || "Employee"}`}
                 />
                 <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
                   Click on a row to view or edit the visit
@@ -354,6 +356,8 @@ const EmployeeDetailPage: React.FC = () => {
                   data={assignedTasks}
                   loading={false}
                   onRowClick={handleTaskRowClick}
+                  exportFileName={`employee-tasks-${employee?.username || id}`}
+                  exportPdfTitle={`Assigned Tasks — ${employee?.fullName || employee?.username || "Employee"}`}
                 />
                 <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
                   Click on any task row to view its details

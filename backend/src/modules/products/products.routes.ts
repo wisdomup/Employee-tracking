@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
-import { requirePermission } from '../../middleware/permission.middleware';
+import { requireAnyPermission, requirePermission } from '../../middleware/permission.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createProductSchema, updateProductSchema } from './dto/products.schemas';
 import * as controller from './products.controller';
@@ -45,7 +45,7 @@ router.post('/', requirePermission('products:add'), validate(createProductSchema
  * /api/products:
  *   get:
  *     tags: [Products]
- *     summary: Get all products [All roles]
+ *     summary: Get all products, full catalogue records [products:view]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -60,14 +60,56 @@ router.post('/', requirePermission('products:add'), validate(createProductSchema
  *       200: { description: List of products }
  *       401: { description: Unauthorized }
  */
+/**
+ * Catalogue-grade data: stock thresholds, last purchase rate, and the populated `createdBy` user,
+ * whose document carries the creator's salary, notes, home address and phone. Gated on
+ * `products:view` — untick that cell for a role and the /products screen closes with it.
+ */
 router.get('/', requirePermission('products:view'), controller.findAll);
+
+/**
+ * @openapi
+ * /api/products/picker:
+ *   get:
+ *     tags: [Products]
+ *     summary: Product list for order/return line-item selectors [any role that can book one]
+ *     description: >
+ *       Returns only `_id`, `barcode`, `name`, `salePrice`, `quantity` and the category name.
+ *       Purchase cost, last purchase rate, low-stock level and the creator record are omitted by
+ *       projection, so a Salesman can select a product without `products:view`.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: categoryId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *         description: Search by name or barcode
+ *     responses:
+ *       200: { description: Reduced product list }
+ *       401: { description: Unauthorized }
+ *       403: { description: Cannot create or edit an order or return }
+ */
+// Selecting a product is part of booking a document, not a permission of its own — the five-action
+// matrix has no cell for it, and adding a "Product Picker" module would put a checkbox on the
+// admin screen that nobody can reason about. So the right to read this list follows from the right
+// to write the document it feeds. A Salesman with orders:add keeps working with products:view off.
+//
+// MUST stay above `/:id`, or Express matches 'picker' as an id and returns 404.
+router.get(
+  '/picker',
+  requireAnyPermission('orders:add', 'orders:edit', 'returns:add', 'returns:edit', 'products:view'),
+  controller.findAllForPicker,
+);
 
 /**
  * @openapi
  * /api/products/{id}:
  *   get:
  *     tags: [Products]
- *     summary: Get a product by ID [All roles]
+ *     summary: Get a product by ID [products:view]
  *     security:
  *       - bearerAuth: []
  *     parameters:

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
@@ -53,6 +53,8 @@ import { toast } from 'react-toastify';
 import { format, differenceInMinutes } from 'date-fns';
 import styles from '../styles/Dashboard.module.scss';
 import { buildTrendDataFromReports } from '../utils/dashboardReportsTrend';
+import AnalyticsExportButton from '../components/UI/AnalyticsExportButton';
+import type { AnalyticsExportPayload } from '../utils/analyticsExport';
 
 const LineTrendChart = dynamic(() => import('../components/UI/LineTrendChart'), {
   ssr: false,
@@ -332,6 +334,12 @@ const Dashboard: React.FC = () => {
     );
   }, [isOrderTaker]);
 
+  /**
+   * Reports are keyed on the date range and grouping, so this effect already covers the
+   * first load as well as every later filter change. `fetchInitialData` used to request
+   * the very same report alongside the stats, which meant every admin dashboard load ran
+   * the reports aggregation twice over identical arguments.
+   */
   useEffect(() => {
     if (!isAdmin) return;
     const run = async () => {
@@ -350,17 +358,11 @@ const Dashboard: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
-      const [statsData, reportData] = await Promise.all([
-        dashboardService.getStats(),
-        dashboardService.getReports({ startDate, endDate, groupBy, viewBy: 'item' }),
-      ]);
-      setStats(statsData);
-      setReports(reportData);
+      setStats(await dashboardService.getStats());
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
     } finally {
       setLoading(false);
-      setReportLoading(false);
     }
   };
 
@@ -432,6 +434,64 @@ const Dashboard: React.FC = () => {
   };
 
   const trendData = useMemo(() => buildTrendDataFromReports(reports), [reports]);
+
+  // Shared by the on-screen charts and the exported chart sections, so both stay in step.
+  const qtyDatasets = useMemo(
+    () => [
+      { label: 'Sold Qty', values: trendData.qtySeries.sold },
+      { label: 'Returned Qty', values: trendData.qtySeries.returned, borderColor: '#16a34a' },
+      { label: 'Damaged Qty', values: trendData.qtySeries.damaged, borderColor: '#dc2626' },
+    ],
+    [trendData],
+  );
+
+  const amountDatasets = useMemo(
+    () => [
+      { label: 'Earned', values: trendData.amountSeries.earned },
+      { label: 'Paid Back', values: trendData.amountSeries.paidBack, borderColor: '#dc2626' },
+      { label: 'Booked', values: trendData.amountSeries.booked, borderColor: '#7c3aed' },
+      { label: 'Net', values: trendData.amountSeries.net, borderColor: '#16a34a' },
+    ],
+    [trendData],
+  );
+
+  const buildHighlightsExport = useCallback((): AnalyticsExportPayload => {
+    const k = reports?.kpis;
+    const range =
+      startDate || endDate ? `${startDate || 'start'} to ${endDate || 'today'}` : 'All dates';
+    return {
+      filename: `sales-stock-highlights-${groupBy}${startDate ? `-${startDate}` : ''}${endDate ? `-to-${endDate}` : ''}`,
+      title: 'Sales & Stock Highlights',
+      subtitle: `${range} · by ${groupBy}`,
+      kpis: k
+        ? [
+            { label: 'Current Stock', value: k.totalCurrentStock },
+            { label: 'Stock Hold', value: k.totalHoldStock },
+            { label: 'Returned Qty', value: k.totalReturnedQty },
+            { label: 'Damaged Qty', value: k.totalDamagedQty },
+            { label: 'Sold Qty', value: k.totalSoldQty },
+            { label: 'Earned (Delivered Sales)', value: k.salesInRange.toFixed(2) },
+            { label: 'Paid Back (Returns)', value: k.totalReturnPayout.toFixed(2) },
+            { label: 'Net After Returns', value: k.netAfterReturns.toFixed(2) },
+            { label: 'Booked Sales (Open Orders)', value: k.bookedSalesInRange.toFixed(2) },
+          ]
+        : [],
+      charts: [
+        {
+          title: 'Quantity Trend (Sold / Returned / Damaged)',
+          elementId: 'dashboard-quantity-trend-chart',
+          labels: trendData.labels,
+          datasets: qtyDatasets,
+        },
+        {
+          title: 'Amount Trend (Earned / Paid Back / Booked / Net)',
+          elementId: 'dashboard-amount-trend-chart',
+          labels: trendData.labels,
+          datasets: amountDatasets,
+        },
+      ],
+    };
+  }, [amountDatasets, endDate, groupBy, qtyDatasets, reports, startDate, trendData]);
 
   /**
    * A `/visits` link scoped to the same day the card's number was counted over.
@@ -1330,7 +1390,14 @@ const Dashboard: React.FC = () => {
         <div className={styles.section}>
           <div className={styles.reportHeader}>
             <h2 className={styles.sectionTitle}>Sales & Stock Highlights</h2>
-            <Link href="/reports" className={styles.reportsLink}>Open Full Reports</Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <AnalyticsExportButton
+                buildPayload={buildHighlightsExport}
+                disabled={reportLoading || !reports}
+                ariaLabel="Export sales and stock highlights"
+              />
+              <Link href="/reports" className={styles.reportsLink}>Open Full Reports</Link>
+            </div>
           </div>
           <div className={styles.reportFilters}>
             <DatePickerFilter value={startDate} onChange={setStartDate} placeholder="Start date" />
@@ -1394,14 +1461,10 @@ const Dashboard: React.FC = () => {
 
               <div className={styles.trendChartBlock}>
                 <h3 className={styles.trendChartTitle}>Quantity Trend (Sold / Returned / Damaged)</h3>
-                <div className={styles.trendChartWrap}>
+                <div className={styles.trendChartWrap} id="dashboard-quantity-trend-chart">
                   <LineTrendChart
                     labels={trendData.labels}
-                    datasets={[
-                      { label: 'Sold Qty', values: trendData.qtySeries.sold },
-                      { label: 'Returned Qty', values: trendData.qtySeries.returned, borderColor: '#16a34a' },
-                      { label: 'Damaged Qty', values: trendData.qtySeries.damaged, borderColor: '#dc2626' },
-                    ]}
+                    datasets={qtyDatasets}
                     height={400}
                     emptyText="No quantity trend data in selected range"
                   />
@@ -1410,15 +1473,10 @@ const Dashboard: React.FC = () => {
 
               <div className={styles.trendChartBlock}>
                 <h3 className={styles.trendChartTitle}>Amount Trend (Earned / Paid Back / Booked / Net)</h3>
-                <div className={styles.trendChartWrap}>
+                <div className={styles.trendChartWrap} id="dashboard-amount-trend-chart">
                   <LineTrendChart
                     labels={trendData.labels}
-                    datasets={[
-                      { label: 'Earned', values: trendData.amountSeries.earned },
-                      { label: 'Paid Back', values: trendData.amountSeries.paidBack, borderColor: '#dc2626' },
-                      { label: 'Booked', values: trendData.amountSeries.booked, borderColor: '#7c3aed' },
-                      { label: 'Net', values: trendData.amountSeries.net, borderColor: '#16a34a' },
-                    ]}
+                    datasets={amountDatasets}
                     height={400}
                     emptyText="No amount trend data in selected range"
                   />
