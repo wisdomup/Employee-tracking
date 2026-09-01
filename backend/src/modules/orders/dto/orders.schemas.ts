@@ -36,7 +36,15 @@ export const createOrderSchema = Joi.object({
    * the controller strips it for every other role.
    */
   warehouseId: Joi.string().hex().length(24).optional(),
-});
+  /**
+   * The order taker's GPS fix at save time. Optional here because an admin punching from a desk has
+   * no field position; the controller makes it mandatory for the `order_taker` role.
+   */
+  latitude: Joi.number().min(-90).max(90).optional(),
+  longitude: Joi.number().min(-180).max(180).optional(),
+})
+  // Half a coordinate pair is worse than none — it would store a point that plots nowhere.
+  .and('latitude', 'longitude');
 
 export const updateOrderSchema = Joi.object({
   products: Joi.array().items(orderProductSchema).min(1).optional(),

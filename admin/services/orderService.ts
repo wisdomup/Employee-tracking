@@ -37,6 +37,14 @@ export interface Order {
    * change it, and doing so moves the reservation between warehouses.
    */
   warehouseId?: any;
+  /** Where the punching user stood when the order was saved. Always set for `order_taker` punches. */
+  punchedLatitude?: number;
+  punchedLongitude?: number;
+  /** The client's map pin as it was AT punch time — a later re-pin does not rewrite it. */
+  clientLatitudeAtPunch?: number;
+  clientLongitudeAtPunch?: number;
+  /** Straight-line metres between the two points above, frozen at punch time. */
+  punchDistanceMetres?: number;
   createdBy?: any;
   /** Populated user who approved (set when status becomes approved from pending). */
   approvedBy?: any;
@@ -89,7 +97,12 @@ export const orderService = {
     return response.data;
   },
 
-  async createOrder(data: Partial<Order>) {
+  /**
+   * `latitude`/`longitude` are the punching user's own position, not a field of the order:
+   * the server snapshots them alongside the client's pin and stores the distance between.
+   * Mandatory for the `order_taker` role — the API rejects their punch without them.
+   */
+  async createOrder(data: Partial<Order> & { latitude?: number; longitude?: number }) {
     const response = await api.post('/orders', data);
     return response.data;
   },

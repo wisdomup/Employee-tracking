@@ -50,10 +50,12 @@ router.use(blockFrozenWrites);
  *               routeId: { type: string }
  *               termsAndConditions: { type: string, description: Optional invoice terms HTML (admin only; stripped for other roles) }
  *               status: { type: string, enum: [pending, approved, packed, dispatched, delivered, cancelled] }
+ *               latitude: { type: number, description: Punching user's own GPS latitude. Required for the order_taker role; must be sent together with longitude }
+ *               longitude: { type: number, description: Punching user's own GPS longitude. Required for the order_taker role; must be sent together with latitude }
  *     responses:
  *       201:
- *         description: Order created (includes server-assigned sequential `invoiceNumber` for sale invoices)
- *       400: { description: Validation error }
+ *         description: Order created (includes the server-assigned sequential `invoiceNumber`, plus the punch location, the client pin snapshot and the distance between them)
+ *       400: { description: Validation error, or an order_taker punch sent without coordinates }
  *       401: { description: Unauthorized }
  */
 router.post(

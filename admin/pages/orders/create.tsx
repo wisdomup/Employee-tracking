@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout/Layout';
@@ -31,10 +31,37 @@ interface LineItem {
   discount: number;
 }
 
+interface PunchFix {
+  lat: number;
+  lng: number;
+  /** Device-reported horizontal accuracy in metres; shown so a wild distance can be judged. */
+  accuracy?: number;
+}
+
+/**
+ * One GPS read as a promise. Resolves `null` for every failure — denied, unavailable, timed
+ * out — because the caller treats them identically: no fix, no punch for an order taker.
+ */
+function readCurrentPosition(): Promise<GeolocationPosition | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve(pos),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
+  });
+}
+
 const CreateOrderPage: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isOrderTaker = user?.role === 'order_taker';
+  /** Where the order taker is standing. Sent with the order and required for their role. */
+  const [punchFix, setPunchFix] = useState<PunchFix | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [termsHtml, setTermsHtml] = useState(withDefaultInvoiceTerms());
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -109,6 +136,33 @@ const CreateOrderPage: React.FC = () => {
       })
       .catch(() => setWarehouseStock({}));
   }, [sourceWarehouseId]);
+
+  const captureLocation = useCallback(async (): Promise<PunchFix | null> => {
+    setLocationLoading(true);
+    const pos = await readCurrentPosition();
+    setLocationLoading(false);
+    if (!pos) {
+      setPunchFix(null);
+      setLocationError(
+        'Could not read your location. Allow location access for this site in your browser, then press Retry.',
+      );
+      return null;
+    }
+    const fix: PunchFix = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+    };
+    setPunchFix(fix);
+    setLocationError(null);
+    return fix;
+  }, []);
+
+  // Read the fix as soon as the form opens rather than only at save: a blocked permission then
+  // surfaces before the order taker has filled in a whole order they cannot submit.
+  useEffect(() => {
+    captureLocation();
+  }, [captureLocation]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -282,10 +336,21 @@ const CreateOrderPage: React.FC = () => {
       );
       return;
     }
+    // A fresh read at save time, not the one taken when the page opened — the point of the
+    // trail is where they stood when they punched, and a form can sit open for an hour.
+    const fix = (await captureLocation()) ?? punchFix;
+    if (isOrderTaker && !fix) {
+      toast.error(
+        'Your location is required to punch an order. Allow location access for this site and try again.',
+      );
+      return;
+    }
     setLoading(true);
     try {
       await orderService.createOrder({
         dealerId: formData.clientId,
+        // Stored against the order and compared with the client's own pin on the detail page.
+        ...(fix ? { latitude: fix.lat, longitude: fix.lng } : {}),
         routeId: formData.routeId,
         // Binds the order to the shop visit, which is what makes it show up in the visit
         // report instead of reading as "No Order".
@@ -350,6 +415,47 @@ const CreateOrderPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* The punch location is recorded against the order, so it is shown plainly rather than
+            captured silently — and an order taker cannot save without it. */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            padding: '0.875rem 1rem',
+            marginBottom: '1rem',
+            borderRadius: '0.5rem',
+            background: locationError ? '#fef2f2' : '#f0f9ff',
+            border: `1px solid ${locationError ? '#fecaca' : '#bae6fd'}`,
+            color: locationError ? '#991b1b' : '#075985',
+          }}
+        >
+          <div>
+            <strong>Your location {isOrderTaker ? '(required)' : '(optional)'}</strong>
+            <div style={{ fontSize: '0.875rem', marginTop: '0.125rem' }}>
+              {locationLoading
+                ? 'Reading your current position…'
+                : locationError
+                  ? locationError
+                  : punchFix
+                    ? `${punchFix.lat.toFixed(6)}, ${punchFix.lng.toFixed(6)}${
+                        punchFix.accuracy != null ? ` (±${Math.round(punchFix.accuracy)} m)` : ''
+                      } — saved with the order and compared with the client's map pin.`
+                    : 'Not captured yet.'}
+            </div>
+          </div>
+          <button
+            type="button"
+            className={styles.cancelButton}
+            style={{ whiteSpace: 'nowrap' }}
+            onClick={() => captureLocation()}
+            disabled={locationLoading}
+          >
+            {locationLoading ? 'Locating…' : 'Retry'}
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
@@ -428,10 +534,10 @@ const CreateOrderPage: React.FC = () => {
               </div>
             </div>
             <div className={styles.desktopOnly} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
-              <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>
+              <table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
+                    <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', minWidth: 260 }}>
                       Product
                     </th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 180 }}>

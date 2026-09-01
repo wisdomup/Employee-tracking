@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as ordersService from './orders.service';
-import { forbidden } from '../../utils/app-error';
+import { badRequest, forbidden } from '../../utils/app-error';
 import { serializeOrderForRole, serializeOrdersForRole } from '../../utils/product-privacy';
 
 function orderCreatedById(doc: { createdBy?: unknown }): string {
@@ -18,6 +18,18 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       delete req.body.termsAndConditions;
       // The source warehouse follows the salesman's city; only an admin may override it.
       delete req.body.warehouseId;
+    }
+    // An order taker's punch IS a field record: without their coordinates there is nothing to
+    // compare against the client's pin, so the punch is refused rather than stored unverifiable.
+    if (req.user?.role === 'order_taker') {
+      const { latitude, longitude } = req.body as { latitude?: unknown; longitude?: unknown };
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+        return next(
+          badRequest(
+            'Your current location is required to punch an order. Allow location access for this site and try again.',
+          ),
+        );
+      }
     }
     const order = await ordersService.createOrder(req.body, req.user!.userId, req.user?.role);
     res.status(201).json(serializeOrderForRole(order, req.user?.role));

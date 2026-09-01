@@ -46,6 +46,10 @@ const selectStyles: StylesConfig<SearchableSelectOption, false, GroupBase<Search
     border: '1px solid #e5e7eb',
     borderRadius: 8,
     boxShadow: '0 12px 32px rgba(15, 23, 42, 0.18)',
+    /* Portaled menu inherits the control width; in a narrow table cell that squeezed option
+     * labels to one character per line. Floor the width, cap it to the viewport. */
+    minWidth: 260,
+    maxWidth: 'min(420px, 92vw)',
     marginTop: 4,
     marginBottom: 4,
     overflow: 'hidden',

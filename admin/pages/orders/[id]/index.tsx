@@ -21,9 +21,27 @@ import {
 import { getApiErrorMessage } from '../../../utils/apiError';
 import DataExportButton from '../../../components/UI/DataExportButton';
 import type { TableExportColumn } from '../../../utils/tableExport';
+import MapView, { Marker } from '../../../components/Map/MapView';
+import { haversineDistanceKm } from '../../../utils/geo';
 import styles from '../../../styles/DetailPage.module.scss';
 import modalStyles from '../../../styles/Modal.module.scss';
 import { withDefaultInvoiceTerms } from '../../../utils/defaultInvoiceTerms';
+
+/** Six decimals — about 0.1 m, finer than any phone fix, so nothing real is rounded away. */
+function formatCoords(lat: number, lng: number): string {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+function mapsPointUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+function formatDistance(metres: number): string {
+  return metres >= 1000 ? `${(metres / 1000).toFixed(2)} km` : `${Math.round(metres)} m`;
+}
+
+/** Below this the two pins are the same point to any GPS; used only to spot a genuine re-pin. */
+const PIN_MOVE_EPSILON_DEGREES = 0.00001;
 
 const OrderDetailPage: React.FC = () => {
   const router = useRouter();
@@ -135,6 +153,53 @@ const OrderDetailPage: React.FC = () => {
     order.products?.reduce((sum, item) => sum + lineDiscountOf(item), 0) ?? 0;
   const discount = order.discount ?? 0;
   const grandTotal = order.grandTotal ?? totalPrice - itemsDiscountTotal - discount;
+
+  // --- Punch location trail -------------------------------------------------------------
+  const numberOrNull = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const punchLat = numberOrNull(order.punchedLatitude);
+  const punchLng = numberOrNull(order.punchedLongitude);
+  const dealer = typeof order.dealerId === 'object' && order.dealerId ? order.dealerId : null;
+  const liveClientLat = numberOrNull(dealer?.latitude);
+  const liveClientLng = numberOrNull(dealer?.longitude);
+  const snapClientLat = numberOrNull(order.clientLatitudeAtPunch);
+  const snapClientLng = numberOrNull(order.clientLongitudeAtPunch);
+  // The snapshot wins: it is the pin the stored distance was measured against. Falling back to
+  // the live pin only helps orders punched before the snapshot existed.
+  const clientPinIsSnapshot = snapClientLat != null && snapClientLng != null;
+  const clientLat = clientPinIsSnapshot ? snapClientLat : liveClientLat;
+  const clientLng = clientPinIsSnapshot ? snapClientLng : liveClientLng;
+  const livePinMoved =
+    clientPinIsSnapshot &&
+    liveClientLat != null &&
+    liveClientLng != null &&
+    (Math.abs(liveClientLat - snapClientLat!) > PIN_MOVE_EPSILON_DEGREES ||
+      Math.abs(liveClientLng - snapClientLng!) > PIN_MOVE_EPSILON_DEGREES);
+  const punchDistanceMetres =
+    numberOrNull(order.punchDistanceMetres) ??
+    // Older orders carry the two points but no stored distance; the same great-circle formula
+    // the server uses gives the identical answer.
+    (punchLat != null && punchLng != null && clientLat != null && clientLng != null
+      ? haversineDistanceKm(punchLat, punchLng, clientLat, clientLng) * 1000
+      : null);
+  const punchMarkers: Marker[] = [];
+  if (clientLat != null && clientLng != null) {
+    punchMarkers.push({
+      lat: clientLat,
+      lng: clientLng,
+      type: 'client',
+      label: dealer?.shopName || dealer?.name || 'Client',
+      pinIcon: 'blue',
+    });
+  }
+  if (punchLat != null && punchLng != null) {
+    punchMarkers.push({
+      lat: punchLat,
+      lng: punchLng,
+      type: 'completion',
+      label: `Order taker — ${employeeDisplayLabel(order.createdBy) || 'unknown'}`,
+      pinIcon: 'red',
+    });
+  }
 
   /** The Products table as exportable data — same rows, columns and totals as on screen. */
   const productExportColumns: TableExportColumn[] = [
@@ -306,6 +371,85 @@ const OrderDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className={styles.section}>
+            <h2>Punch location</h2>
+            {punchLat == null || punchLng == null ? (
+              <p style={{ margin: 0, color: '#6b7280', fontSize: '0.875rem' }}>
+                No location was recorded when this order was punched. Orders punched by an order
+                taker always carry one; admin-entered and older orders may not.
+              </p>
+            ) : (
+              <>
+                <div className={styles.infoGrid}>
+                  <div className={styles.infoItem}>
+                    <span className={styles.label}>Order taker was at:</span>
+                    <span className={styles.value}>
+                      {formatCoords(punchLat, punchLng)}{' '}
+                      <a
+                        href={mapsPointUrl(punchLat, punchLng)}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
+                      >
+                        Open in Maps
+                      </a>
+                    </span>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <span className={styles.label}>Client location:</span>
+                    <span className={styles.value}>
+                      {clientLat == null || clientLng == null ? (
+                        'No map pin on this client'
+                      ) : (
+                        <>
+                          {formatCoords(clientLat, clientLng)}{' '}
+                          <a
+                            href={mapsPointUrl(clientLat, clientLng)}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: 'var(--admin-primary)', textDecoration: 'underline' }}
+                          >
+                            Open in Maps
+                          </a>
+                          {/* The snapshot is what the distance was measured against; say so when the
+                              client has since been re-pinned somewhere else. */}
+                          {clientPinIsSnapshot && livePinMoved && (
+                            <span style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280' }}>
+                              Pin as it was when the order was punched; the client has been re-pinned
+                              since.
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <span className={styles.label}>Distance apart:</span>
+                    <span className={styles.value}>
+                      {punchDistanceMetres == null ? (
+                        '-'
+                      ) : (
+                        <>
+                          {formatDistance(punchDistanceMetres)}
+                          <span style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280' }}>
+                            Straight-line distance, not road distance.
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <span className={styles.label}>Punched at:</span>
+                    <span className={styles.value}>
+                      {order.createdAt ? format(new Date(order.createdAt), 'MMM dd, yyyy HH:mm') : '-'}
+                    </span>
+                  </div>
+                </div>
+                {punchMarkers.length > 0 && <MapView markers={punchMarkers} height="320px" />}
+              </>
+            )}
           </div>
 
           {isAdmin && order.termsAndConditions && (

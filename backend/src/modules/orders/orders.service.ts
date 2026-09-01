@@ -23,6 +23,7 @@ import {
   getStockBalance,
 } from '../warehouse/stock-ledger.service';
 import { resolveWarehouseForUser } from '../warehouse/warehouse-resolver';
+import { calculateDistance } from '../../services/distance.service';
 import { notifyInsufficientStock } from '../warehouse/warehouse-notifications';
 
 /**
@@ -286,6 +287,44 @@ async function resolveOrderRouteId(
   return undefined;
 }
 
+/**
+ * Freezes the two points the order's location trail is made of: where the order taker stood,
+ * and where the client's pin was AT THAT MOMENT, plus the straight-line gap between them.
+ *
+ * The client pin is snapshotted rather than read live at display time because dealers get
+ * re-pinned — a corrected shop location would otherwise rewrite the recorded distance of every
+ * order ever punched there. An unpinned client yields coordinates but no distance.
+ */
+async function resolvePunchLocation(
+  dealerId: string,
+  latitude?: number,
+  longitude?: number,
+): Promise<{
+  punchedLatitude?: number;
+  punchedLongitude?: number;
+  clientLatitudeAtPunch?: number;
+  clientLongitudeAtPunch?: number;
+  punchDistanceMetres?: number;
+}> {
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') return {};
+
+  const dealer = await DealerModel.findById(dealerId).select('latitude longitude').lean();
+  const clientLat = typeof dealer?.latitude === 'number' ? dealer.latitude : undefined;
+  const clientLng = typeof dealer?.longitude === 'number' ? dealer.longitude : undefined;
+
+  return {
+    punchedLatitude: latitude,
+    punchedLongitude: longitude,
+    ...(clientLat != null && clientLng != null
+      ? {
+          clientLatitudeAtPunch: clientLat,
+          clientLongitudeAtPunch: clientLng,
+          punchDistanceMetres: calculateDistance(latitude, longitude, clientLat, clientLng),
+        }
+      : {}),
+  };
+}
+
 export async function createOrder(
   data: {
     products: { productId: string; quantity: number; price: number; discount?: number }[];
@@ -304,12 +343,25 @@ export async function createOrder(
     visitId?: string;
     /** Admin-only override of the auto-resolved source warehouse. */
     warehouseId?: string;
+    /** The order taker's device fix at save time; mandatory for the `order_taker` role. */
+    latitude?: number;
+    longitude?: number;
   },
   userId: string,
   userRole?: string,
 ) {
-  const { products, dealerId, routeId, discount, termsAndConditions, warehouseId, visitId, ...rest } =
-    data;
+  const {
+    products,
+    dealerId,
+    routeId,
+    discount,
+    termsAndConditions,
+    warehouseId,
+    visitId,
+    latitude,
+    longitude,
+    ...rest
+  } = data;
 
   // Validated before any stock is reserved: a bad visit link must fail the whole order
   // rather than leave stock committed against an order that never gets created.
@@ -319,6 +371,7 @@ export async function createOrder(
   const terms = sanitizeOrderTermsHtml(termsAndConditions);
   const routeIdProvided = Object.prototype.hasOwnProperty.call(data, 'routeId');
   const resolvedRouteId = await resolveOrderRouteId(dealerId, routeId, routeIdProvided);
+  const punchLocation = await resolvePunchLocation(dealerId, latitude, longitude);
 
   const { totalPrice, itemsDiscountTotal, grandTotal, lineDiscounts } = computeOrderTotals(
     products,
@@ -367,6 +420,7 @@ export async function createOrder(
       dealerId: new Types.ObjectId(dealerId),
       ...(resolvedRouteId && { routeId: resolvedRouteId }),
       ...(resolvedVisitId && { visitId: resolvedVisitId }),
+      ...punchLocation,
       warehouseId: resolution.warehouseId,
       createdBy: new Types.ObjectId(userId),
     });
@@ -403,6 +457,17 @@ export async function createOrder(
       dealerId: String(order.dealerId),
       grandTotal: order.grandTotal,
       ...(resolvedVisitId ? { visitId: String(resolvedVisitId), source: 'visit_check_in' } : {}),
+      // Worth recording on the activity trail too: a punch far from the client's pin is the
+      // signal an admin reviews, and the log survives even if the order is later trashed.
+      ...(punchLocation.punchedLatitude != null
+        ? {
+            punchedLatitude: punchLocation.punchedLatitude,
+            punchedLongitude: punchLocation.punchedLongitude,
+            ...(punchLocation.punchDistanceMetres != null
+              ? { punchDistanceMetres: punchLocation.punchDistanceMetres }
+              : {}),
+          }
+        : {}),
     },
   });
 

@@ -38,6 +38,26 @@ export interface IOrder extends Document {
   visitId?: Types.ObjectId;
   /** Warehouse the stock was taken from. Resolved from the salesman's city; admin-overridable. */
   warehouseId?: Types.ObjectId;
+  /**
+   * Where the order taker physically stood when they punched this order, captured by their
+   * device at save time. Required for an `order_taker` punch — the location trail is the
+   * point, so a punch with no fix is refused rather than stored blind. Optional for admin
+   * back-office entry, which has no field position to record.
+   */
+  punchedLatitude?: number;
+  punchedLongitude?: number;
+  /**
+   * The client's map pin SNAPSHOT, copied at punch time. A dealer can be re-pinned later; without
+   * the snapshot every historical order's distance would silently restate itself the moment
+   * someone corrects a shop's coordinates.
+   */
+  clientLatitudeAtPunch?: number;
+  clientLongitudeAtPunch?: number;
+  /**
+   * Straight-line metres between the two points above, frozen at punch time. Absent when either
+   * side had no coordinates — an unpinned client, or an admin-entered order.
+   */
+  punchDistanceMetres?: number;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -94,6 +114,11 @@ const orderSchema = new Schema<IOrder>(
     routeId: { type: Schema.Types.ObjectId, ref: 'Route' },
     visitId: { type: Schema.Types.ObjectId, ref: 'Visit' },
     warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
+    punchedLatitude: { type: Number, min: -90, max: 90 },
+    punchedLongitude: { type: Number, min: -180, max: 180 },
+    clientLatitudeAtPunch: { type: Number, min: -90, max: 90 },
+    clientLongitudeAtPunch: { type: Number, min: -180, max: 180 },
+    punchDistanceMetres: { type: Number, min: 0 },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },

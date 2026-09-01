@@ -376,10 +376,10 @@ const EditOrderPage: React.FC = () => {
               </div>
             </div>
             <div className={styles.desktopOnly} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
-              <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>
+              <table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1f2937' }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb' }}>Product</th>
+                    <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', minWidth: 260 }}>Product</th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 180 }}>Stock / Remaining</th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 100 }}>Qty</th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #e5e7eb', width: 120 }}>Unit Price</th>
