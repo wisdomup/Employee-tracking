@@ -28,6 +28,9 @@ import { RouteModel } from '../../models/route.model';
 import { AttendanceModel } from '../../models/attendance.model';
 import { ReturnModel } from '../../models/return.model';
 import { TaskModel } from '../../models/task.model';
+import { ProductModel } from '../../models/product.model';
+import { CategoryModel } from '../../models/category.model';
+import { seedAccessPolicies } from './access-policies.seed';
 import { toPeriodMonth } from '../../modules/analytics/analytics.rules';
 
 const PORT = 27018;
@@ -214,6 +217,28 @@ async function main(): Promise<void> {
       });
     }
   }
+
+  // A catalogue to pick from. Without this the order form has an empty product dropdown and
+  // nothing about product access can be exercised here.
+  const [beverages, snacks] = await CategoryModel.create([
+    { name: 'Beverages', createdBy: adminId },
+    { name: 'Snacks', createdBy: adminId },
+  ]);
+
+  await ProductModel.create([
+    // `purchasePrice` and `lastPurchaseRate` are set deliberately: they are what the picker
+    // endpoint must NOT return to a Salesman.
+    { barcode: '8001', name: 'Cola 500ml', salePrice: 120, purchasePrice: 80, lastPurchaseRate: 78, quantity: 240, survivalQuantity: 24, categoryId: beverages._id, createdBy: adminId },
+    { barcode: '8002', name: 'Cola 1.5L', salePrice: 260, purchasePrice: 190, lastPurchaseRate: 186, quantity: 90, survivalQuantity: 12, categoryId: beverages._id, createdBy: adminId },
+    { barcode: '8003', name: 'Mango Juice 250ml', salePrice: 70, purchasePrice: 44, quantity: 0, survivalQuantity: 20, categoryId: beverages._id, createdBy: adminId },
+    { barcode: '8004', name: 'Salted Chips 60g', salePrice: 60, purchasePrice: 38, lastPurchaseRate: 37, quantity: 310, categoryId: snacks._id, createdBy: adminId },
+    { barcode: '8005', name: 'Chocolate Bar', salePrice: 150, purchasePrice: 96, quantity: 45, categoryId: snacks._id, createdBy: adminId },
+  ]);
+
+  // The permission matrix lives in the database. With no policy documents every non-admin
+  // resolves to the empty set and 403s on everything, which looks like a broken build rather
+  // than an unseeded one.
+  await seedAccessPolicies({ force: true, backfillUsers: true });
 
   /* eslint-disable no-console */
   console.log('\n  Sandbox MongoDB ready — the real database is untouched.\n');
