@@ -159,6 +159,26 @@ export const MODULES: readonly ModuleDefinition[] = [
     id: 'settings', label: 'System Settings', group: MODULE_GROUPS.SYSTEM,
     actions: [VIEW, EDIT],
   },
+  {
+    /*
+     * Download a list as CSV or PDF. One cell for the whole app, not one per screen.
+     *
+     * It gates a control, not an endpoint, which makes it the odd one out here: the export is
+     * built in the browser from rows the page has already fetched, so a role that can see a
+     * list can always read the same data through the API. What this decides is whether the
+     * Export button is offered — the difference between "you may take the client list home in
+     * a spreadsheet" and "you may look at it on this screen", which is the distinction the
+     * requirement actually draws.
+     *
+     * Per-screen export cells were considered and rejected: 30-odd list pages would mean
+     * 30-odd checkboxes that nobody would ever tick individually, and the honest boundary is
+     * per person, not per screen.
+     *
+     * `view` is the only sensible action — an export cannot be added, edited or deleted.
+     */
+    id: 'exports', label: 'Data Export (CSV / PDF)', group: MODULE_GROUPS.SYSTEM,
+    actions: READ_ONLY,
+  },
 ];
 
 const MODULE_BY_ID = new Map(MODULES.map((m) => [m.id, m]));

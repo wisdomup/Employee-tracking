@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import ExportMenu from './ExportMenu';
 import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import {
   exportAnalyticsToCsv,
   exportAnalyticsToPdf,
@@ -30,7 +31,9 @@ const AnalyticsExportButton: React.FC<AnalyticsExportButtonProps> = ({
   ariaLabel = 'Export report',
   className,
 }) => {
-  const { user } = useAuth();
+  // The same `exports:view` cell the list tables read, so a manager who can download a client
+  // list can also download the report they are judged on. See the note in Table.tsx.
+  const { access } = useAuth();
 
   const onCsv = useCallback(() => {
     exportAnalyticsToCsv(buildPayload());
@@ -40,7 +43,7 @@ const AnalyticsExportButton: React.FC<AnalyticsExportButtonProps> = ({
     await exportAnalyticsToPdf(buildPayload());
   }, [buildPayload]);
 
-  if (user?.role !== 'admin') return null;
+  if (!(access && can(undefined, 'exports:view'))) return null;
 
   return (
     <ExportMenu

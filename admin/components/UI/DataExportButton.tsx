@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import ExportMenu from './ExportMenu';
 import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import {
   exportTableToCsv,
   exportTableToPdf,
@@ -18,9 +19,13 @@ interface DataExportButtonProps {
   disabled?: boolean;
   className?: string;
   /**
-   * Restrict the control to admins, matching `Table`'s export. Default for saved records.
-   * Pass `false` on the draft/entry forms: there the rows are what the person in front of the
-   * screen just typed, so hiding their own working copy from them buys nothing.
+   * Require the `exports:view` matrix cell, matching `Table`'s export. Default for saved
+   * records. Pass `false` on the draft/entry forms: there the rows are what the person in front
+   * of the screen just typed, so hiding their own working copy from them buys nothing.
+   *
+   * Named `adminOnly` from when the gate was a role check; it is now the cell, which Admin and
+   * both manager roles hold as seeded. Kept as-is because eleven call sites pass it and the
+   * meaning — "the restricted one" — is unchanged.
    */
   adminOnly?: boolean;
 }
@@ -40,7 +45,9 @@ const DataExportButton: React.FC<DataExportButtonProps> = ({
   className,
   adminOnly = true,
 }) => {
-  const { user } = useAuth();
+  // `access` rather than `user`: it is what changes when the grants arrive, and `can()` has no
+  // subscription of its own. See the note in Table.tsx.
+  const { access } = useAuth();
 
   const onCsv = useCallback(() => {
     exportTableToCsv({ filename: fileName, columns, data: rows, grandTotalRow });
@@ -58,7 +65,7 @@ const DataExportButton: React.FC<DataExportButtonProps> = ({
     [columns, fileName, grandTotalRow, pdfTitle, rows],
   );
 
-  if (adminOnly && user?.role !== 'admin') return null;
+  if (adminOnly && !(access && can(undefined, 'exports:view'))) return null;
 
   return (
     <ExportMenu

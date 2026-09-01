@@ -21,7 +21,7 @@ import {
   isValidReport,
   parsePermissionKey,
 } from '../../constants/permissions';
-import { ROLE_SEEDS, validateSeed } from '../../database/seeds/access-policies.seed';
+import { ROLE_SEEDS, BASELINE_PERMISSIONS, validateSeed } from '../../database/seeds/access-policies.seed';
 import { ROLES } from '../../constants/global';
 
 let failures = 0;
@@ -149,6 +149,34 @@ check('every non-admin role is seeded', () => {
   for (const role of expected) {
     assert.ok(role in ROLE_SEEDS, `role "${role}" has no seed — its users would resolve to nothing`);
   }
+});
+
+check('data export is seeded to the managers and to nobody in the field', () => {
+  // The requirement: Admin and the two manager roles may download a list as CSV or PDF; field
+  // staff may read a list on screen and not take it away. Admin holds no policy at all — the
+  // resolver short-circuits — so only the four non-admin roles are asserted here.
+  const EXPORTERS = [ROLES.SALES_MANAGER, ROLES.WAREHOUSE_MANAGER];
+  const NON_EXPORTERS = [ROLES.ORDER_TAKER, ROLES.DELIVERY_MAN, ROLES.WAREHOUSE_STAFF, ROLES.EMPLOYEE];
+
+  for (const role of EXPORTERS) {
+    assert.ok(
+      ROLE_SEEDS[role].permissions.includes('exports:view'),
+      `${role} is a manager and must be able to export`,
+    );
+  }
+  for (const role of NON_EXPORTERS) {
+    assert.ok(
+      !ROLE_SEEDS[role].permissions.includes('exports:view'),
+      `${role} must not be able to download lists — a Salesman with an export button can walk ` +
+        'out with the client book',
+    );
+  }
+  // Baseline is granted to every role, so `exports:view` landing there would hand the button to
+  // the whole company in one line.
+  assert.ok(
+    !BASELINE_PERMISSIONS.includes('exports:view'),
+    'exports:view must never be baseline',
+  );
 });
 
 check('no role is seeded an approval it cannot reach', () => {
@@ -376,8 +404,13 @@ check('every gated module is actually reachable from some route', () => {
       if (parsed) used.add(parsed.moduleId);
     }
   }
-  // `settings` has no backend routes yet — it gates admin-panel screens only.
-  const exempt = new Set(['settings']);
+  // Modules that gate admin-panel UI rather than an endpoint.
+  //
+  // `settings` has no backend routes yet. `exports` never will: the CSV/PDF is built in the
+  // browser from rows the page already fetched, so there is nothing server-side to guard — the
+  // cell decides whether the Export button is offered, and any role that can read a list can
+  // still read the same JSON through the API it came from.
+  const exempt = new Set(['settings', 'exports']);
   const orphans = MODULES.filter((m) => !used.has(m.id) && !exempt.has(m.id)).map((m) => m.id);
   assert.deepStrictEqual(orphans, [], `modules with no route guard: ${orphans.join(', ')}`);
 });

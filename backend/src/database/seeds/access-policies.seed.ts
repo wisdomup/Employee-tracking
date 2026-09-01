@@ -131,6 +131,9 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       // Held explicitly now that `products:view` is no longer baseline: a manager reviews the
       // catalogue and its prices.
       'products:view',
+      // Managers may download the lists they can already read. Not baseline: a Salesman with
+      // an export button can walk out with the client book.
+      'exports:view',
       'dealers:view',
       'employees:view',
       'orders:view',
@@ -167,6 +170,9 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
     permissions: [
       // Same reason as warehouse_staff: every stock document form loads the product list.
       'products:view',
+      // A manager, so the same export grant as sales_manager — stock and document lists.
+      // Deliberately NOT given to warehouse_staff, who raise documents but do not report on them.
+      'exports:view',
       'warehouse:view',
       'stock-in:view',
       'stock-in:add',

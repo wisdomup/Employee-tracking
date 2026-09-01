@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import GlobalDataTable, { TableColumn } from './GlobalDataTable';
 import ExportMenu from './ExportMenu';
 import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import {
   aggregateColumn,
   exportTableToCsv,
@@ -14,12 +15,14 @@ import {
 /**
  * ## Table export: who gets it, and why it is here at all
  *
- * Any table given an `exportFileName` renders a CSV/PDF control in its sub-header — but only
- * for Admin. Field and warehouse roles see no export control anywhere a list is displayed.
- * That is the same rule `DataExportButton` applies to the hand-rolled tables (order and
- * transfer line items, stock counts), so the two controls cannot disagree about who may
- * download a list. Pass `exportAdminOnly={false}` where the rows are the operator's own
- * unsaved working copy — hiding a draft from the person who just typed it buys nothing.
+ * Any table given an `exportFileName` renders a CSV/PDF control in its sub-header, for anyone
+ * holding the `exports:view` matrix cell — Admin and both manager roles as seeded, and
+ * whoever else an Admin ticks later without a deploy. Field roles hold no cell and see no
+ * export control anywhere a list is displayed. `DataExportButton` reads the same cell for the
+ * hand-rolled tables (order and transfer line items, stock counts), so the two controls cannot
+ * disagree about who may download a list. Pass `exportAlwaysVisible` where the rows are the
+ * operator's own unsaved working copy — hiding a draft from the person who just typed it buys
+ * nothing.
  *
  * This replaces a blanket removal ("no export for any role including Admin") that had already
  * stopped being true: the report and dashboard surfaces carry `AnalyticsExportButton`, so the
@@ -76,8 +79,11 @@ interface TableProps {
   exportFormats?: TableExportFormat[];
   /** Title line at the top of the exported PDF. Defaults to the file name. */
   exportPdfTitle?: string;
-  /** Admin-only by default — see the note at the top of this file. */
-  exportAdminOnly?: boolean;
+  /**
+   * Show the control regardless of `exports:view` — for entry forms whose rows the operator
+   * just typed. Default false: the cell decides. See the note at the top of this file.
+   */
+  exportAlwaysVisible?: boolean;
   /** Backward-compatible alias for `showTotals`; older pages still pass this prop. */
   showGrandTotal?: boolean;
   /** Backward-compatible prop retained so older callers compile; the current footer row ignores it. */
@@ -101,13 +107,15 @@ const Table: React.FC<TableProps> = ({
   exportFileName,
   exportFormats,
   exportPdfTitle,
-  exportAdminOnly = true,
+  exportAlwaysVisible = false,
   showGrandTotal,
   grandTotalLabel: _grandTotalLabel = 'Grand Total',
   showTotals = true,
 }) => {
-  const { user } = useAuth();
-  const role = user?.role;
+  // `can()` reads a module-level store with no subscription of its own, so the component has to
+  // re-render when the grants land. Reading `access` from the context is what makes that happen:
+  // without it the control would stay hidden until some unrelated state change forced a repaint.
+  const { access } = useAuth();
 
   const normalizedColumns = useMemo<TableColumn<any>[]>(
     () =>
@@ -146,9 +154,8 @@ const Table: React.FC<TableProps> = ({
     });
   }, [columns, data, totalsEnabled]);
 
-  // The footer the user can see, rendered as export rows so a downloaded file carries the same
-  // totals as the screen. `getExportTableData` appends its own totals row, so this is only for
-  // the formats that take one separately.
+  // `getExportTableData` appends the same TOTAL row the footer shows, so a downloaded file and
+  // the screen can never disagree about the figures.
   const exportColumns = columns as TableExportColumn[];
 
   const runCsv = useCallback(() => {
@@ -170,7 +177,9 @@ const Table: React.FC<TableProps> = ({
     [data, exportColumns, exportFileName, exportPdfTitle],
   );
 
-  const mayExport = Boolean(exportFileName) && (!exportAdminOnly || role === 'admin');
+  const mayExport =
+    Boolean(exportFileName) &&
+    (exportAlwaysVisible || (Boolean(access) && can(undefined, 'exports:view')));
 
   const subHeaderComponent = mayExport ? (
     <ExportMenu
