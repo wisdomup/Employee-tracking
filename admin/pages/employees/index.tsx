@@ -119,6 +119,8 @@ const EmployeesPage: React.FC = () => {
       title: 'Salary',
       render: (_: unknown, row: Employee) =>
         row.perks?.salary != null ? String(row.perks.salary) : '-',
+      // Without this the whole perks object is written as JSON — bonus and allowance included.
+      exportValue: (row: unknown) => String((row as Employee).perks?.salary ?? ''),
       total: 'sum' as const,
       totalValue: (row: Employee) => Number(row.perks?.salary ?? 0),
     },
@@ -141,6 +143,7 @@ const EmployeesPage: React.FC = () => {
       key: 'address',
       title: 'City',
       render: (value: unknown) => (value as { city?: string })?.city || '-',
+      exportValue: (row: unknown) => (row as Employee).address?.city ?? '',
     },
     {
       key: 'isActive',

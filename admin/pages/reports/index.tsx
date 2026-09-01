@@ -254,6 +254,8 @@ const ReportsPage: React.FC = () => {
               fixedHeaderHeight="430px"
               showGrandTotal
               noDataText="No stock rows found"
+              exportFileName={`stock-report-${viewBy}`}
+              exportPdfTitle={`Stock Report (${viewBy === 'item' ? 'Item-wise' : 'Category-wise'})`}
             />
           </div>
         </div>
@@ -270,6 +272,8 @@ const ReportsPage: React.FC = () => {
               fixedHeaderHeight="430px"
               showGrandTotal
               noDataText="No sales rows found"
+              exportFileName={`sales-report-${viewBy}`}
+              exportPdfTitle={`Sales Report (${viewBy === 'item' ? 'Item-wise' : 'Category-wise'})`}
             />
           </div>
         </div>

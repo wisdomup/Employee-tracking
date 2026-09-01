@@ -101,6 +101,8 @@ const FrozenAccountsPage: React.FC = () => {
         key: 'address',
         title: 'City',
         render: (value: unknown) => (value as { city?: string })?.city || '-',
+        exportValue: (row: unknown) =>
+          (row as { address?: { city?: string } }).address?.city ?? '',
       },
       {
         key: 'frozenAt',

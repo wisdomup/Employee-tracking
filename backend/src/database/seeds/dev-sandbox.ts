@@ -249,7 +249,8 @@ async function main(): Promise<void> {
   console.log('    admin          — sees every team');
   console.log('    manager.north  — sales manager: Ali + Bina only');
   console.log('    manager.south  — sales manager: Chand only');
-  console.log('    rider.ali      — rider: own scorecard only\n');
+  console.log('    rider.ali      — Salesman: books orders, no product catalogue\n');
+  console.log('  5 products across 2 categories; the permission matrix is seeded.\n');
   console.log('  Ctrl+C to stop and discard all data.\n');
   /* eslint-enable no-console */
 

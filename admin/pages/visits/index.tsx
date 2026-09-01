@@ -276,6 +276,14 @@ const VisitsPage: React.FC = () => {
           </span>
         );
       },
+      // The same text the cell shows, without the styling: an amount, or "No Order".
+      exportValue: (row: unknown) => {
+        const summary = (row as Visit).orderSummary;
+        if (!summary || summary.orderCount === 0) return 'No Order';
+        return (
+          formatVisitOrderAmount(summary) + (summary.orderCount > 1 ? ` (${summary.orderCount})` : '')
+        );
+      },
       total: 'sum' as const,
       totalValue: (row: Visit) => row.orderSummary?.totalAmount ?? 0,
       totalRender: (value: number) =>
@@ -290,6 +298,9 @@ const VisitsPage: React.FC = () => {
     {
       key: '_id',
       title: 'Actions',
+      // Auto-omit covers keys named actions/select only, and this column is keyed '_id' —
+      // without this the export carries a column of raw ObjectIds titled "Actions".
+      omitFromExport: true,
       render: (_: string, row: Visit) => (
         <div className={styles.actions}>
           <button

@@ -1,28 +1,39 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import GlobalDataTable, { TableColumn } from './GlobalDataTable';
+import ExportMenu from './ExportMenu';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   aggregateColumn,
+  exportTableToCsv,
+  exportTableToPdf,
   formatTotalForDisplay,
   type TableExportColumn,
   type TableExportFormat,
 } from '../../utils/tableExport';
 
 /**
- * Reports are view-only across the product: no export, no print, no download, for any role
- * including Admin.
+ * ## Table export: who gets it, and why it is here at all
  *
- * The CSV/PDF control that used to live in this table's sub-header has been **removed**
- * rather than hidden behind a flag, so it cannot be switched back on by accident. The four
- * `export*` props survive as accepted-and-ignored because roughly twenty pages still pass
- * them, and deleting them all in this change would have buried the actual removal in noise.
+ * Any table given an `exportFileName` renders a CSV/PDF control in its sub-header — but only
+ * for Admin. Field and warehouse roles see no export control anywhere a list is displayed.
+ * That is the same rule `DataExportButton` applies to the hand-rolled tables (order and
+ * transfer line items, stock counts), so the two controls cannot disagree about who may
+ * download a list. Pass `exportAdminOnly={false}` where the rows are the operator's own
+ * unsaved working copy — hiding a draft from the person who just typed it buys nothing.
  *
- * Operational documents are NOT reports and keep their print path: order invoices, warehouse
- * stock-in / transfer / damage slips, and the product catalog download. Riders and warehouse
- * staff hand those to customers on paper.
+ * This replaces a blanket removal ("no export for any role including Admin") that had already
+ * stopped being true: the report and dashboard surfaces carry `AnalyticsExportButton`, so the
+ * removal held only for `Table` while every page kept passing the props it ignored. One rule
+ * in one place beats a comment that the rest of the app contradicts.
  *
- * The honest limit: this removes the button, not the data. The report APIs still return JSON
- * to anyone with a valid token and browser dev tools. Closing that means removing the
- * server-side export endpoints, which is a separate decision.
+ * Operational documents keep their own print path regardless: order invoices, warehouse
+ * stock-in / transfer / damage slips, the product catalog download. Riders and warehouse staff
+ * hand those to customers on paper.
+ *
+ * The honest limit, unchanged: this governs the button, not the data. The list APIs still
+ * return JSON to anyone with a valid token and dev tools, and the export writes whatever rows
+ * the page already fetched. Restricting the data itself means narrowing the endpoints — which
+ * is what `GET /api/products/picker` does for the product list, and is a per-endpoint job.
  */
 
 export interface TableColumnConfig {
@@ -57,14 +68,16 @@ interface TableProps {
   noDataText?: string;
   fixedHeader?: boolean;
   fixedHeaderHeight?: string;
-  /** @deprecated Accepted and ignored — reports are view-only. See the note above. */
+  /** @deprecated Export is driven by `exportFileName`; this flag is accepted and ignored. */
   exportable?: boolean;
-  /** @deprecated Accepted and ignored — reports are view-only. */
+  /** Base download name (no extension). Providing it is what turns the control on. */
   exportFileName?: string;
-  /** @deprecated Accepted and ignored — reports are view-only. */
+  /** Which formats to offer. Both by default. */
   exportFormats?: TableExportFormat[];
-  /** @deprecated Accepted and ignored — reports are view-only. */
+  /** Title line at the top of the exported PDF. Defaults to the file name. */
   exportPdfTitle?: string;
+  /** Admin-only by default — see the note at the top of this file. */
+  exportAdminOnly?: boolean;
   /** Backward-compatible alias for `showTotals`; older pages still pass this prop. */
   showGrandTotal?: boolean;
   /** Backward-compatible prop retained so older callers compile; the current footer row ignores it. */
@@ -85,13 +98,17 @@ const Table: React.FC<TableProps> = ({
   noDataText,
   fixedHeader = false,
   fixedHeaderHeight,
-  // `exportable`, `exportFileName`, `exportFormats` and `exportPdfTitle` are intentionally
-  // NOT destructured. They stay in `TableProps` so the ~20 pages still passing them keep
-  // compiling, but nothing here reads them — reports are view-only.
+  exportFileName,
+  exportFormats,
+  exportPdfTitle,
+  exportAdminOnly = true,
   showGrandTotal,
   grandTotalLabel: _grandTotalLabel = 'Grand Total',
   showTotals = true,
 }) => {
+  const { user } = useAuth();
+  const role = user?.role;
+
   const normalizedColumns = useMemo<TableColumn<any>[]>(
     () =>
       columns.map((column) => ({
@@ -129,9 +146,43 @@ const Table: React.FC<TableProps> = ({
     });
   }, [columns, data, totalsEnabled]);
 
-  // No sub-header: the export control that lived here has been removed. See the note at the
-  // top of this file.
-  const subHeaderComponent = undefined;
+  // The footer the user can see, rendered as export rows so a downloaded file carries the same
+  // totals as the screen. `getExportTableData` appends its own totals row, so this is only for
+  // the formats that take one separately.
+  const exportColumns = columns as TableExportColumn[];
+
+  const runCsv = useCallback(() => {
+    exportTableToCsv({
+      filename: exportFileName as string,
+      columns: exportColumns,
+      data,
+    });
+  }, [data, exportColumns, exportFileName]);
+
+  const runPdf = useCallback(
+    () =>
+      exportTableToPdf({
+        filename: exportFileName as string,
+        columns: exportColumns,
+        data,
+        title: exportPdfTitle ?? exportFileName,
+      }),
+    [data, exportColumns, exportFileName, exportPdfTitle],
+  );
+
+  const mayExport = Boolean(exportFileName) && (!exportAdminOnly || role === 'admin');
+
+  const subHeaderComponent = mayExport ? (
+    <ExportMenu
+      // An empty list has nothing to write; the control stays visible so its absence never
+      // reads as "this role cannot export".
+      disabled={loading || data.length === 0}
+      formats={exportFormats}
+      onExportCsv={runCsv}
+      onExportPdf={runPdf}
+      ariaLabel="Export table"
+    />
+  ) : undefined;
 
   return (
     <GlobalDataTable

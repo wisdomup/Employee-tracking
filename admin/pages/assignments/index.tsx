@@ -118,6 +118,8 @@ const AssignmentsPage: React.FC = () => {
     {
       key: '_id',
       title: 'Actions',
+      // Keyed '_id', so the actions/select auto-omit does not catch it.
+      omitFromExport: true,
       render: (_: string, row: RouteAssignment) => (
         <div className={styles.actions}>
           <button
