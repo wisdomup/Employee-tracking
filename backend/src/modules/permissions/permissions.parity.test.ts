@@ -35,6 +35,24 @@ const BASELINE_FILE = path.join(__dirname, 'pre-migration-access.json');
 const NON_ADMIN_ROLES = Object.values(ROLES).filter((r) => r !== ROLES.ADMIN);
 
 /**
+ * Roles created AFTER the baseline was frozen.
+ *
+ * The fixture records who could reach each endpoint at one commit. A role that did not exist
+ * then appears nowhere in it, so every endpoint its seed grants — the baseline permissions each
+ * non-admin role receives — reads as "GAINED access it did not have before". That is true and
+ * meaningless: there was no before.
+ *
+ * Recorded here as one stated reason rather than as ~30 `INTENTIONAL` entries repeating it,
+ * because the reason is a property of the role, not of any endpoint.
+ *
+ * This exempts GAINED only. A post-baseline role cannot appear in a `before` list, so it can
+ * never suppress a LOST — the direction that actually matters. And `guarded against silencing a
+ * real regression` below asserts these names are genuinely absent from the fixture, so adding an
+ * existing role here fails loudly instead of hiding a privilege change.
+ */
+const POST_BASELINE_ROLES = new Set<string>([ROLES.ACCOUNTANT, ROLES.FINANCE_MANAGER]);
+
+/**
  * Differences that are correct and deliberate. Everything else fails the test.
  *
  * Keyed `file|VERB|path`, listing the roles allowed to differ there and why. Adding an entry
@@ -281,7 +299,7 @@ for (const [file, oldEps] of Object.entries(baseline.routes)) {
       }
     }
     for (const role of now) {
-      if (!before.includes(role) && !exempt.has(role)) {
+      if (!before.includes(role) && !exempt.has(role) && !POST_BASELINE_ROLES.has(role)) {
         gained.push(`${key}  GAINED ${role}  (now: ${n.guard?.cap ?? n.guard?.kind ?? 'unguarded'})`);
       }
     }
@@ -292,6 +310,19 @@ for (const [file, oldEps] of Object.entries(baseline.routes)) {
 
 check('the frozen baseline was read', () => {
   assert.ok(compared > 200, `only compared ${compared} endpoints — the fixture or the parser is wrong`);
+});
+
+check('post-baseline roles are genuinely absent from the fixture', () => {
+  // Without this, POST_BASELINE_ROLES becomes a place to quietly park a role whose access
+  // changed. A name listed there must appear nowhere in the frozen snapshot.
+  const raw = fs.readFileSync(BASELINE_FILE, 'utf8');
+  const present = [...POST_BASELINE_ROLES].filter((r) => raw.includes(`"${r}"`));
+  assert.deepStrictEqual(
+    present,
+    [],
+    `${present.join(', ')} exists in the frozen baseline, so it is NOT a post-baseline role. `
+      + 'Remove it from POST_BASELINE_ROLES and record the real difference in INTENTIONAL.',
+  );
 });
 
 check('no role GAINED access it did not have before', () => {
