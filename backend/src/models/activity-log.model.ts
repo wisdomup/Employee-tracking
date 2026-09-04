@@ -25,7 +25,16 @@ export type ActivityModule =
   | 'opening_stock'
   | 'collection'
   | 'credit_recovery'
-  | 'settlement';
+  | 'settlement'
+  // ---- Accounts & Finance ----
+  | 'ledger'
+  | 'journal_entry'
+  | 'vendor'
+  | 'bill'
+  | 'expense'
+  | 'payment'
+  | 'tax_rate'
+  | 'period';
 
 export type ActivityAction =
   | 'created'
@@ -41,18 +50,24 @@ export type ActivityAction =
   | 'received'
   | 'submitted'
   | 'stock_moved'
-  | 'reversed';
+  | 'reversed'
+  // ---- Accounts & Finance ----
+  | 'posted'
+  | 'voided'
+  | 'closed'
+  | 'reopened';
 
 const ACTIVITY_MODULES: ActivityModule[] = [
   'task', 'order', 'product', 'category', 'dealer', 'route', 'return', 'visit', 'employee',
   'attendance', 'warehouse', 'stock', 'stock_receipt', 'stock_transfer', 'damage_claim',
   'stock_count', 'opening_stock', 'collection', 'credit_recovery', 'settlement',
+  'ledger', 'journal_entry', 'vendor', 'bill', 'expense', 'payment', 'tax_rate', 'period',
 ];
 
 const ACTIVITY_ACTIONS: ActivityAction[] = [
   'created', 'updated', 'deleted', 'status_changed', 'started_task', 'completed_task',
   'flagged', 'approved', 'rejected', 'cancelled', 'received', 'submitted', 'stock_moved',
-  'reversed',
+  'reversed', 'posted', 'voided', 'closed', 'reopened',
 ];
 
 export interface IActivityLog extends Document {

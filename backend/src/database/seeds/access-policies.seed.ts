@@ -338,6 +338,33 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
     ],
     reports: ANALYTICS_REPORTS,
   },
+
+  // -------------------------------------------------------------------------
+  /*
+   * The two accounting roles, seeded with the baseline and NOTHING else.
+   *
+   * They exist from this commit so accounts can be created and the seed stays complete
+   * (`permissions.flow.test.ts` asserts one policy per non-admin role), but the finance module
+   * they are named for does not exist yet. Every finance cell is granted in the step that
+   * builds the screens behind it, so a role is never carrying a permission to reach something
+   * unbuilt.
+   *
+   * Baseline is added by `buildGrants` and is deliberately not suppressed: an accountant still
+   * needs the dashboard, their own attendance and the ability to file a leave request, exactly
+   * like every other non-admin.
+   */
+  [ROLES.ACCOUNTANT]: {
+    note: 'Day-to-day accounting. Finance cells are granted in the step that builds them.',
+    permissions: [],
+    reports: [],
+  },
+
+  // -------------------------------------------------------------------------
+  [ROLES.FINANCE_MANAGER]: {
+    note: 'Accounting plus reversals, period close and finance reports. Cells granted per step.',
+    permissions: [],
+    reports: [],
+  },
 };
 
 /** Expand a flat `module:action` list into the stored grant map. */
