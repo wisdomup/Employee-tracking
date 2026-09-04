@@ -354,15 +354,26 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
    * like every other non-admin.
    */
   [ROLES.ACCOUNTANT]: {
-    note: 'Day-to-day accounting. Finance cells are granted in the step that builds them.',
-    permissions: [],
+    note: 'Day-to-day accounting. Reads the chart; does not restructure it.',
+    permissions: [
+      // Read-only on the chart of accounts. An accountant works INSIDE the chart every day and
+      // cannot do so without seeing it, but restructuring it is a decision with reporting
+      // consequences that outlive whoever made it — that stays with the Finance Manager.
+      'finance-coa:view',
+    ],
     reports: [],
   },
 
   // -------------------------------------------------------------------------
   [ROLES.FINANCE_MANAGER]: {
-    note: 'Accounting plus reversals, period close and finance reports. Cells granted per step.',
-    permissions: [],
+    note: 'Owns the chart of accounts. Reversals and period close arrive with their own rows.',
+    permissions: [
+      'finance-coa:view',
+      'finance-coa:add',
+      'finance-coa:edit',
+      'finance-coa:delete',
+      'finance-coa:change',
+    ],
     reports: [],
   },
 };

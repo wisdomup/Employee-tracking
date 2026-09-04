@@ -292,6 +292,7 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, '../modules/performance-flags/performance-flags.routes.ts'),
     path.join(__dirname, '../modules/account-freeze/account-freeze.routes.ts'),
     path.join(__dirname, '../modules/permissions/permissions.routes.ts'),
+    path.join(__dirname, '../modules/finance/finance.routes.ts'),
     // Also scan compiled JS in dist/ when running built app
     path.join(__dirname, '../modules/auth/auth.routes.js'),
     path.join(__dirname, '../modules/users/users.routes.js'),
@@ -318,6 +319,7 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, '../modules/performance-flags/performance-flags.routes.js'),
     path.join(__dirname, '../modules/account-freeze/account-freeze.routes.js'),
     path.join(__dirname, '../modules/permissions/permissions.routes.js'),
+    path.join(__dirname, '../modules/finance/finance.routes.js'),
   ],
 };
 

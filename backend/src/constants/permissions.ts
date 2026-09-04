@@ -37,6 +37,7 @@ export const MODULE_GROUPS = {
   SALES: 'Sales & Field',
   INVENTORY: 'Inventory',
   PEOPLE: 'People',
+  FINANCE: 'Accounts & Finance',
   SYSTEM: 'System',
 } as const;
 
@@ -140,6 +141,20 @@ export const MODULES: readonly ModuleDefinition[] = [
     id: 'performance-flags', label: 'Performance Flags', group: MODULE_GROUPS.PEOPLE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Clear or action a flag',
+  },
+
+  // ---- Accounts & Finance ----
+  //
+  // The module is split by DOCUMENT rather than kept as one `finance` row, for the same reason
+  // the warehouse was split into five: under five actions, "post an entry" and "reverse a
+  // posted entry" are both `change`, so a single row would make it impossible to let someone
+  // record work without also letting them undo it. Segregation of duties is the whole point of
+  // an accounting permission model, and it is only expressible one row at a time.
+  //
+  // Rows arrive with the step that builds the screens behind them. This is step 01.
+  {
+    id: 'finance-coa', label: 'Chart of Accounts', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Activate or deactivate an account group or ledger',
   },
 
   // ---- System ----
