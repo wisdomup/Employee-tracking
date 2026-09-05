@@ -19,6 +19,11 @@ import {
   CollectionSplit,
 } from './collections.rules';
 import { getRiderBalance, resolveDay, windowToUtc } from './collection-reports.service';
+import {
+  postCollectionCorrection,
+  postCollectionVoid,
+  postDelivery,
+} from '../finance/sales-posting.service';
 
 /**
  * Rider-facing delivery flow: the assigned order list, `packed`, and `delivered` + the
@@ -401,6 +406,14 @@ export async function deliverOrder(
     },
   });
 
+  // The accounting side of the delivery: the sale, the cost, and the money taken.
+  //
+  // Deliberately awaited but never allowed to throw — `postDelivery` records its own failures
+  // for the nightly retry. A rider standing in a shop must not be refused because head office
+  // mis-mapped a ledger account; the delivery is real whether or not the books can record it
+  // yet, and refusing it would lose the sale AND the cash.
+  await postDelivery(String(collection._id), riderId);
+
   const balance = await getRiderBalance(riderId);
   return { order: order!, collection, balance };
 }
@@ -474,6 +487,11 @@ export async function correctCollection(
     },
   });
 
+  // Reverses the money entry and re-posts it at the corrected split. The sale entry is left
+  // alone: a correction must keep cash + online + credit equal to the order total, so the
+  // total never moves, only how it was taken.
+  await postCollectionCorrection(String(collection._id), adminId);
+
   return collection;
 }
 
@@ -505,6 +523,11 @@ export async function voidCollection(id: string, adminId: string, reason: string
       reason,
     },
   });
+
+  // Only the money entry is reversed. A void here leaves the order delivered and moves no stock
+  // back, so the goods are with the shop and the shop still owes for them — the sale and its
+  // cost stand, and the receivable goes back up to the full amount.
+  await postCollectionVoid(String(collection._id), adminId);
 
   return collection;
 }

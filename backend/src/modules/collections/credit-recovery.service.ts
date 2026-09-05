@@ -4,6 +4,10 @@ import { CreditRecoveryModel } from '../../models/credit-recovery.model';
 import { notFound, badRequest, conflict } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
+  postCreditRecovery,
+  postCreditRecoveryVoid,
+} from '../finance/sales-posting.service';
+import {
   normalizeCityKey,
   regionLabel,
   round2,
@@ -84,6 +88,9 @@ export async function createRecovery(
     getDealerOutstanding(String(dealer._id)),
     getRiderBalance(riderId),
   ]);
+
+  // Money in, receivable down. No sale and no stock — see the model header.
+  await postCreditRecovery(String(recovery._id), riderId);
 
   return { recovery, dealerOutstanding, balance };
 }
@@ -212,6 +219,9 @@ export async function correctRecovery(
     },
     meta: { dealerId: String(recovery.dealerId), riderId: String(recovery.riderId), reason: body.reason ?? null },
   });
+
+  // Reverses the previous entry and posts the corrected one, keyed on the correction stamp.
+  await postCreditRecovery(String(recovery._id), adminId);
 
   return recovery;
 }

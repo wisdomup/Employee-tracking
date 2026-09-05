@@ -14,6 +14,10 @@ import {
 } from '../region-sales/region-sales.rules';
 import { notFound, badRequest, conflict } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import {
+  postOrderStockOut,
+  postOrderStockReturned,
+} from '../finance/sales-posting.service';
 import { allocateNextOrderInvoiceNumber } from './order-invoice-counter';
 import { sanitizeOrderTermsHtml } from './order-terms-sanitize';
 import { computeOrderTotals } from './orders.totals';
@@ -471,6 +475,11 @@ export async function createOrder(
     },
   });
 
+  // The stock left the warehouse here, not at delivery — `reserveWarehouseStock` above. The
+  // ledger follows it into a holding account so the books and the warehouse agree from this
+  // moment, rather than only once the rider arrives. Cost becomes an expense on delivery.
+  await postOrderStockOut(String(order._id), userId);
+
   return order;
 }
 
@@ -598,6 +607,10 @@ export async function updateOrder(id: string, data: Record<string, unknown>, act
   // credit the stock back. Mirrors the `completedStatuses` check in `deleteOrder`.
   if (nextStatus === 'cancelled' && !STOCK_SETTLED_STATUSES.includes(previousStatus)) {
     await reverseOrderStock(order, actorId, 'cancel');
+    // The warehouse took the stock back, so the value follows it back out of the holding
+    // account. Only reachable before delivery: `STOCK_SETTLED_STATUSES` already excludes
+    // `delivered`, where the goods have physically gone.
+    await postOrderStockReturned(id, actorId);
   }
 
   // Admin moving the order to a different warehouse: reverse at the old one and take from the new

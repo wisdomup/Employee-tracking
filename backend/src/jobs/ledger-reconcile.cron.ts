@@ -3,6 +3,7 @@ import {
   completeInterruptedPostings,
   reconcileLedgerBalances,
 } from '../modules/finance/posting.service';
+import { retryFailedPostings } from '../modules/finance/sales-posting.service';
 
 /**
  * Nightly proof that every cached ledger balance still equals the lines it came from.
@@ -41,6 +42,16 @@ export function startLedgerReconcileCron(): void {
         const swept = await completeInterruptedPostings();
         if (swept.completed > 0) {
           console.log(`[ledger-reconcile-cron] Completed ${swept.completed} interrupted posting(s)`);
+        }
+
+        // Retry anything the operational modules could not post. Safe because every posting is
+        // idempotent by key — a retry either writes the entry or finds it already written.
+        const retried = await retryFailedPostings();
+        if (retried.retried > 0) {
+          console.log(
+            `[ledger-reconcile-cron] Retried ${retried.retried} failed posting(s), `
+              + `${retried.recovered} recovered`,
+          );
         }
 
         const result = await reconcileLedgerBalances();
