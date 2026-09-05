@@ -384,7 +384,14 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       // Can see what has been written off; cannot decide to write anything off.
       'finance-writeoff:view',
     ],
-    reports: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'],
+    reports: [
+      'finance.trial-balance',
+      'finance.ledger-statement',
+      'finance.day-book',
+      // The screen that says whether the books still agree with the warehouse and the
+      // collections module. Both finance roles need it — it is the first thing to look at.
+      'finance.health',
+    ],
   },
 
   // -------------------------------------------------------------------------
@@ -414,7 +421,14 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-writeoff:view',
       'finance-writeoff:change',
     ],
-    reports: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'],
+    reports: [
+      'finance.trial-balance',
+      'finance.ledger-statement',
+      'finance.day-book',
+      // The screen that says whether the books still agree with the warehouse and the
+      // collections module. Both finance roles need it — it is the first thing to look at.
+      'finance.health',
+    ],
   },
 };
 

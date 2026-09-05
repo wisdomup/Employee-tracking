@@ -71,3 +71,7 @@ export const reopenPeriodSchema = Joi.object({
 export const lockThroughSchema = Joi.object({
   period: period.required(),
 });
+
+export const setPostingSwitchSchema = Joi.object({
+  enabled: Joi.boolean().required(),
+});
