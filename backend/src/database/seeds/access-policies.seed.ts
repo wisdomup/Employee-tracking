@@ -354,27 +354,59 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
    * like every other non-admin.
    */
   [ROLES.ACCOUNTANT]: {
-    note: 'Day-to-day accounting. Reads the chart; does not restructure it.',
+    note: 'Enters and posts the daily work. Cannot reverse it, and cannot close the month.',
     permissions: [
       // Read-only on the chart of accounts. An accountant works INSIDE the chart every day and
       // cannot do so without seeing it, but restructuring it is a decision with reporting
       // consequences that outlive whoever made it — that stays with the Finance Manager.
       'finance-coa:view',
+
+      // The full day job: write, correct and post their own entries.
+      'finance-journal:view',
+      'finance-journal:add',
+      'finance-journal:edit',
+      'finance-journal:delete',
+      'finance-journal:change',
+
+      /*
+       * `finance-reversal:change` is deliberately ABSENT, and this is the whole reason reversal
+       * has its own matrix row.
+       *
+       * Whoever records the work should not also be able to undo it — the oldest control in
+       * accounting. Under a single `finance-journal` row, "post" and "reverse" would both be
+       * `change` and this separation would be inexpressible.
+       */
+      'finance-reversal:view',
+
+      // Sees which months are open, so they know where an entry will land. Cannot close one.
+      'finance-period:view',
     ],
-    reports: [],
+    reports: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'],
   },
 
   // -------------------------------------------------------------------------
   [ROLES.FINANCE_MANAGER]: {
-    note: 'Owns the chart of accounts. Reversals and period close arrive with their own rows.',
+    note: 'Everything the accountant does, plus reversals, the chart, and closing the month.',
     permissions: [
       'finance-coa:view',
       'finance-coa:add',
       'finance-coa:edit',
       'finance-coa:delete',
       'finance-coa:change',
+
+      'finance-journal:view',
+      'finance-journal:add',
+      'finance-journal:edit',
+      'finance-journal:delete',
+      'finance-journal:change',
+
+      'finance-reversal:view',
+      'finance-reversal:change',
+
+      'finance-period:view',
+      'finance-period:change',
     ],
-    reports: [],
+    reports: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'],
   },
 };
 

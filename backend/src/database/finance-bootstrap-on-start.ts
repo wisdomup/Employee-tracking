@@ -2,6 +2,7 @@ import { LedgerModel } from '../models/ledger.model';
 import { seedFinanceChart } from './seeds/finance-chart.seed';
 import { verifyLedgerMap } from '../modules/finance/chart.service';
 import { seedFinanceCounters } from '../modules/finance/finance-counters';
+import { completeInterruptedPostings } from '../modules/finance/posting.service';
 
 /**
  * Make sure the chart of accounts and the engine's ledger map exist before anything tries to
@@ -47,6 +48,18 @@ export async function runFinanceBootstrapOnStart(): Promise<void> {
         `[finance-bootstrap] Seeded the chart of accounts: `
           + `${result.groupsCreated.length} groups, ${result.ledgersCreated.length} ledgers, `
           + `${result.rolesMapped} engine roles mapped`,
+      );
+    }
+
+    // The one gap the transaction-free posting design leaves: a process that died between
+    // writing an entry's lines and stamping its header. The balances and every report are
+    // already correct — the Day Book reads headers, so the entry would just be missing from it.
+    const swept = await completeInterruptedPostings();
+    if (swept.completed > 0) {
+      console.log(
+        `[finance-bootstrap] Completed ${swept.completed} posting(s) interrupted before the `
+          + 'header was stamped. Balances were already correct; the entries are now visible in '
+          + 'the day book.',
       );
     }
 
