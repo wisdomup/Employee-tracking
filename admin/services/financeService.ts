@@ -1,10 +1,11 @@
 import api from './api';
 
 /**
- * Accounts & Finance — chart of accounts.
+ * Accounts & Finance — chart of accounts, journal entries, periods and the ledger reports.
  *
- * Journal entries, periods and the posting engine arrive in a later step and will extend this
- * file rather than replace it.
+ * Two exported objects rather than one: `financeService` is the chart, `journalService` is
+ * everything the posting engine exposes. They are separate because they are gated by different
+ * matrix rows and used by different screens.
  */
 
 export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
@@ -204,6 +205,188 @@ export const financeService = {
 
   async getHealth(): Promise<{ ok: boolean; problems: string[] }> {
     const response = await api.get('/finance/settings/health');
+    return response.data;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Journal entries, periods and the ledger reports
+// ---------------------------------------------------------------------------
+
+export type EntryStatus = 'draft' | 'posted' | 'reversed' | 'void';
+
+export interface JournalLine {
+  ledgerId: string;
+  ledgerCode: string;
+  ledgerName: string;
+  debit: number;
+  credit: number;
+  lineNarration?: string;
+  balanceAfter?: number;
+}
+
+export interface JournalEntry {
+  _id: string;
+  entryNo?: number;
+  date: string;
+  postingPeriod: string;
+  referenceNo?: string;
+  narration?: string;
+  sourceType: string;
+  status: EntryStatus;
+  isSystemGenerated: boolean;
+  totalDebit: number;
+  totalCredit: number;
+  postedAt?: string;
+  reversalOf?: string;
+  reversedByEntryId?: string;
+  reversalReason?: string;
+  lines?: JournalLine[];
+  /** Present on the detail read: whether the entry's month still accepts postings. */
+  canPost?: boolean;
+  postBlockedReason?: string;
+  periodStatus?: string;
+}
+
+export interface DraftLineInput {
+  ledgerId: string;
+  debit?: number;
+  credit?: number;
+  lineNarration?: string;
+}
+
+export type PeriodStatus = 'open' | 'closed' | 'locked';
+
+export interface FinancialPeriod {
+  _id: string;
+  period: string;
+  fiscalYear: string;
+  status: PeriodStatus;
+  closedAt?: string;
+  reopenedAt?: string;
+  reopenReason?: string;
+}
+
+export interface CloseCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface TrialBalanceRow {
+  ledgerId: string;
+  code: string;
+  name: string;
+  groupName: string;
+  accountType: AccountType;
+  closingDebit: number;
+  closingCredit: number;
+}
+
+export const journalService = {
+  async list(filters: {
+    status?: string;
+    period?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    limit?: number;
+    skip?: number;
+  } = {}): Promise<{ entries: JournalEntry[]; total: number }> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') params.append(k, String(v));
+    });
+    const response = await api.get(`/finance/journal?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<JournalEntry> {
+    const response = await api.get(`/finance/journal/${id}`);
+    return response.data;
+  },
+
+  async createDraft(data: {
+    date: string;
+    narration: string;
+    referenceNo?: string;
+    lines: DraftLineInput[];
+  }): Promise<JournalEntry> {
+    const response = await api.post('/finance/journal', data);
+    return response.data;
+  },
+
+  async updateDraft(id: string, data: Record<string, unknown>): Promise<JournalEntry> {
+    const response = await api.patch(`/finance/journal/${id}`, data);
+    return response.data;
+  },
+
+  async deleteDraft(id: string) {
+    const response = await api.delete(`/finance/journal/${id}`);
+    return response.data;
+  },
+
+  async post(id: string): Promise<JournalEntry> {
+    const response = await api.patch(`/finance/journal/${id}/post`);
+    return response.data;
+  },
+
+  async reverse(id: string, reason: string, date?: string) {
+    const response = await api.post(`/finance/journal/${id}/reverse`, { reason, date });
+    return response.data;
+  },
+
+  async trialBalance(asOf?: string) {
+    const q = asOf ? `?asOf=${asOf}` : '';
+    const response = await api.get(`/finance/reports/trial-balance${q}`);
+    return response.data;
+  },
+
+  async ledgerStatement(ledgerId: string, filters: { from?: string; to?: string } = {}) {
+    const params = new URLSearchParams();
+    if (filters.from) params.append('from', filters.from);
+    if (filters.to) params.append('to', filters.to);
+    const response = await api.get(
+      `/finance/reports/ledger-statement/${ledgerId}?${params.toString()}`,
+    );
+    return response.data;
+  },
+
+  async dayBook(from: string, to?: string) {
+    const params = new URLSearchParams({ from });
+    if (to) params.append('to', to);
+    const response = await api.get(`/finance/reports/day-book?${params.toString()}`);
+    return response.data;
+  },
+
+  async listPeriods(fiscalYear?: string): Promise<FinancialPeriod[]> {
+    const q = fiscalYear ? `?fiscalYear=${fiscalYear}` : '';
+    const response = await api.get(`/finance/periods${q}`);
+    return response.data;
+  },
+
+  async periodChecks(period: string): Promise<{ period: string; checks: CloseCheck[] }> {
+    const response = await api.get(`/finance/periods/${period}/checks`);
+    return response.data;
+  },
+
+  async openPeriod(period: string) {
+    const response = await api.post('/finance/periods/open', { period });
+    return response.data;
+  },
+
+  async openFiscalYear(fiscalYear: string) {
+    const response = await api.post('/finance/periods/open-year', { fiscalYear });
+    return response.data;
+  },
+
+  async closePeriod(period: string) {
+    const response = await api.post('/finance/periods/close', { period });
+    return response.data;
+  },
+
+  async reopenPeriod(period: string, reason: string) {
+    const response = await api.post('/finance/periods/reopen', { period, reason });
     return response.data;
   },
 };

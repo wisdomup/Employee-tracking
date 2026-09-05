@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Loader from '../../../components/UI/Loader';
+import FinanceNav from '../../../components/Finance/FinanceNav';
 import { can } from '../../../utils/permissions';
 import {
   financeService,
@@ -212,6 +213,8 @@ const GroupsPage: React.FC = () => {
             )}
           </div>
         </div>
+
+        <FinanceNav />
 
         <div className={`${styles.banner} ${styles.bannerInfo}`}>
           <span className={styles.bannerTitle}>How the tree works</span>

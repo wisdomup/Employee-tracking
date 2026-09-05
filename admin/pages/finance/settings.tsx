@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
+import FinanceNav from '../../components/Finance/FinanceNav';
 import { financeService, FinanceSettings } from '../../services/financeService';
 import listStyles from '../../styles/ListPage.module.scss';
 import styles from '../../styles/Finance.module.scss';
@@ -144,6 +145,8 @@ const FinanceSettingsPage: React.FC = () => {
             ← Chart of Accounts
           </button>
         </div>
+
+        <FinanceNav />
 
         {health && (
           <div
