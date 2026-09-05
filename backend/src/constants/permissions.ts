@@ -179,6 +179,22 @@ export const MODULES: readonly ModuleDefinition[] = [
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',
   },
+  {
+    /*
+     * Deciding that money is not coming back.
+     *
+     * One row for both write-offs the business needs — a rider's cash shortfall, and an
+     * uncollectable debt from a shop that has closed — because they are the same power: an
+     * admin accepting a loss rather than recording a recovery. Whoever may do one may do the
+     * other, and splitting them would suggest a distinction that does not exist.
+     *
+     * Held apart from `collections:change`, which covers settling and voiding. Confirming that
+     * a rider handed cash over is routine; deciding they never will is not.
+     */
+    id: 'finance-writeoff', label: 'Write-offs', group: MODULE_GROUPS.FINANCE,
+    actions: [VIEW, CHANGE],
+    changeMeans: 'Write off a rider cash shortfall, or a debt that will not be collected',
+  },
 
   // ---- System ----
   { id: 'activity-logs', label: 'Activity Logs', group: MODULE_GROUPS.SYSTEM, actions: READ_ONLY },

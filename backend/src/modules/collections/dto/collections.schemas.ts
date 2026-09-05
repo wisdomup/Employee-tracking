@@ -65,3 +65,17 @@ export const correctSettlementSchema = Joi.object({
 export const voidEntrySchema = Joi.object({
   reason: Joi.string().trim().min(3).max(500).required(),
 });
+
+/**
+ * Writing off a rider's cash shortfall.
+ *
+ * `reason` is required and has a floor, not because three characters prove anything, but because
+ * an empty string in this field is the difference between an auditable decision and an
+ * unexplained hole.
+ */
+export const writeOffRiderCashSchema = Joi.object({
+  riderId: Joi.string().hex().length(24).required(),
+  mode: Joi.string().valid('cash', 'online').required(),
+  amount: Joi.number().positive().required(),
+  reason: Joi.string().trim().min(3).max(500).required(),
+});

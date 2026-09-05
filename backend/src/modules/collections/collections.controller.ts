@@ -254,3 +254,17 @@ export async function riders(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function writeOffRiderCash(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(
+      await settlementsService.writeOffRiderCash(
+        req.body.riderId,
+        { amount: req.body.amount, mode: req.body.mode, reason: req.body.reason },
+        req.user!.userId,
+      ),
+    );
+  } catch (err) {
+    next(err);
+  }
+}

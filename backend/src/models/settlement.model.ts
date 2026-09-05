@@ -27,6 +27,20 @@ export interface ISettlement extends Document {
   /** normalizeCityKey(city) — the only field city filters and $groups touch. */
   cityKey: string;
   mode: 'cash' | 'online';
+  /**
+   * What this settlement IS.
+   *
+   * `handover` — the rider gave the money to the company. The normal case.
+   * `writeoff`  — an admin cleared a confirmed shortfall the rider is not going to hand over.
+   *
+   * Recorded as a settlement rather than as its own document on purpose: a write-off reduces
+   * what the rider owes in exactly the way a handover does, so the balance aggregation in
+   * `collection-reports.service.ts` needs no change and cannot drift from it. Only the
+   * accounting differs — a handover debits office cash, a write-off debits Cash Difference.
+   */
+  kind: 'handover' | 'writeoff';
+  /** Required for a write-off. Nobody clears a shortfall without saying why. */
+  writeoffReason?: string;
   amount: number;
   status: 'pending' | 'received';
   /** Optional proof for an online transfer. Rejected for `mode: 'cash'`. */
@@ -69,6 +83,8 @@ const settlementSchema = new Schema<ISettlement>(
     city: { type: String, required: true },
     cityKey: { type: String, required: true },
     mode: { type: String, enum: ['cash', 'online'], required: true },
+    kind: { type: String, enum: ['handover', 'writeoff'], default: 'handover' },
+    writeoffReason: { type: String, maxlength: 500 },
     amount: { type: Number, required: true, min: 0.01 },
     status: { type: String, enum: ['pending', 'received'], default: 'pending' },
     screenshotUrl: { type: String },
