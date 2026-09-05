@@ -5,6 +5,9 @@ import { DealerModel } from '../../models/dealer.model';
 import { badRequest, forbidden, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
+  postDamageClaim,
+} from '../finance/inventory-posting.service';
+import {
   applyStockMovements,
   findPostedMovementIds,
   StockMovementLine,
@@ -243,6 +246,10 @@ export async function approveDamageClaim(id: string, actorId: string) {
     changes: { status: { from: 'pending', to: 'approved' } },
     meta: { documentNo: claim.documentNo, source: claim.source, clientName: claim.clientName },
   });
+
+  // Posts nothing when this claim was minted by a completed damage-type return: that return
+  // already wrote the goods off, and posting again would write the same pieces off twice.
+  await postDamageClaim(id, actorId);
 
   return findDamageClaimById(id);
 }

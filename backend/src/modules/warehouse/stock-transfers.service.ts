@@ -4,6 +4,11 @@ import { WarehouseModel } from '../../models/warehouse.model';
 import { ProductModel } from '../../models/product.model';
 import { badRequest, forbidden, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import {
+  postTransferOut,
+  postTransferIn,
+  postTransferReturned,
+} from '../finance/inventory-posting.service';
 import { applyStockMovements, StockMovementLine, getStockBalance } from './stock-ledger.service';
 import { allocateNextDocumentNo } from './warehouse-counters';
 import {
@@ -276,6 +281,9 @@ export async function approveTransfer(id: string, actorId: string) {
 
   notifyTransferApproved(transfer);
 
+  // Stock left the source warehouse and is now in transit.
+  await postTransferOut(id, actorId);
+
   return findTransferById(id);
 }
 
@@ -430,6 +438,9 @@ export async function receiveTransfer(
     });
   }
 
+  // Received at the destination, plus any shortfall between sent and received.
+  await postTransferIn(id, actor.userId);
+
   return findTransferById(id);
 }
 
@@ -498,6 +509,9 @@ export async function resolveTransferMismatch(
     changes: { status: { from: 'mismatch', to: 'completed' } },
     meta: { documentNo: transfer.documentNo, resolution, reason },
   });
+
+  // Mismatch resolved: whatever never arrived leaves in-transit as a loss.
+  await postTransferIn(id, actorId);
 
   return findTransferById(id);
 }
@@ -606,6 +620,9 @@ export async function cancelTransfer(id: string, reason: string, actorId: string
     changes: { status: { from: previousStatus, to: 'cancelled' } },
     meta: { documentNo: transfer.documentNo, reason },
   });
+
+  // Nothing arrived, so the value comes back to the source shelf.
+  await postTransferReturned(id, actorId);
 
   return findTransferById(id);
 }
