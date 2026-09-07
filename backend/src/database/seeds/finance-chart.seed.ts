@@ -102,17 +102,16 @@ const LEDGERS: LedgerSeed[] = [
     note: 'Nothing should post here. A non-zero balance is a defect, not a balancing figure.' },
 
   // ---- Current liabilities ------------------------------------------------
+  // Broken down by supplier, which it could not be until the supplier master existed — a control
+  // account refuses any posting that cannot name its subledger, so marking it control before
+  // then would have blocked goods receipts from posting at all.
+  //
+  // Nothing posts here except a supplier bill or a payment, both of which carry a vendor. Goods
+  // receipts never did and still do not: they credit GRNI instead.
   { code: '2110', name: 'Accounts Payable — Trade', group: '2100', role: 'apTrade', control: 'vendor' },
-  // Deliberately NOT a control account yet.
-  //
-  // It should be broken down by supplier, and it will be — but the supplier master does not
-  // exist until the purchase-bills step, and a control account refuses every posting that
-  // cannot name its subledger. Marking it control now would block goods receipts from posting
-  // at all, which is worse than posting them to a clearing account with no breakdown.
-  //
-  // GRNI is a clearing account: it fills as stock arrives and drains as bills are matched. Once
-  // suppliers exist, new receipts carry a vendor and the untagged balance drains behind them, so
-  // no back-fill of immutable posting lines is ever needed.
+  // GRNI is a clearing account: it fills as stock arrives and drains as bills are matched. The
+  // balance left on it at any moment is stock that has been received and not yet invoiced, which
+  // is why the health check proves it against receipts-minus-bills rather than against receipts.
   { code: '2115', name: 'Goods Received Not Invoiced', group: '2100', role: 'grni',
     note: 'Stock received against no supplier bill yet. An ageing balance here is a missing invoice.' },
   { code: '2120', name: 'Output Tax Payable', group: '2100', role: 'outputTax' },

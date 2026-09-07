@@ -17,6 +17,29 @@ import {
 import { resolveMainWarehouseId } from './warehouse-resolver';
 import { allocateNextDocumentNo } from './warehouse-counters';
 import { resolveWarehouseScope } from './warehouse-scope';
+import { VendorModel } from '../../models/vendor.model';
+
+/**
+ * Find the supplier a typed name already belongs to.
+ *
+ * Matches the supplier's own name or any name previously merged into it, ignoring case — the
+ * same comparison the clean-up uses. Returns nothing when it does not already resolve; creating
+ * a supplier from an unrecognised string would recreate the duplicate problem one typo at a time.
+ */
+async function resolveVendorByTypedName(typed?: string) {
+  const name = (typed ?? '').trim();
+  if (!name) return undefined;
+
+  const vendor = await VendorModel.findOne({
+    $or: [{ name }, { mergedFromNames: name }],
+  })
+    .collation({ locale: 'en', strength: 2 })
+    .select('_id')
+    .lean()
+    .exec();
+
+  return vendor?._id;
+}
 
 /**
  * Stock In (spec §6): pick the product, enter pieces and rate, stock lands in the Main warehouse,
@@ -62,9 +85,15 @@ export async function createStockReceipt(
     data.products.reduce((sum, p) => sum + p.quantity * p.rate, 0).toFixed(2),
   );
 
+  // Attach the supplier master when the typed name already resolves to one, so new receipts
+  // arrive linked rather than joining the clean-up backlog. Nothing is created here: inventing a
+  // supplier from a typo is exactly the mess the master exists to end.
+  const vendorId = await resolveVendorByTypedName(data.supplierName);
+
   const receipt = await StockReceiptModel.create({
     receiptDate: data.receiptDate,
     supplierName: data.supplierName,
+    ...(vendorId ? { vendorId } : {}),
     notes: data.notes,
     warehouseId,
     products: data.products.map((p) => ({

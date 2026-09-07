@@ -378,6 +378,21 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
        */
       'finance-reversal:view',
 
+      // Suppliers: an accountant records bills against them daily, so they may add and correct
+      // one. Retiring a supplier is a Finance Manager decision.
+      'finance-vendors:view',
+      'finance-vendors:add',
+      'finance-vendors:edit',
+
+      // Supplier bills, including posting them — exactly the split they already have on the
+      // journal, where they may both write an entry and commit it. Cancelling a posted bill is
+      // absent for the same reason `finance-reversal:change` is: it undoes their own work.
+      'finance-bills:view',
+      'finance-bills:add',
+      'finance-bills:edit',
+      'finance-bills:delete',
+      'finance-bills:change',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 
@@ -412,6 +427,26 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
 
       'finance-reversal:view',
       'finance-reversal:change',
+
+      /*
+       * Suppliers and bills, in full.
+       *
+       * These were missing while the note above said "everything the accountant does" — an
+       * oversight that left the one role allowed to RETIRE a supplier unable to open the list.
+       * `change` on each row is the reason it matters: retiring a supplier here, and posting a
+       * bill, on top of the cancel power that reversals already give them.
+       */
+      'finance-vendors:view',
+      'finance-vendors:add',
+      'finance-vendors:edit',
+      'finance-vendors:delete',
+      'finance-vendors:change',
+
+      'finance-bills:view',
+      'finance-bills:add',
+      'finance-bills:edit',
+      'finance-bills:delete',
+      'finance-bills:change',
 
       'finance-period:view',
       'finance-period:change',

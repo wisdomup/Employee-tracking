@@ -8,6 +8,7 @@ import { ProductModel } from '../../models/product.model';
 import { OrderModel } from '../../models/order.model';
 import { ReturnModel } from '../../models/return.model';
 import { StockReceiptModel } from '../../models/stock-receipt.model';
+import { PurchaseBillModel } from '../../models/purchase-bill.model';
 import { ControlReconciliationModel } from '../../models/control-reconciliation.model';
 import { FinanceSettingsModel } from '../../models/finance-settings.model';
 import { localDayKey } from '../region-sales/region-sales.rules';
@@ -296,25 +297,44 @@ async function checkOutForDelivery(): Promise<ControlCheck | null> {
   );
 }
 
-/** Goods received with no supplier bill against them yet. */
+/**
+ * Goods received with no supplier bill against them yet.
+ *
+ * Received minus billed, and the subtraction is the point: this is a clearing account, so the
+ * operational figure it should agree with is what is still OUTSTANDING, not everything that ever
+ * arrived. A balance that ages here is a missing invoice; a NEGATIVE one means a bill cleared
+ * more than a receipt ever put in, which `bills.service` exists to make impossible.
+ *
+ * Only posted bills are counted, matching how the bill module itself decides what a receipt has
+ * left to bill. A draft has moved nothing.
+ */
 async function checkGoodsReceivedNotInvoiced(): Promise<ControlCheck | null> {
   const ledger = await balanceOfRole('grni');
   if (!ledger) return null;
 
-  const received = await StockReceiptModel.aggregate<{ total: number }>([
-    { $match: { status: 'posted', isTrashed: { $ne: true } } },
-    { $group: { _id: null, total: { $sum: '$totalAmount' } } },
-  ]).exec();
+  const [received, billed] = await Promise.all([
+    StockReceiptModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted', isTrashed: { $ne: true } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+    ]).exec(),
+    PurchaseBillModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $unwind: '$matchedReceipts' },
+      { $group: { _id: null, total: { $sum: '$matchedReceipts.amount' } } },
+    ]).exec(),
+  ]);
 
-  const value = round2(received[0]?.total ?? 0);
+  const postedReceipts = round2(received[0]?.total ?? 0);
+  const billedAgainstReceipts = round2(billed[0]?.total ?? 0);
 
   return makeCheck(
     'grni',
     'Goods received, not yet billed',
     ledger,
-    value,
-    { postedReceipts: value },
-    'Every posted receipt counts until purchase bills exist to clear them.',
+    round2(postedReceipts - billedAgainstReceipts),
+    { postedReceipts, billedAgainstReceipts },
+    'Stock that has arrived and has no supplier bill against it yet. An ageing balance here is '
+      + 'an invoice nobody has sent.',
   );
 }
 

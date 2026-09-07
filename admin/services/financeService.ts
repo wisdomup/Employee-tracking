@@ -551,3 +551,228 @@ export async function entriesForSource(
   const response = await api.get(`/finance/journal/by-source/${sourceId}`);
   return response.data;
 }
+
+// ---------------------------------------------------------------------------
+// Suppliers
+// ---------------------------------------------------------------------------
+
+export interface Vendor {
+  id: string;
+  code: number;
+  reference: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  taxRegistrationNo?: string;
+  paymentTermsDays: number;
+  openingBalance: { amount: number; asOf: string | null };
+  /** The typed names on goods receipts that were attached to this supplier. */
+  mergedFromNames: string[];
+  isPlaceholder: boolean;
+  isActive: boolean;
+  notes?: string;
+  receiptCount: number;
+  receiptValue: number;
+}
+
+export interface SupplierCandidate {
+  typedName: string;
+  receiptCount: number;
+  totalValue: number;
+  firstSeen: string;
+  lastSeen: string;
+  resolvedTo?: { id: string; name: string };
+  suggestions: { id: string; name: string }[];
+}
+
+export interface MigrationProgress {
+  totalReceipts: number;
+  linkedReceipts: number;
+  unlinkedReceipts: number;
+  onPlaceholder: number;
+  vendorCount: number;
+  complete: boolean;
+}
+
+export const vendorService = {
+  async list(filters: { search?: string; status?: string } = {}): Promise<Vendor[]> {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.status) params.append('status', filters.status);
+    const response = await api.get(`/finance/vendors?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<Vendor> {
+    const response = await api.get(`/finance/vendors/${id}`);
+    return response.data;
+  },
+
+  async create(data: Record<string, unknown>): Promise<Vendor> {
+    const response = await api.post('/finance/vendors', data);
+    return response.data;
+  },
+
+  async update(id: string, data: Record<string, unknown>): Promise<Vendor> {
+    const response = await api.patch(`/finance/vendors/${id}`, data);
+    return response.data;
+  },
+
+  async setStatus(id: string, isActive: boolean): Promise<Vendor> {
+    const response = await api.patch(`/finance/vendors/${id}/status`, { isActive });
+    return response.data;
+  },
+
+  async remove(id: string) {
+    const response = await api.delete(`/finance/vendors/${id}`);
+    return response.data;
+  },
+
+  async candidates(): Promise<{ candidates: SupplierCandidate[]; unnamedReceipts: number }> {
+    const response = await api.get('/finance/vendors/migration/candidates');
+    return response.data;
+  },
+
+  async progress(): Promise<MigrationProgress> {
+    const response = await api.get('/finance/vendors/migration/progress');
+    return response.data;
+  },
+
+  async assign(body: { vendorId?: string; newVendorName?: string; typedNames: string[] }) {
+    const response = await api.post('/finance/vendors/migration/assign', body);
+    return response.data;
+  },
+
+  async parkUnassigned() {
+    const response = await api.post('/finance/vendors/migration/park-unassigned');
+    return response.data;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Supplier bills
+// ---------------------------------------------------------------------------
+
+/** A goods receipt from this supplier that is not yet fully billed. */
+export interface OpenReceipt {
+  id: string;
+  documentNo?: number;
+  receiptDate: string;
+  /** What was typed on the receipt on the day — kept, never overwritten by the supplier name. */
+  typedName?: string;
+  totalAmount: number;
+  billedAmount: number;
+  outstanding: number;
+}
+
+export interface Bill {
+  id: string;
+  billNo?: number;
+  /** `B-0001`, or the word Draft. A draft carries no number until it is posted. */
+  reference: string;
+  vendorId: string;
+  vendorName: string;
+  supplierBillNo?: string;
+  billDate: string;
+  dueDate: string;
+  goodsAmount: number;
+  chargesAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  status: 'draft' | 'posted' | 'cancelled';
+  receiptCount: number;
+  isOverdue: boolean;
+  journalEntryId?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface BillDetail extends Bill {
+  matchedReceipts: {
+    receiptId: string;
+    documentNo?: number;
+    receiptDate?: string;
+    typedName?: string;
+    receiptTotal: number;
+    amount: number;
+  }[];
+  lines: {
+    description: string;
+    ledgerId: string;
+    ledgerCode: string;
+    ledgerName: string;
+    amount: number;
+  }[];
+  cancelReason?: string;
+}
+
+export interface BillInput {
+  vendorId: string;
+  supplierBillNo?: string;
+  billDate: string;
+  dueDate?: string;
+  matchedReceipts?: { receiptId: string; amount?: number }[];
+  lines?: { description: string; ledgerId: string; amount: number }[];
+  taxAmount?: number;
+  notes?: string;
+}
+
+export const billService = {
+  async list(filters: {
+    vendorId?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    overdue?: boolean;
+    search?: string;
+  } = {}): Promise<Bill[]> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v !== undefined && v !== '' && v !== false) params.append(k, String(v));
+    });
+    const response = await api.get(`/finance/bills?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<BillDetail> {
+    const response = await api.get(`/finance/bills/${id}`);
+    return response.data;
+  },
+
+  /**
+   * The receipts this supplier has outstanding.
+   *
+   * `billId` is passed when editing a draft, so the receipts that draft already claims stay on
+   * the list instead of disappearing as already-billed the moment the form reopens.
+   */
+  async openReceipts(vendorId: string, billId?: string): Promise<OpenReceipt[]> {
+    const query = billId ? `?billId=${billId}` : '';
+    const response = await api.get(`/finance/bills/open-receipts/${vendorId}${query}`);
+    return response.data;
+  },
+
+  async create(data: BillInput): Promise<BillDetail> {
+    const response = await api.post('/finance/bills', data);
+    return response.data;
+  },
+
+  async update(id: string, data: BillInput): Promise<BillDetail> {
+    const response = await api.put(`/finance/bills/${id}`, data);
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/bills/${id}`);
+    return response.data;
+  },
+
+  async post(id: string): Promise<BillDetail> {
+    const response = await api.patch(`/finance/bills/${id}/post`);
+    return response.data;
+  },
+
+  async cancel(id: string, reason: string): Promise<BillDetail> {
+    const response = await api.patch(`/finance/bills/${id}/cancel`, { reason });
+    return response.data;
+  },
+};
