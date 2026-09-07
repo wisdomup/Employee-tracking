@@ -179,6 +179,21 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Activate or deactivate a supplier, or assign typed names to one',
   },
   {
+    /*
+     * `change` is posting the bill, deliberately apart from `add`.
+     *
+     * Writing down what a supplier has invoiced and committing it to the accounts are different
+     * acts: the first is copying a piece of paper, the second raises a debt the business will
+     * pay. Under one cell, anyone who could type a bill could commit one, and the whole point of
+     * a draft would be lost.
+     *
+     * Cancelling a posted bill is NOT here. It reverses a posted entry, so it is guarded on
+     * `finance-reversal` with every other undo.
+     */
+    id: 'finance-bills', label: 'Supplier Bills', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Post a supplier bill to the accounts',
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',

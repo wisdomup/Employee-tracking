@@ -472,8 +472,10 @@ async function main(): Promise<void> {
   });
 
   await test('the day book returns entries with their lines', async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const book = await journal.dayBook(today);
+    // A day this file actually posted into, not today's date. Every entry above carries a fixed
+    // business date, so asking for "today" passed only while the clock happened to agree with
+    // the fixtures and started returning nothing the moment it did not.
+    const book = await journal.dayBook('2026-01-15');
     assert.ok(book.entries.length > 0);
     assert.ok(book.entries.every((e) => e.lines.length >= 2));
   });
