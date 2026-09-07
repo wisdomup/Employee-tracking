@@ -6,6 +6,10 @@ import { round2, REPORT_TIMEZONE } from '../region-sales/region-sales.rules';
 import { validateSettlementAmount } from './collections.rules';
 import { getRiderBalance, resolveWindow, windowToUtc } from './collection-reports.service';
 import { resolveRiderCity } from './collections.service';
+import {
+  postSettlement,
+  postSettlementVoid,
+} from '../finance/settlement-posting.service';
 
 /**
  * Spec §6 — handing money back to the company.
@@ -62,6 +66,11 @@ export async function submitSettlement(
       autoReceived: isOnline,
     },
   });
+
+  // An online settlement is born received, so this posts immediately. A cash one is pending, and
+  // this call is a deliberate no-op: the money is still in the rider's pocket, which is exactly
+  // where the ledger already has it.
+  await postSettlement(String(settlement._id), riderId);
 
   return { settlement, balance: await getRiderBalance(riderId) };
 }
@@ -181,6 +190,9 @@ export async function receiveSettlement(id: string, adminId: string, note?: stri
     meta: { riderId: String(updated.riderId), mode: updated.mode, amount: updated.amount },
   });
 
+  // The cash is now genuinely in the office, so it moves off the rider and onto the company.
+  await postSettlement(String(updated._id), adminId);
+
   return { settlement: updated, riderBalance: await getRiderBalance(String(updated.riderId)) };
 }
 
@@ -233,6 +245,11 @@ export async function correctSettlement(
     meta: { riderId: String(settlement.riderId), mode: settlement.mode, reason: body.reason ?? null },
   });
 
+  // Reverses the previous entry and re-posts at the corrected figure. A correction that leaves
+  // the rider short does NOT write the difference off — it stays on their balance until somebody
+  // clears it deliberately.
+  await postSettlement(String(settlement._id), adminId);
+
   return settlement;
 }
 
@@ -259,5 +276,70 @@ export async function voidSettlement(id: string, adminId: string, reason: string
     },
   });
 
+  // The money is back on the rider's balance, so the entry comes off the books with it.
+  await postSettlementVoid(String(settlement._id), adminId);
+
   return settlement;
+}
+
+/**
+ * Clear a confirmed cash shortfall a rider is not going to hand over.
+ *
+ * The deliberate act that step 05 exists to make possible. When an admin corrects a settlement
+ * downwards, the difference STAYS on the rider's balance — the system never absorbs a shortfall
+ * on its own, because a system that quietly does that is one nobody can use to ask where the
+ * money went. This is how it is written off, on purpose, by a named person, with a reason.
+ *
+ * Recorded as a settlement of kind `writeoff` rather than as a new kind of document. That is
+ * what makes it correct without touching the balance maths: `getRiderBalance` already reduces
+ * the rider's cash by every received settlement, and a write-off genuinely does reduce what they
+ * owe. Only the accounting differs — the money goes to Cash Difference instead of to the office.
+ */
+export async function writeOffRiderCash(
+  riderId: string,
+  body: { amount: unknown; mode: 'cash' | 'online'; reason: unknown },
+  adminId: string,
+) {
+  const reason = String(body.reason ?? '').trim();
+  if (reason.length < 3) {
+    throw badRequest('Say why this shortfall is being written off.');
+  }
+
+  const balance = await getRiderBalance(riderId);
+  const available = body.mode === 'cash' ? balance.cash.inHand : balance.online.outstanding;
+
+  // Capped at what the rider is actually carrying. Writing off more than that would drive the
+  // balance negative and invent a debt owed back TO the rider.
+  const amount = validateSettlementAmount(body.amount, available, body.mode);
+
+  const riderCity = await resolveRiderCity(riderId);
+  const now = new Date();
+
+  const settlement = await SettlementModel.create({
+    riderId: new Types.ObjectId(riderId),
+    city: riderCity.city,
+    cityKey: riderCity.cityKey,
+    mode: body.mode,
+    kind: 'writeoff',
+    writeoffReason: reason,
+    amount,
+    // Born received: the shortfall is settled the moment it is written off. `autoReceived` stays
+    // false because a person decided this, which is the distinction that field exists to draw.
+    status: 'received',
+    receivedBy: new Types.ObjectId(adminId),
+    receivedAt: now,
+    submittedAt: now,
+  });
+
+  logActivityAsync({
+    employeeId: adminId,
+    module: 'settlement',
+    entityId: String(settlement._id),
+    action: 'created',
+    meta: { riderId, mode: body.mode, amount, kind: 'writeoff', reason },
+  });
+
+  await postSettlement(String(settlement._id), adminId);
+
+  return { settlement, riderBalance: await getRiderBalance(riderId) };
 }

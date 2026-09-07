@@ -36,7 +36,7 @@
     "test:swagger": "ts-node -T src/config/swagger.test.ts",
     "test:migrate:warehouse": "ts-node -T src/database/migrations/warehouse-stock-bootstrap.test.ts",
     "test:migrate:warehouse-run": "ts-node -T src/database/migrations/warehouse-bootstrap-run.test.ts",
-    "test": "npm run test:finance && npm run test:finance:flow && npm run test:finance:posting && npm run test:finance:sales && npm run test:permissions && npm run test:permissions:parity && npm run test:permissions:flow && npm run test:swagger && npm run test:visits && npm run test:freeze && npm run test:freeze:flow && npm run test:analytics && npm run test:region-sales && npm run test:collections && npm run test:stock-costing && npm run test:visits:flow && npm run test:visits:orders && npm run test:analytics:flow && npm run test:city-scope && npm run test:dashboard && npm run test:region-sales:flow && npm run test:collections:flow && npm run test:collections:report && npm run test:collections:api && npm run test:orders:stock && npm run test:orders:totals && npm run test:orders:punch-location && npm run test:stock-ledger && npm run test:warehouse-resolver && npm run test:warehouse-flow && npm run test:transfers && npm run test:stock-count && npm run test:stock-adjust && npm run test:stock-matrix && npm run test:migrate:warehouse && npm run test:migrate:warehouse-run && npm run test:products:picker",
+    "test": "npm run test:finance && npm run test:finance:flow && npm run test:finance:posting && npm run test:finance:sales && npm run test:finance:settlements && npm run test:permissions && npm run test:permissions:parity && npm run test:permissions:flow && npm run test:swagger && npm run test:visits && npm run test:freeze && npm run test:freeze:flow && npm run test:analytics && npm run test:region-sales && npm run test:collections && npm run test:stock-costing && npm run test:visits:flow && npm run test:visits:orders && npm run test:analytics:flow && npm run test:city-scope && npm run test:dashboard && npm run test:region-sales:flow && npm run test:collections:flow && npm run test:collections:report && npm run test:collections:api && npm run test:orders:stock && npm run test:orders:totals && npm run test:orders:punch-location && npm run test:stock-ledger && npm run test:warehouse-resolver && npm run test:warehouse-flow && npm run test:transfers && npm run test:stock-count && npm run test:stock-adjust && npm run test:stock-matrix && npm run test:migrate:warehouse && npm run test:migrate:warehouse-run && npm run test:products:picker",
     "migrate:fix-task-ids": "ts-node src/database/migrations/fix-task-ids.ts",
     "migrate:fix-taskid-types": "ts-node src/database/migrations/fix-taskid-types.ts",
     "migrate:update-assignment-status": "ts-node src/database/migrations/update-assignment-status.ts",
@@ -57,7 +57,8 @@
     "test:finance": "ts-node -T src/modules/finance/finance.rules.test.ts",
     "test:finance:flow": "ts-node -T src/modules/finance/finance.chart.flow.test.ts",
     "test:finance:posting": "ts-node -T src/modules/finance/finance.posting.flow.test.ts",
-    "test:finance:sales": "ts-node -T src/modules/finance/finance.sales-posting.flow.test.ts"
+    "test:finance:sales": "ts-node -T src/modules/finance/finance.sales-posting.flow.test.ts",
+    "test:finance:settlements": "ts-node -T src/modules/finance/finance.settlement-posting.flow.test.ts"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

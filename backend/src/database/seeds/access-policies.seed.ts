@@ -380,6 +380,9 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
 
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
+
+      // Can see what has been written off; cannot decide to write anything off.
+      'finance-writeoff:view',
     ],
     reports: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'],
   },
@@ -405,6 +408,11 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
 
       'finance-period:view',
       'finance-period:change',
+
+      // Accepting a loss. Held by the Finance Manager alone — confirming that a rider handed
+      // cash over is routine; deciding they never will is not.
+      'finance-writeoff:view',
+      'finance-writeoff:change',
     ],
     reports: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'],
   },

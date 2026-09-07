@@ -60,11 +60,15 @@ export async function postingEnabled(event: PostingEventKey): Promise<boolean> {
 /**
  * Run a posting, and never let it break the caller.
  *
+ * Exported so every auto-posting module shares ONE failure path. A second copy of this would
+ * eventually differ from the first, and the difference would be invisible until a month came
+ * out short.
+ *
  * A failure is recorded against its idempotency key so the nightly job can retry it, and so it
  * shows up somewhere a person will look. A bare `catch {}` here would mean a month quietly
  * short by an amount nobody could trace.
  */
-async function attempt(
+export async function attemptPosting(
   event: string,
   idempotencyKey: string,
   meta: { sourceType: string; sourceId?: string; sourceModel?: string; payload?: Record<string, unknown> },
@@ -158,7 +162,7 @@ export async function postOrderStockOut(orderId: string, actorId?: string): Prom
 
   const key = buildIdempotencyKey('order', orderId, 'stock_out');
 
-  return attempt(
+  return attemptPosting(
     'order.stock_out',
     key,
     { sourceType: 'order_cogs', sourceId: orderId, sourceModel: 'Order' },
@@ -215,7 +219,7 @@ export async function postOrderStockReturned(orderId: string, actorId?: string):
   // order carried no cost. Either way there is nothing to give back.
   if (!original || original.status !== 'posted') return false;
 
-  return attempt(
+  return attemptPosting(
     'order.stock_returned',
     `${key}:reversal`,
     { sourceType: 'order_cogs', sourceId: orderId, sourceModel: 'Order' },
@@ -259,7 +263,7 @@ export async function postDelivery(collectionId: string, actorId?: string): Prom
   // ---- The sale ----------------------------------------------------------
   if (saleOn) {
     const key = buildIdempotencyKey('collection', collectionId, 'sale');
-    ok = await attempt(
+    ok = await attemptPosting(
       'delivery.sale',
       key,
       { sourceType: 'order_delivery', sourceId: String(collection.orderId), sourceModel: 'Order' },
@@ -313,7 +317,7 @@ export async function postDelivery(collectionId: string, actorId?: string): Prom
 
     // ---- The cost --------------------------------------------------------
     const cogsKey = buildIdempotencyKey('collection', collectionId, 'cogs');
-    const cogsOk = await attempt(
+    const cogsOk = await attemptPosting(
       'delivery.cogs',
       cogsKey,
       { sourceType: 'order_cogs', sourceId: String(collection.orderId), sourceModel: 'Order' },
@@ -375,7 +379,7 @@ export async function postDelivery(collectionId: string, actorId?: string): Prom
   // ---- The money ---------------------------------------------------------
   if (collectionOn) {
     const key = buildIdempotencyKey('collection', collectionId, 'receipt');
-    const receiptOk = await attempt(
+    const receiptOk = await attemptPosting(
       'delivery.collection',
       key,
       { sourceType: 'collection', sourceId: collectionId, sourceModel: 'DeliveryCollection' },
@@ -453,7 +457,7 @@ export async function postCollectionCorrection(
   const originalKey = buildIdempotencyKey('collection', collectionId, 'receipt');
   const correctionKey = buildIdempotencyKey('collection', collectionId, 'receipt', stamp);
 
-  return attempt(
+  return attemptPosting(
     'collection.correction',
     correctionKey,
     { sourceType: 'collection_correction', sourceId: collectionId, sourceModel: 'DeliveryCollection' },
@@ -505,7 +509,7 @@ export async function postCollectionVoid(
   }).select('_id').lean().exec();
   if (!live) return false;
 
-  return attempt(
+  return attemptPosting(
     'collection.void',
     `${String(live._id)}:void`,
     { sourceType: 'collection_void', sourceId: collectionId, sourceModel: 'DeliveryCollection' },
@@ -530,7 +534,7 @@ export async function postCreditRecovery(
   const stamp = recovery.lastCorrectedAt;
   const key = buildIdempotencyKey('credit_recovery', recoveryId, 'receipt', stamp);
 
-  return attempt(
+  return attemptPosting(
     'credit_recovery.receipt',
     key,
     { sourceType: 'credit_recovery', sourceId: recoveryId, sourceModel: 'CreditRecovery' },
@@ -595,7 +599,7 @@ export async function postCreditRecoveryVoid(
   }).select('_id').lean().exec();
   if (!live) return false;
 
-  return attempt(
+  return attemptPosting(
     'credit_recovery.void',
     `${String(live._id)}:void`,
     { sourceType: 'credit_recovery', sourceId: recoveryId, sourceModel: 'CreditRecovery' },

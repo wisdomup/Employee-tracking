@@ -12,6 +12,7 @@ import {
   createRecoverySchema,
   createSettlementSchema,
   receiveSettlementSchema,
+  writeOffRiderCashSchema,
   correctCollectionSchema,
   correctRecoverySchema,
   correctSettlementSchema,
@@ -482,5 +483,40 @@ router.patch(
  *       409: { description: Already voided }
  */
 router.post('/:id/void', requireAdmin(), validate(voidEntrySchema), controller.voidCollection);
+
+/**
+ * @openapi
+ * /api/collections/settlements/write-off:
+ *   post:
+ *     tags: [Collections]
+ *     summary: Write off a rider cash shortfall [Finance write-off permission]
+ *     description: >
+ *       The deliberate act of accepting that money is not coming back. When a settlement is
+ *       corrected downwards the difference STAYS on the rider balance — nothing is ever written
+ *       off automatically. This clears it, by a named person, with a reason, capped at what the
+ *       rider is actually carrying.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [riderId, mode, amount, reason]
+ *             properties:
+ *               riderId: { type: string }
+ *               mode: { type: string, enum: [cash, online] }
+ *               amount: { type: number }
+ *               reason: { type: string }
+ *     responses:
+ *       200: { description: "{ settlement, riderBalance }" }
+ *       400: { description: More than the rider holds, or no reason given }
+ */
+router.post(
+  '/settlements/write-off',
+  requirePermission('finance-writeoff:change'),
+  validate(writeOffRiderCashSchema),
+  controller.writeOffRiderCash,
+);
 
 export default router;
