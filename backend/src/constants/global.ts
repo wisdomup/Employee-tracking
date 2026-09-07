@@ -12,6 +12,15 @@ export const ROLES = {
   SALES_MANAGER: 'sales_manager',
   ORDER_TAKER: 'order_taker',
   DELIVERY_MAN: 'delivery_man',
+  /**
+   * Day-to-day accounting: enters and posts journal entries, bills, payments and expenses.
+   * Deliberately CANNOT reverse a posted entry or close a period — those sit on separate
+   * matrix rows so recording and correcting stay separable, which is the whole point of the
+   * five-action model here.
+   */
+  ACCOUNTANT: 'accountant',
+  /** Everything the accountant does, plus reversals, voids, period close and every finance report. */
+  FINANCE_MANAGER: 'finance_manager',
 } as const;
 
 /**
@@ -32,6 +41,19 @@ export const FIELD_STAFF_ROLES: readonly string[] = [
 export const WAREHOUSE_ROLES: readonly string[] = [
   ROLES.WAREHOUSE_MANAGER,
   ROLES.WAREHOUSE_STAFF,
+];
+
+
+/**
+ * Back-office accounting roles.
+ *
+ * In neither `FIELD_STAFF_ROLES` nor `WAREHOUSE_ROLES` on purpose: they carry no sales target,
+ * no `managerId`, no generated visits and no `warehouseId` scoping. Listed so the finance
+ * module can ask "is this an accounting user" without spelling out the two names each time.
+ */
+export const FINANCE_ROLES: readonly string[] = [
+  ROLES.ACCOUNTANT,
+  ROLES.FINANCE_MANAGER,
 ];
 
 
