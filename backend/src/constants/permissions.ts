@@ -175,6 +175,10 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Reverse a posted entry, or void a posted document',
   },
   {
+    id: 'finance-vendors', label: 'Suppliers', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Activate or deactivate a supplier, or assign typed names to one',
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',

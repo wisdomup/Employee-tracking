@@ -378,6 +378,12 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
        */
       'finance-reversal:view',
 
+      // Suppliers: an accountant records bills against them daily, so they may add and correct
+      // one. Retiring a supplier is a Finance Manager decision.
+      'finance-vendors:view',
+      'finance-vendors:add',
+      'finance-vendors:edit',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 

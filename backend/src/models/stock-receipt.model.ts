@@ -24,6 +24,14 @@ export interface IStockReceipt extends Document {
   documentNo?: number;
   receiptDate: Date;
   supplierName?: string;
+  /**
+   * The supplier master record, once one exists.
+   *
+   * Added alongside `supplierName` rather than replacing it. The typed name is what somebody
+   * actually wrote on the day; overwriting it with a tidied version would rewrite the historical
+   * document and leave nothing to check a wrong mapping against.
+   */
+  vendorId?: Types.ObjectId;
   /** Resolved to Main at create time and stored, so the slip and the ledger still agree later. */
   warehouseId: Types.ObjectId;
   products: IStockReceiptLine[];
@@ -74,6 +82,7 @@ const stockReceiptSchema = new Schema<IStockReceipt>(
     documentNo: { type: Number, min: 1 },
     receiptDate: { type: Date, required: true },
     supplierName: { type: String, trim: true, maxlength: 200 },
+    vendorId: { type: Schema.Types.ObjectId, ref: 'Vendor' },
     warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
     products: { type: [stockReceiptLineSchema], required: true },
     totalPieces: { type: Number, default: 0 },
@@ -99,6 +108,8 @@ const stockReceiptSchema = new Schema<IStockReceipt>(
 stockReceiptSchema.index({ documentNo: 1 }, { unique: true, sparse: true });
 stockReceiptSchema.index({ warehouseId: 1, receiptDate: -1 });
 stockReceiptSchema.index({ status: 1, receiptDate: -1 });
+// "What have we received from this supplier, and what is still unbilled?"
+stockReceiptSchema.index({ vendorId: 1, receiptDate: -1 }, { sparse: true });
 stockReceiptSchema.index({ 'products.productId': 1, receiptDate: -1 });
 stockReceiptSchema.index({ isTrashed: 1, createdAt: -1 });
 stockReceiptSchema.index({ isTrashed: 1, trashedAt: -1 });
