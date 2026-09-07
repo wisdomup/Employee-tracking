@@ -4,6 +4,9 @@ import { WarehouseStockModel } from '../../models/warehouse-stock.model';
 import { ProductModel } from '../../models/product.model';
 import { badRequest, forbidden, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import {
+  postStockCount,
+} from '../finance/inventory-posting.service';
 import { applyStockMovements, StockMovementLine } from './stock-ledger.service';
 import { allocateNextDocumentNo } from './warehouse-counters';
 import { resolveWarehouseScope, assertWarehouseAccess } from './warehouse-scope';
@@ -334,6 +337,9 @@ export async function approveStockCount(id: string, actorId: string) {
       driftDetected: drift.length,
     },
   });
+
+  // Only the sellable delta carries value — the damaged bucket holds pieces but no book value.
+  await postStockCount(id, actorId);
 
   return { count: await findStockCountById(id), drift };
 }

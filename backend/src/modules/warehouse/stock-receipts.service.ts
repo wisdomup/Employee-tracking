@@ -6,6 +6,10 @@ import { badRequest, notFound } from '../../utils/app-error';
 import { shouldExposeProductPurchasePrice } from '../../utils/product-privacy';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
+  postStockReceipt,
+  postStockReceiptReversal,
+} from '../finance/inventory-posting.service';
+import {
   applyStockMovements,
   findPostedMovementIds,
   StockMovementLine,
@@ -116,6 +120,9 @@ export async function createStockReceipt(
       supplierName: data.supplierName,
     },
   });
+
+  // Goods on the shelf, a liability to the supplier until their bill arrives.
+  await postStockReceipt(String(receipt._id), userId);
 
   return findStockReceiptById(String(receipt._id));
 }
@@ -242,6 +249,9 @@ export async function cancelStockReceipt(id: string, reason: string, actorId: st
     changes: { status: { from: 'posted', to: 'cancelled' } },
     meta: { documentNo: receipt.documentNo, reason },
   });
+
+  // The stock went back out, so the value follows it.
+  await postStockReceiptReversal(id, actorId);
 
   return findStockReceiptById(id);
 }
@@ -416,6 +426,10 @@ export async function updateStockReceipt(
     },
   });
 
+  // Reverses whatever the previous version posted and re-posts at the corrected rates, keyed on
+  // the new `updatedAt` — the same scope the stock ledger uses for the same edit.
+  await postStockReceipt(id, actorId);
+
   return findStockReceiptById(id);
 }
 
@@ -468,6 +482,8 @@ export async function deleteStockReceipt(id: string, reason: string | undefined,
       totalAmount: receipt.totalAmount,
     },
   });
+
+  await postStockReceiptReversal(id, actorId);
 
   return { message: 'Stock in receipt deleted and its stock reversed' };
 }

@@ -5,6 +5,9 @@ import { DamageClaimModel } from '../../models/damage-claim.model';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
+  postCustomerReturn,
+} from '../finance/inventory-posting.service';
+import {
   applyStockMovements,
   StockMovementLine,
 } from '../warehouse/stock-ledger.service';
@@ -161,6 +164,8 @@ export async function createReturn(
 
   if (returnDoc.status === 'completed') {
     await creditReturnedStock(returnDoc, userId);
+    // A damage return posts the write-off here; the DamageClaim it mints posts nothing.
+    await postCustomerReturn(String(returnDoc._id), userId);
   }
 
   logActivityAsync({
@@ -240,6 +245,7 @@ export async function updateReturn(id: string, data: Record<string, unknown>, ac
   // before it changed no stock at all and only showed up in reports.
   if (nextStatus === 'completed') {
     await creditReturnedStock(returnDoc, actorId);
+    await postCustomerReturn(String(returnDoc._id), actorId);
   }
 
   const statusChanged = nextStatus !== undefined && previousStatus !== nextStatus;
