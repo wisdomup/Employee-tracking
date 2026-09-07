@@ -6,7 +6,13 @@ import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Table from '../../../components/UI/Table';
 import FinanceNav from '../../../components/Finance/FinanceNav';
 import { can } from '../../../utils/permissions';
-import { journalService, JournalEntry, EntryStatus } from '../../../services/financeService';
+import {
+  journalService,
+  sourceTypeLabel,
+  SOURCE_TYPE_LABELS,
+  JournalEntry,
+  EntryStatus,
+} from '../../../services/financeService';
 import listStyles from '../../../styles/ListPage.module.scss';
 import styles from '../../../styles/Finance.module.scss';
 
@@ -25,22 +31,6 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
   void: 'Void',
 };
 
-/** Plain words for how an entry came to exist. */
-const SOURCE_LABEL: Record<string, string> = {
-  manual: 'Typed by hand',
-  opening_balance: 'Opening balance',
-  order_delivery: 'Delivery',
-  order_cogs: 'Cost of goods',
-  collection: 'Collection',
-  credit_recovery: 'Credit recovery',
-  settlement_received: 'Rider settlement',
-  stock_receipt: 'Stock received',
-  customer_return: 'Return',
-  damage_claim: 'Damage',
-  expense: 'Expense',
-  year_end_close: 'Year-end close',
-};
-
 function money(value: number): string {
   return value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -51,6 +41,7 @@ const JournalPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const [sourceType, setSourceType] = useState('');
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -60,6 +51,7 @@ const JournalPage: React.FC = () => {
     try {
       const data = await journalService.list({
         status: status || undefined,
+        sourceType: sourceType || undefined,
         search: search.trim() || undefined,
         from: from || undefined,
         to: to || undefined,
@@ -72,7 +64,7 @@ const JournalPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [status, search, from, to]);
+  }, [status, sourceType, search, from, to]);
 
   useEffect(() => {
     load();
@@ -98,7 +90,7 @@ const JournalPage: React.FC = () => {
         <div>
           <div style={{ fontWeight: 500 }}>{value || '—'}</div>
           <div className={styles.muted} style={{ fontSize: '0.78rem', marginTop: '0.15rem' }}>
-            {SOURCE_LABEL[row.sourceType] ?? row.sourceType}
+            {sourceTypeLabel(row.sourceType)}
             {row.referenceNo ? ` · ${row.referenceNo}` : ''}
           </div>
         </div>
@@ -178,6 +170,24 @@ const JournalPage: React.FC = () => {
                 <option value="draft">Drafts only</option>
                 <option value="posted">Posted</option>
                 <option value="reversed">Reversed</option>
+              </select>
+              {/*
+                Filtering by where an entry came from is the question people actually arrive
+                with — "show me everything the deliveries did" — and it is the only way to find
+                system entries, which carry no reference number to search on.
+              */}
+              <select
+                className={listStyles.searchSelect}
+                value={sourceType}
+                onChange={(e) => setSourceType(e.target.value)}
+                aria-label="Where the entry came from"
+              >
+                <option value="">Everything</option>
+                {Object.entries(SOURCE_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
               <input
                 type="date"

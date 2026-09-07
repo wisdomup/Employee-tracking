@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { JournalEntryModel, IJournalEntry } from '../../models/journal-entry.model';
 import { JournalLineModel } from '../../models/journal-line.model';
 import { LedgerModel } from '../../models/ledger.model';
+import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
 import { AccountGroupModel } from '../../models/account-group.model';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
@@ -502,5 +503,91 @@ export async function dayBook(from: string, to?: string) {
       })),
     })),
     truncated: entries.length === 500,
+  };
+}
+
+/**
+ * Every entry one operational document produced.
+ *
+ * The other half of the traceability the module promises. Going from an entry to its source has
+ * always worked — `sourceType` and `sourceId` are on the header. Going the other way, from a
+ * delivery or a stock receipt to the accounting it caused, did not, and that is the direction
+ * somebody actually asks about: "this order looks wrong, what did it do to the books?"
+ *
+ * Accepts the document's id and searches every entry that names it, whatever the source type, so
+ * one delivery returns its sale, its cost and its collection together rather than three separate
+ * lookups the caller has to know to make.
+ */
+export async function entriesForSource(sourceId: string) {
+  if (!Types.ObjectId.isValid(sourceId)) return { entries: [], totalDebit: 0 };
+
+  /*
+   * A delivery's money entry is keyed on the COLLECTION, not the order — the collection is the
+   * document that records what was taken. So an order asked about itself would come back with
+   * its sale and its cost but not the cash, which is the leg somebody chasing a discrepancy is
+   * most likely to be looking for.
+   *
+   * Resolved here rather than by making the caller find the collection id first: the caller has
+   * an order in front of them and no reason to know the money is filed elsewhere.
+   */
+  const ids = [new Types.ObjectId(sourceId)];
+  const collection = await DeliveryCollectionModel.findOne({
+    orderId: new Types.ObjectId(sourceId),
+  })
+    .select('_id')
+    .lean()
+    .exec();
+  if (collection) ids.push(collection._id);
+
+  const entries = await JournalEntryModel.find({ sourceId: { $in: ids } })
+    .sort({ date: 1, entryNo: 1 })
+    .lean()
+    .exec();
+
+  if (entries.length === 0) return { entries: [], totalDebit: 0 };
+
+  const lines = await JournalLineModel.find({
+    journalEntryId: { $in: entries.map((e) => e._id) },
+  })
+    .lean()
+    .exec();
+
+  const ledgers = await LedgerModel.find({ _id: { $in: lines.map((l) => l.ledgerId) } })
+    .select('_id code name')
+    .lean()
+    .exec();
+  const ledgerById = new Map(ledgers.map((l) => [String(l._id), l]));
+
+  const linesByEntry = new Map<string, typeof lines>();
+  for (const line of lines) {
+    const key = String(line.journalEntryId);
+    if (!linesByEntry.has(key)) linesByEntry.set(key, []);
+    linesByEntry.get(key)!.push(line);
+  }
+
+  return {
+    entries: entries.map((entry) => ({
+      id: String(entry._id),
+      entryNo: entry.entryNo ?? null,
+      date: entry.date,
+      narration: entry.narration ?? '',
+      sourceType: entry.sourceType,
+      status: entry.status,
+      totalDebit: entry.totalDebit,
+      totalCredit: entry.totalCredit,
+      reversedByEntryId: entry.reversedByEntryId ? String(entry.reversedByEntryId) : null,
+      reversalOf: entry.reversalOf ? String(entry.reversalOf) : null,
+      lines: (linesByEntry.get(String(entry._id)) ?? []).map((l) => ({
+        ledgerCode: ledgerById.get(String(l.ledgerId))?.code ?? '—',
+        ledgerName: ledgerById.get(String(l.ledgerId))?.name ?? 'Deleted account',
+        debit: l.debit,
+        credit: l.credit,
+      })),
+    })),
+    // Only entries still standing count towards the total — a reversed pair nets to nothing and
+    // showing its gross would suggest twice as much happened as did.
+    totalDebit: round2(
+      entries.filter((e) => e.status === 'posted').reduce((sum, e) => sum + e.totalDebit, 0),
+    ),
   };
 }

@@ -164,7 +164,13 @@ export async function postStockReceiptReversal(
 
   return attemptPosting(
     'stock_receipt.reversal',
-    buildIdempotencyKey('stock_receipt', receiptId, 'cancel', Date.now()),
+    // Stable, NOT a timestamp. This key is what a failure is recorded against, so a moving one
+    // would file a fresh failure row on every retry instead of bumping the existing one, and the
+    // health screen would fill with duplicates of a single problem.
+    //
+    // The reversal itself is idempotent regardless: it looks for entries still `posted`, and a
+    // second call finds none because the first already marked them `reversed`.
+    buildIdempotencyKey('stock_receipt', receiptId, 'cancel'),
     { sourceType: 'stock_receipt_reversal', sourceId: receiptId, sourceModel: 'StockReceipt' },
     () =>
       reverseLivePosting(
@@ -496,7 +502,8 @@ export async function postTransferReturned(
 
   return attemptPosting(
     'transfer.returned',
-    buildIdempotencyKey('transfer', transferId, 'returned', Date.now()),
+    // Stable for the same reason as the receipt cancellation above.
+    buildIdempotencyKey('transfer', transferId, 'returned'),
     { sourceType: 'transfer_out', sourceId: transferId, sourceModel: 'StockTransfer' },
     () =>
       reverseLivePosting(

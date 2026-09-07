@@ -69,6 +69,29 @@ router.get('/journal', requirePermission('finance-journal:view'), journal.list);
  *       200: { description: Entry with lines }
  *       404: { description: Not found }
  */
+/**
+ * @openapi
+ * /api/finance/journal/by-source/{sourceId}:
+ *   get:
+ *     tags: [Finance — Journal]
+ *     summary: Every accounting entry one operational document produced
+ *     description: >
+ *       The other half of the traceability this module promises. Going from an entry to its
+ *       source always worked; going the other way — from a delivery or a stock receipt to the
+ *       accounting it caused — did not, and that is the direction people actually ask about.
+ *       One delivery returns its sale, its cost and its collection together.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: sourceId, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: Entries with their lines }
+ */
+router.get(
+  '/journal/by-source/:sourceId',
+  requirePermission('finance-journal:view'),
+  journal.bySource,
+);
+
 router.get('/journal/:id', requirePermission('finance-journal:view'), journal.getOne);
 
 /**

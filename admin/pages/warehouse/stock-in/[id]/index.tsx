@@ -7,6 +7,7 @@ import ProtectedRoute from '../../../../components/Auth/ProtectedRoute';
 import Loader from '../../../../components/UI/Loader';
 import StatusBadge from '../../../../components/UI/StatusBadge';
 import ReasonModal from '../../../../components/Warehouse/ReasonModal';
+import PostedEntries from '../../../../components/Finance/PostedEntries';
 import {
   stockInService,
   StockReceipt,
@@ -391,6 +392,13 @@ function StockInDetailPage() {
           if (!cancelBusy) setCancelOpen(false);
         }}
         onConfirm={handleCancel}
+      />
+
+      {/* Silent until this receipt has actually posted — automatic posting is switched on one
+          event at a time, so an empty panel here would read as something being broken. */}
+      <PostedEntries
+        sourceId={String(receipt._id)}
+        title="What this receipt did to the accounts"
       />
 
       <ReasonModal

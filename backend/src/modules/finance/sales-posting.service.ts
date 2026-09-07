@@ -723,7 +723,7 @@ export async function togglePostingSwitch(
     employeeId: actorId,
     module: 'period',
     entityId: event,
-    action: enabled ? 'status_changed' : 'status_changed',
+    action: 'status_changed',
     meta: { postingEvent: event, enabled },
   });
 

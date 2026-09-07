@@ -96,6 +96,14 @@ export async function reverse(req: Request, res: Response, next: NextFunction) {
 // Reports
 // ---------------------------------------------------------------------------
 
+export async function bySource(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await journal.entriesForSource(req.params.sourceId));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function trialBalance(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await journal.trialBalance(req.query.asOf as string | undefined));
