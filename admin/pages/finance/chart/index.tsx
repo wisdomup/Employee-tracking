@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Table from '../../../components/UI/Table';
+import FinanceNav from '../../../components/Finance/FinanceNav';
 import { can } from '../../../utils/permissions';
 import {
   financeService,
@@ -275,6 +276,8 @@ const ChartOfAccountsPage: React.FC = () => {
             )}
           </div>
         </div>
+
+        <FinanceNav />
 
         <div className={styles.split}>
           <aside className={styles.panel}>

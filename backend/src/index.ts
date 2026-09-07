@@ -7,6 +7,7 @@ import { startLateStartFreezeCron } from './jobs/late-start-freeze.cron';
 import { runWarehouseBootstrapOnStart } from './database/warehouse-bootstrap-on-start';
 import { runAccessBootstrapOnStart } from './database/access-bootstrap-on-start';
 import { runFinanceBootstrapOnStart } from './database/finance-bootstrap-on-start';
+import { startLedgerReconcileCron } from './jobs/ledger-reconcile.cron';
 import app from './app';
 
 const PORT = process.env.PORT || 8001;
@@ -27,6 +28,7 @@ async function bootstrap() {
   startVisitGenerationCron();
   startLowStockCron();
   startLateStartFreezeCron();
+  startLedgerReconcileCron();
 
   app.listen(PORT, () => {
     console.log(`Server for Tracking App running on http://localhost:${PORT}`);

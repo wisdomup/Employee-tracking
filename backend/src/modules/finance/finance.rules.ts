@@ -9,9 +9,9 @@
  */
 
 import { badRequest } from '../../utils/app-error';
-import { round2 } from '../region-sales/region-sales.rules';
+import { REPORT_TIMEZONE, localDayKey, round2 } from '../region-sales/region-sales.rules';
 
-export { round2 };
+export { round2, REPORT_TIMEZONE };
 
 /** Half a paisa. The same tolerance the collections module already compares money with. */
 export const MONEY_EPSILON = 0.005;
@@ -200,6 +200,174 @@ export function assertDepthWithinLimit(depth: number): void {
 export const SUBLEDGER_TYPES = ['dealer', 'vendor', 'rider', 'warehouse', 'employee'] as const;
 
 export type SubledgerType = (typeof SUBLEDGER_TYPES)[number];
+
+// ---------------------------------------------------------------------------
+// Periods
+// ---------------------------------------------------------------------------
+
+/**
+ * The accounting period (`YYYY-MM`) a business date falls in.
+ *
+ * Resolved in `REPORT_TIMEZONE`, not UTC. Every other day boundary in this product already is
+ * — a month-end computed in UTC would move by five hours and put the last evening of a month
+ * into the next one, silently, on exactly the entries an accountant looks at hardest.
+ */
+export function periodKeyFor(date: Date, timeZone: string = REPORT_TIMEZONE): string {
+  return localDayKey(date, timeZone).slice(0, 7);
+}
+
+export function isValidPeriodKey(value: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+/**
+ * The fiscal year label a period belongs to, given the month the year starts in.
+ *
+ * July–June (the client's answer, and the Pakistani standard) gives "2026-27" for any period
+ * from 2026-07 to 2027-06. A January start gives a single year, "2026", because "2026-26"
+ * reads as a typo.
+ */
+export function fiscalYearFor(period: string, startMonth: number): string {
+  if (!isValidPeriodKey(period)) {
+    throw badRequest(`"${period}" is not a period. Use YYYY-MM.`);
+  }
+  const year = Number(period.slice(0, 4));
+  const month = Number(period.slice(5, 7));
+
+  if (startMonth === 1) return String(year);
+
+  const firstYear = month >= startMonth ? year : year - 1;
+  return `${firstYear}-${String((firstYear + 1) % 100).padStart(2, '0')}`;
+}
+
+/** Every period in a fiscal year, in order. Used to close a year month by month. */
+export function periodsInFiscalYear(fiscalYear: string, startMonth: number): string[] {
+  const firstYear = Number(fiscalYear.slice(0, 4));
+  const out: string[] = [];
+  for (let i = 0; i < 12; i += 1) {
+    const monthIndex = startMonth - 1 + i;
+    const year = firstYear + Math.floor(monthIndex / 12);
+    const month = (monthIndex % 12) + 1;
+    out.push(`${year}-${String(month).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Journal lines
+// ---------------------------------------------------------------------------
+
+export interface JournalLineInput {
+  ledgerId: string;
+  debit?: number;
+  credit?: number;
+  lineNarration?: string;
+  subledgerRef?: { type: string; id: string } | null;
+}
+
+export interface NormalisedLine {
+  ledgerId: string;
+  debit: number;
+  credit: number;
+  /** `debit − credit`, stored so every aggregation sums one field instead of subtracting two. */
+  signedAmount: number;
+  lineNarration?: string;
+  subledgerRef?: { type: string; id: string } | null;
+}
+
+/**
+ * Validate and normalise the lines of an entry.
+ *
+ * Runs before anything touches the database, so a malformed entry never reaches the point where
+ * half of it could be written. The messages are read by an accountant mid-entry, so they name
+ * the line and the amount rather than describing a schema.
+ */
+export function normaliseLines(lines: readonly JournalLineInput[]): NormalisedLine[] {
+  if (!Array.isArray(lines) || lines.length < 2) {
+    throw badRequest('An entry needs at least two lines — something given and something taken.');
+  }
+
+  return lines.map((line, index) => {
+    const at = `Line ${index + 1}`;
+
+    if (!line.ledgerId) throw badRequest(`${at}: choose an account.`);
+
+    const debit = round2(Number(line.debit ?? 0));
+    const credit = round2(Number(line.credit ?? 0));
+
+    if (!Number.isFinite(debit) || !Number.isFinite(credit)) {
+      throw badRequest(`${at}: the amount is not a number.`);
+    }
+    if (debit < 0 || credit < 0) {
+      throw badRequest(`${at}: amounts cannot be negative. Put it on the other side instead.`);
+    }
+    if (debit > 0 && credit > 0) {
+      throw badRequest(`${at}: an account is either debited or credited, never both.`);
+    }
+    if (debit === 0 && credit === 0) {
+      throw badRequest(`${at}: enter an amount, or remove the line.`);
+    }
+
+    return {
+      ledgerId: String(line.ledgerId),
+      debit,
+      credit,
+      signedAmount: round2(debit - credit),
+      lineNarration: line.lineNarration,
+      subledgerRef: line.subledgerRef ?? null,
+    };
+  });
+}
+
+export interface EntryTotals {
+  totalDebit: number;
+  totalCredit: number;
+}
+
+/**
+ * The hard rule: debits equal credits, or nothing is written.
+ *
+ * Compared against the money epsilon rather than with `===`, because these are IEEE doubles and
+ * a sum of a dozen paisa-precise figures will not land exactly. The half-paisa tolerance is the
+ * one the collections module already uses on rider cash.
+ */
+export function assertBalanced(lines: readonly NormalisedLine[]): EntryTotals {
+  const totalDebit = round2(lines.reduce((sum, l) => sum + l.debit, 0));
+  const totalCredit = round2(lines.reduce((sum, l) => sum + l.credit, 0));
+  const difference = round2(totalDebit - totalCredit);
+
+  if (Math.abs(difference) >= MONEY_EPSILON) {
+    throw badRequest(
+      difference > 0
+        ? `Debits are ${totalDebit} and credits are ${totalCredit}. `
+          + `Credit ${Math.abs(difference)} more to balance this entry.`
+        : `Credits are ${totalCredit} and debits are ${totalDebit}. `
+          + `Debit ${Math.abs(difference)} more to balance this entry.`,
+    );
+  }
+
+  return { totalDebit, totalCredit };
+}
+
+/**
+ * The key that makes a posting replay-safe.
+ *
+ * `{sourceType}:{sourceId}:{event}[:{scope}]`, unique-indexed. A retried request collides here
+ * instead of posting twice — the same mechanism `StockMovement` already relies on, described in
+ * its own header as "what stands in for a transaction". `scope` carries the source document's
+ * `updatedAt` for events that legitimately repeat, such as a corrected collection.
+ */
+export function buildIdempotencyKey(
+  sourceType: string,
+  sourceId: string,
+  event: string,
+  scope?: string | number | Date,
+): string {
+  const base = `${sourceType}:${sourceId}:${event}`;
+  if (scope === undefined || scope === null) return base;
+  const suffix = scope instanceof Date ? String(scope.getTime()) : String(scope);
+  return `${base}:${suffix}`;
+}
 
 export function assertControlConfigIsCoherent(
   isControl: boolean,

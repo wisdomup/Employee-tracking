@@ -33,6 +33,7 @@ import regionSalesRouter from './modules/region-sales/region-sales.routes';
 import collectionsRouter from './modules/collections/collections.routes';
 import permissionsRouter from './modules/permissions/permissions.routes';
 import financeRouter from './modules/finance/finance.routes';
+import financeJournalRouter from './modules/finance/journal.routes';
 
 const app = express();
 
@@ -81,6 +82,7 @@ app.use('/api/region-sales', regionSalesRouter);
 app.use('/api/collections', collectionsRouter);
 app.use('/api/permissions', permissionsRouter);
 app.use('/api/finance', financeRouter);
+app.use('/api/finance', financeJournalRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({ message: 'GPS Tracking App backend is running' });

@@ -156,6 +156,29 @@ export const MODULES: readonly ModuleDefinition[] = [
     id: 'finance-coa', label: 'Chart of Accounts', group: MODULE_GROUPS.FINANCE, actions: FULL,
     changeMeans: 'Activate or deactivate an account group or ledger',
   },
+  {
+    id: 'finance-journal', label: 'Journal Entries', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Post a draft entry to the ledger',
+  },
+  {
+    /*
+     * Reversal is its OWN row, not a `change` on `finance-journal`.
+     *
+     * Under five actions, "post an entry" and "reverse a posted entry" are both `change`, so a
+     * single row would make it impossible to let someone record work without also letting them
+     * undo it. Separating the powers that share an action verb by splitting the row is the
+     * technique already used when the warehouse became five rows — and here it is what makes
+     * ordinary segregation of duties expressible at all.
+     */
+    id: 'finance-reversal', label: 'Reversals & Voids', group: MODULE_GROUPS.FINANCE,
+    actions: [VIEW, CHANGE],
+    changeMeans: 'Reverse a posted entry, or void a posted document',
+  },
+  {
+    id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
+    actions: [VIEW, CHANGE],
+    changeMeans: 'Open, close or reopen an accounting month',
+  },
 
   // ---- System ----
   { id: 'activity-logs', label: 'Activity Logs', group: MODULE_GROUPS.SYSTEM, actions: READ_ONLY },
@@ -270,6 +293,7 @@ export const REPORT_SURFACES = {
   WAREHOUSE: 'Warehouse Reports',
   STOCK: 'Stock Reports',
   COLLECTION: 'Collection',
+  FINANCE: 'Finance Reports',
   REGION: 'Region Sales',
 } as const;
 
@@ -342,6 +366,12 @@ export const REPORTS: readonly ReportDefinition[] = [
 
   // /region-sales
   { id: 'region-sales.daily', label: 'Region-wise Daily Sale', surface: REPORT_SURFACES.REGION, path: '/region-sales' },
+
+  // /finance/reports — the three that make the posting engine usable. The statements (P&L,
+  // Balance Sheet, Cash Flow, ageing) arrive with the step that builds them.
+  { id: 'finance.trial-balance',    label: 'Trial Balance',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/trial-balance' },
+  { id: 'finance.ledger-statement', label: 'Ledger Statement', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/ledger-statement' },
+  { id: 'finance.day-book',         label: 'Day Book',         surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/day-book' },
 ];
 
 const REPORT_BY_ID = new Map(REPORTS.map((r) => [r.id, r]));
