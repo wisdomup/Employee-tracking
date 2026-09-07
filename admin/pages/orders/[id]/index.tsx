@@ -22,6 +22,7 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import DataExportButton from '../../../components/UI/DataExportButton';
 import type { TableExportColumn } from '../../../utils/tableExport';
 import MapView, { Marker } from '../../../components/Map/MapView';
+import PostedEntries from '../../../components/Finance/PostedEntries';
 import { haversineDistanceKm } from '../../../utils/geo';
 import styles from '../../../styles/DetailPage.module.scss';
 import modalStyles from '../../../styles/Modal.module.scss';
@@ -641,6 +642,10 @@ const OrderDetailPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Renders nothing until this order has actually posted something, so it does not sit
+              empty on every order while automatic posting is still being switched on. */}
+          <PostedEntries sourceId={String(order._id)} title="What this order did to the accounts" />
         </div>
       )}
     </Layout>

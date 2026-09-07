@@ -286,6 +286,7 @@ export interface TrialBalanceRow {
 export const journalService = {
   async list(filters: {
     status?: string;
+    sourceType?: string;
     period?: string;
     from?: string;
     to?: string;
@@ -473,5 +474,80 @@ export async function writeOffRiderCash(body: {
   reason: string;
 }) {
   const response = await api.post('/collections/settlements/write-off', body);
+  return response.data;
+}
+
+/**
+ * Plain words for every way an entry can come to exist.
+ *
+ * Complete on purpose. The list started as a handful and the rest fell through to the raw enum
+ * value, so screens were showing `stock_count_adjustment` and `settlement_variance` to people
+ * whose job is not reading enums. Anything missing here shows its identifier, which is a bug,
+ * not a fallback.
+ */
+export const SOURCE_TYPE_LABELS: Record<string, string> = {
+  manual: 'Typed by hand',
+  opening_balance: 'Opening balance',
+
+  order_delivery: 'Sale on delivery',
+  order_cogs: 'Cost of goods',
+  collection: 'Money collected at delivery',
+  collection_correction: 'Collection corrected',
+  collection_void: 'Collection cancelled',
+  credit_recovery: 'Old credit recovered',
+  credit_recovery_correction: 'Recovery corrected',
+
+  settlement_received: 'Rider handed money over',
+  settlement_variance: 'Rider cash written off',
+
+  stock_receipt: 'Stock received from a supplier',
+  stock_receipt_reversal: 'Stock receipt cancelled',
+  customer_return: 'Goods returned by a shop',
+  damage_claim: 'Damaged stock written off',
+  transfer_out: 'Stock sent to another warehouse',
+  transfer_in: 'Stock received from another warehouse',
+  transfer_shrinkage: 'Stock lost in transfer',
+  stock_count_adjustment: 'Stock count correction',
+
+  invoice: 'Service invoice',
+  bill: 'Supplier bill',
+  payment_received: 'Payment received',
+  payment_made: 'Payment made',
+  expense: 'Expense',
+  payroll_accrual: 'Salaries',
+  bad_debt_writeoff: 'Debt written off',
+  year_end_close: 'Year-end close',
+};
+
+export function sourceTypeLabel(sourceType: string): string {
+  return SOURCE_TYPE_LABELS[sourceType] ?? sourceType;
+}
+
+export interface SourceEntryLine {
+  ledgerCode: string;
+  ledgerName: string;
+  debit: number;
+  credit: number;
+}
+
+export interface SourceEntry {
+  id: string;
+  entryNo: number | null;
+  date: string;
+  narration: string;
+  sourceType: string;
+  status: string;
+  totalDebit: number;
+  totalCredit: number;
+  reversedByEntryId: string | null;
+  reversalOf: string | null;
+  lines: SourceEntryLine[];
+}
+
+/** Every entry a delivery, receipt or other document produced. */
+export async function entriesForSource(
+  sourceId: string,
+): Promise<{ entries: SourceEntry[]; totalDebit: number }> {
+  const response = await api.get(`/finance/journal/by-source/${sourceId}`);
   return response.data;
 }
