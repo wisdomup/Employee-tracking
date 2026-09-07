@@ -25,6 +25,7 @@ import {
   TrendUp,
   UserCircle,
   ShieldCheck,
+  Bank,
   Users,
   Warehouse,
   WarningCircle,
@@ -103,6 +104,10 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: '/collection', label: 'Collection', Icon: HandCoins, permission: 'collection:view' },
   { path: '/reports', label: 'Reports', Icon: PresentationChart, reportPrefix: 'reports.' },
   { path: '/stock-reports', label: 'Stock Reports', Icon: ChartBar, reportPrefix: 'stock-reports.' },
+  // One entry for the whole finance module. Groups, accounts and settings are reached from
+  // inside it — the same constraint as /warehouse and /collection, since `isActive` matches on
+  // startsWith and a sibling /finance* entry would break the highlighting.
+  { path: '/finance', label: 'Accounts & Finance', Icon: Bank, permission: 'finance-coa:view' },
   { path: '/trash', label: 'Trash', Icon: Trash, permission: 'trash:view' },
   { path: '/broadcast-notifications', label: 'Notifications', Icon: Bell, permission: 'broadcast-notifications:view' },
   // Editing the matrix is deliberately not a matrix cell — see `adminOnly` above.
