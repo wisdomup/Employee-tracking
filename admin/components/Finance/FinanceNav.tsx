@@ -29,6 +29,7 @@ const TABS: {
   // empty state, which reads as something being broken rather than as not being granted.
   { href: '/finance/reports', label: 'Reports', reportIds: ['finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'] },
   { href: '/finance/chart', label: 'Chart of Accounts', permission: 'finance-coa:view' },
+  { href: '/finance/vendors', label: 'Suppliers', permission: 'finance-vendors:view' },
   { href: '/finance/periods', label: 'Periods', permission: 'finance-period:view' },
   { href: '/finance/settings', label: 'Settings', permission: 'finance-coa:view' },
 ];

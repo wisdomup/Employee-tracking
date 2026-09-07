@@ -551,3 +551,100 @@ export async function entriesForSource(
   const response = await api.get(`/finance/journal/by-source/${sourceId}`);
   return response.data;
 }
+
+// ---------------------------------------------------------------------------
+// Suppliers
+// ---------------------------------------------------------------------------
+
+export interface Vendor {
+  id: string;
+  code: number;
+  reference: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  taxRegistrationNo?: string;
+  paymentTermsDays: number;
+  openingBalance: { amount: number; asOf: string | null };
+  /** The typed names on goods receipts that were attached to this supplier. */
+  mergedFromNames: string[];
+  isPlaceholder: boolean;
+  isActive: boolean;
+  notes?: string;
+  receiptCount: number;
+  receiptValue: number;
+}
+
+export interface SupplierCandidate {
+  typedName: string;
+  receiptCount: number;
+  totalValue: number;
+  firstSeen: string;
+  lastSeen: string;
+  resolvedTo?: { id: string; name: string };
+  suggestions: { id: string; name: string }[];
+}
+
+export interface MigrationProgress {
+  totalReceipts: number;
+  linkedReceipts: number;
+  unlinkedReceipts: number;
+  onPlaceholder: number;
+  vendorCount: number;
+  complete: boolean;
+}
+
+export const vendorService = {
+  async list(filters: { search?: string; status?: string } = {}): Promise<Vendor[]> {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.status) params.append('status', filters.status);
+    const response = await api.get(`/finance/vendors?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<Vendor> {
+    const response = await api.get(`/finance/vendors/${id}`);
+    return response.data;
+  },
+
+  async create(data: Record<string, unknown>): Promise<Vendor> {
+    const response = await api.post('/finance/vendors', data);
+    return response.data;
+  },
+
+  async update(id: string, data: Record<string, unknown>): Promise<Vendor> {
+    const response = await api.patch(`/finance/vendors/${id}`, data);
+    return response.data;
+  },
+
+  async setStatus(id: string, isActive: boolean): Promise<Vendor> {
+    const response = await api.patch(`/finance/vendors/${id}/status`, { isActive });
+    return response.data;
+  },
+
+  async remove(id: string) {
+    const response = await api.delete(`/finance/vendors/${id}`);
+    return response.data;
+  },
+
+  async candidates(): Promise<{ candidates: SupplierCandidate[]; unnamedReceipts: number }> {
+    const response = await api.get('/finance/vendors/migration/candidates');
+    return response.data;
+  },
+
+  async progress(): Promise<MigrationProgress> {
+    const response = await api.get('/finance/vendors/migration/progress');
+    return response.data;
+  },
+
+  async assign(body: { vendorId?: string; newVendorName?: string; typedNames: string[] }) {
+    const response = await api.post('/finance/vendors/migration/assign', body);
+    return response.data;
+  },
+
+  async parkUnassigned() {
+    const response = await api.post('/finance/vendors/migration/park-unassigned');
+    return response.data;
+  },
+};
