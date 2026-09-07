@@ -27,6 +27,7 @@ export const LEDGER_ROLE_KEYS = [
   'arTrade',
   'inventorySellable',
   'inventoryInTransit',
+  'inventoryOutForDelivery',
   'inputTax',
   'staffAdvances',
   'apTrade',

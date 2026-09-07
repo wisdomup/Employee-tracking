@@ -82,6 +82,12 @@ const LEDGERS: LedgerSeed[] = [
   { code: '1155', name: 'Inventory — Damaged', group: '1100',
     note: 'Unused unless damage is carried as an asset until scrapped rather than expensed on approval.' },
   { code: '1160', name: 'Inventory — In Transit', group: '1100', role: 'inventoryInTransit', control: 'warehouse' },
+  // Stock that has left the warehouse on an order but has not reached the shop yet.
+  //
+  // Required because this platform deducts stock at ORDER CREATE, not at delivery. Without a
+  // holding account the ledger would still show that stock on the shelf until the rider
+  // delivered it, and the nightly inventory check would report drift for every open order.
+  { code: '1165', name: 'Inventory — Out for Delivery', group: '1100', role: 'inventoryOutForDelivery', control: 'warehouse' },
   { code: '1170', name: 'Input Tax Receivable', group: '1100', role: 'inputTax' },
   { code: '1180', name: 'Advances to Staff', group: '1100', role: 'staffAdvances', control: 'employee' },
 
