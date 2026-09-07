@@ -2,6 +2,17 @@ import { Request, Response, NextFunction } from 'express';
 import * as journal from './journal.service';
 import * as posting from './posting.service';
 import * as periods from './period.service';
+import {
+  runControlReconciliation,
+  latestControlChecks,
+  driftHistory,
+} from './control-reconciliation.service';
+import {
+  retryFailedPostings,
+  listPostingFailures,
+  listPostingSwitches,
+  togglePostingSwitch,
+} from './sales-posting.service';
 
 // ---------------------------------------------------------------------------
 // Entries
@@ -189,6 +200,69 @@ export async function reconcile(req: Request, res: Response, next: NextFunction)
     // `repair` rewrites the cached balances from the lines, which are the truth. Without it the
     // check reports drift it cannot fix.
     res.json(await posting.reconcileLedgerBalances({ repair: req.query.repair === 'true' }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Finance health
+// ---------------------------------------------------------------------------
+
+export async function controlChecks(req: Request, res: Response, next: NextFunction) {
+  try {
+    // `refresh=true` re-runs the checks now; otherwise the last recorded run is returned. A
+    // full run touches every collection, so a screen that polls should not force one.
+    if (req.query.refresh === 'true') {
+      res.json(await runControlReconciliation());
+      return;
+    }
+    res.json(await latestControlChecks());
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function controlHistory(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({
+      checkId: req.params.checkId,
+      history: await driftHistory(req.params.checkId, Number(req.query.days) || 30),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function postingSwitches(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await listPostingSwitches());
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setPostingSwitch(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(
+      await togglePostingSwitch(req.params.event, req.body.enabled === true, req.user!.userId),
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function failedPostings(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await listPostingFailures(req.query.includeResolved === 'true'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function retryPostings(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await retryFailedPostings());
   } catch (err) {
     next(err);
   }

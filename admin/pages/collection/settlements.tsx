@@ -12,6 +12,7 @@ import RiderBalanceChip from '../../components/Collection/RiderBalanceChip';
 import CollectionTotalsRow from '../../components/Collection/CollectionTotalsRow';
 import RiderSelect from '../../components/Collection/RiderSelect';
 import SettlementSubmitModal from '../../components/Collection/SettlementSubmitModal';
+import RiderCashWriteOffPanel from '../../components/Collection/RiderCashWriteOffPanel';
 import {
   collectionService,
   RiderBalance,
@@ -19,6 +20,7 @@ import {
   RiderSummary,
 } from '../../services/collectionService';
 import { useAuth } from '../../contexts/AuthContext';
+import { can } from '../../utils/permissions';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatRs } from '../../utils/formatCurrency';
 import styles from '../../styles/ListPage.module.scss';
@@ -35,6 +37,7 @@ const SettlementsPage: React.FC = () => {
   const isRider = user?.role === 'delivery_man';
 
   const [balance, setBalance] = useState<RiderBalance | null>(null);
+  const [writingOff, setWritingOff] = useState(false);
   const [rows, setRows] = useState<SettlementRow[]>([]);
   const [totals, setTotals] = useState({
     pendingCash: 0,
@@ -199,9 +202,35 @@ const SettlementsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Settlements</h1>
+          {/*
+            Writing off a shortfall is not part of settling up, so it is not offered beside the
+            Receive buttons. A correction that leaves a rider short leaves the difference on
+            their balance on purpose; clearing it is a separate decision, held by finance.
+          */}
+          {!isRider && can(undefined, 'finance-writeoff:change') && (
+            <button
+              className={styles.addButton}
+              style={{ background: '#fff', color: '#b42318', border: '1px solid #fecaca' }}
+              onClick={() => setWritingOff(true)}
+            >
+              Write Off a Shortfall
+            </button>
+          )}
         </div>
 
         <CollectionModuleNav active="settlements" />
+
+        {writingOff && (
+          <RiderCashWriteOffPanel
+            riderId={riderFilter}
+            balance={balance}
+            onCancel={() => setWritingOff(false)}
+            onDone={() => {
+              setWritingOff(false);
+              load();
+            }}
+          />
+        )}
 
         {isRider ? (
           <>

@@ -1,5 +1,9 @@
 import { Types } from 'mongoose';
-import { FinanceSettingsModel, PostingEventKey } from '../../models/finance-settings.model';
+import {
+  FinanceSettingsModel,
+  PostingEventKey,
+  POSTING_EVENT_KEYS,
+} from '../../models/finance-settings.model';
 import { PostingFailureModel } from '../../models/posting-failure.model';
 import { JournalEntryModel } from '../../models/journal-entry.model';
 import { OrderModel } from '../../models/order.model';
@@ -7,6 +11,8 @@ import { ProductModel } from '../../models/product.model';
 import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
 import { CreditRecoveryModel } from '../../models/credit-recovery.model';
 import { WarehouseModel } from '../../models/warehouse.model';
+import { badRequest } from '../../utils/app-error';
+import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
 import { JournalLineInput, buildIdempotencyKey, round2 } from './finance.rules';
 
@@ -651,4 +657,96 @@ export async function retryFailedPostings(): Promise<{ retried: number; recovere
   }
 
   return { retried: failures.length, recovered };
+}
+
+// ---------------------------------------------------------------------------
+// Operating the switches
+// ---------------------------------------------------------------------------
+
+/** Plain-language names for the events, for whoever is deciding when to turn one on. */
+const EVENT_LABELS: Record<string, string> = {
+  orderDelivery: 'Record a sale when an order is delivered',
+  orderCogs: 'Track the cost of stock leaving the warehouse',
+  collection: 'Record money collected at delivery',
+  creditRecovery: 'Record old credit recovered in the field',
+  settlement: 'Record cash and transfers handed back by riders',
+  stockReceipt: 'Record stock arriving from suppliers',
+  customerReturn: 'Record goods returned by shops',
+  damageClaim: 'Record damaged stock written off',
+  stockTransfer: 'Record stock moved between warehouses',
+  stockCount: 'Record stock-count corrections',
+  expense: 'Record expenses',
+  payroll: 'Record salaries',
+};
+
+export async function listPostingSwitches(): Promise<
+  { event: string; label: string; enabled: boolean }[]
+> {
+  const settings = await FinanceSettingsModel.findOne({ key: 'singleton' })
+    .select('postingEnabled')
+    .lean()
+    .exec();
+  const map = (settings?.postingEnabled ?? {}) as unknown as Record<string, boolean>;
+
+  return POSTING_EVENT_KEYS.map((event) => ({
+    event,
+    label: EVENT_LABELS[event] ?? event,
+    enabled: map[event] === true,
+  }));
+}
+
+/**
+ * Turn one event's posting on or off.
+ *
+ * One at a time, deliberately. Switching everything on at once is the single riskiest thing
+ * anybody can do to this module: if the books then disagree with the warehouse there is no way
+ * to tell which of twelve events caused it. Turned on singly, with a night's reconciliation
+ * between each, the answer is always obvious.
+ */
+export async function togglePostingSwitch(
+  event: string,
+  enabled: boolean,
+  actorId?: string,
+): Promise<{ event: string; enabled: boolean }> {
+  if (!(POSTING_EVENT_KEYS as readonly string[]).includes(event)) {
+    throw badRequest(`"${event}" is not something this system posts.`);
+  }
+
+  const settings = await FinanceSettingsModel.findOne({ key: 'singleton' }).exec();
+  if (!settings) throw badRequest('Finance settings are missing. Run the chart of accounts seed.');
+
+  settings.postingEnabled.set(event, enabled);
+  if (actorId) settings.updatedBy = new Types.ObjectId(actorId);
+  await settings.save();
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'period',
+    entityId: event,
+    action: enabled ? 'status_changed' : 'status_changed',
+    meta: { postingEvent: event, enabled },
+  });
+
+  return { event, enabled };
+}
+
+/** Postings that could not be written, so somebody can see what the books are missing. */
+export async function listPostingFailures(includeResolved = false) {
+  const query = includeResolved ? {} : { resolvedAt: { $exists: false } };
+  const rows = await PostingFailureModel.find(query)
+    .sort({ lastAttemptAt: -1 })
+    .limit(200)
+    .lean()
+    .exec();
+
+  return rows.map((r) => ({
+    id: String(r._id),
+    event: r.event,
+    sourceType: r.sourceType,
+    sourceId: r.sourceId ? String(r.sourceId) : null,
+    lastError: r.lastError,
+    attempts: r.attempts,
+    lastAttemptAt: r.lastAttemptAt,
+    resolved: Boolean(r.resolvedAt),
+  }));
 }

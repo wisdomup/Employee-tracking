@@ -16,6 +16,7 @@ import styles from '../../styles/Finance.module.scss';
  */
 const TABS: { href: string; label: string; permission?: string; reportPrefix?: string }[] = [
   { href: '/finance/journal', label: 'Journal', permission: 'finance-journal:view' },
+  { href: '/finance/health', label: 'Health', reportPrefix: 'finance.health' },
   { href: '/finance/reports', label: 'Reports', reportPrefix: 'finance.' },
   { href: '/finance/chart', label: 'Chart of Accounts', permission: 'finance-coa:view' },
   { href: '/finance/periods', label: 'Periods', permission: 'finance-period:view' },

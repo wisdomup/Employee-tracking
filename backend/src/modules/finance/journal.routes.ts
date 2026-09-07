@@ -11,6 +11,7 @@ import {
   closePeriodSchema,
   reopenPeriodSchema,
   lockThroughSchema,
+  setPostingSwitchSchema,
 } from './dto/journal.schemas';
 import * as journal from './journal.controller';
 
@@ -442,5 +443,98 @@ router.post(
  *       200: { description: "{ checked, drifted }" }
  */
 router.post('/reconcile', requirePermission('finance-coa:change'), journal.reconcile);
+
+// ---------------------------------------------------------------------------
+// Finance health
+// ---------------------------------------------------------------------------
+
+/**
+ * @openapi
+ * /api/finance/health/controls:
+ *   get:
+ *     tags: [Finance — Health]
+ *     summary: Does the ledger still agree with the records behind it
+ *     description: >
+ *       Every control account proved against the operational figures. Returns the last recorded
+ *       run; pass refresh=true to re-run now. A failing check blocks the month from closing.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: refresh, schema: { type: boolean } }
+ *     responses:
+ *       200: { description: Control check results }
+ */
+router.get('/health/controls', requireReport('finance.health'), journal.controlChecks);
+
+/**
+ * @openapi
+ * /api/finance/health/controls/{checkId}/history:
+ *   get:
+ *     tags: [Finance — Health]
+ *     summary: When this check was last seen agreeing
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: checkId, required: true, schema: { type: string } }
+ *       - { in: query, name: days, schema: { type: integer } }
+ *     responses:
+ *       200: { description: Drift history }
+ */
+router.get('/health/controls/:checkId/history', requireReport('finance.health'), journal.controlHistory);
+
+/**
+ * @openapi
+ * /api/finance/health/posting-switches:
+ *   get:
+ *     tags: [Finance — Health]
+ *     summary: Which events post to the ledger by themselves
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Events with their state }
+ */
+router.get('/health/posting-switches', requirePermission('finance-period:view'), journal.postingSwitches);
+
+/**
+ * @openapi
+ * /api/finance/health/posting-switches/{event}:
+ *   patch:
+ *     tags: [Finance — Health]
+ *     summary: Turn one event on or off
+ *     description: >
+ *       One at a time, deliberately. Switching everything on at once means that if the books
+ *       later disagree with the warehouse, there is no way to tell which event caused it.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: event, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: The new state }
+ */
+router.patch('/health/posting-switches/:event', requirePermission('finance-period:change'), validate(setPostingSwitchSchema), journal.setPostingSwitch);
+
+/**
+ * @openapi
+ * /api/finance/health/failed-postings:
+ *   get:
+ *     tags: [Finance — Health]
+ *     summary: Postings the system could not write
+ *     description: >
+ *       Recorded rather than thrown, so a ledger misconfiguration can never refuse a delivery.
+ *       Anything listed here is missing from the books until it is retried.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Failures }
+ */
+router.get('/health/failed-postings', requirePermission('finance-period:view'), journal.failedPostings);
+
+/**
+ * @openapi
+ * /api/finance/health/failed-postings/retry:
+ *   post:
+ *     tags: [Finance — Health]
+ *     summary: Retry every failed posting
+ *     description: Safe at any time — every posting is idempotent by key.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Retry result }
+ */
+router.post('/health/failed-postings/retry', requirePermission('finance-period:change'), journal.retryPostings);
 
 export default router;

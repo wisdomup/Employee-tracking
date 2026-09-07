@@ -390,3 +390,88 @@ export const journalService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Finance health
+// ---------------------------------------------------------------------------
+
+export interface ControlCheck {
+  checkId: string;
+  label: string;
+  ledgerCode: string;
+  ledgerBalance: number;
+  operationalValue: number;
+  drift: number;
+  ok: boolean;
+  breakdown: Record<string, number>;
+  note?: string;
+}
+
+export interface PostingSwitch {
+  event: string;
+  label: string;
+  enabled: boolean;
+}
+
+export interface PostingFailure {
+  id: string;
+  event: string;
+  sourceType: string;
+  sourceId: string | null;
+  lastError: string;
+  attempts: number;
+  lastAttemptAt: string;
+  resolved: boolean;
+}
+
+export const healthService = {
+  async controls(refresh = false): Promise<{
+    day: string;
+    checks: ControlCheck[];
+    ok: boolean;
+    failing: number;
+  }> {
+    const response = await api.get(`/finance/health/controls${refresh ? '?refresh=true' : ''}`);
+    return response.data;
+  },
+
+  async history(checkId: string, days = 30) {
+    const response = await api.get(
+      `/finance/health/controls/${checkId}/history?days=${days}`,
+    );
+    return response.data;
+  },
+
+  async switches(): Promise<PostingSwitch[]> {
+    const response = await api.get('/finance/health/posting-switches');
+    return response.data;
+  },
+
+  async setSwitch(event: string, enabled: boolean) {
+    const response = await api.patch(`/finance/health/posting-switches/${event}`, { enabled });
+    return response.data;
+  },
+
+  async failures(includeResolved = false): Promise<PostingFailure[]> {
+    const response = await api.get(
+      `/finance/health/failed-postings${includeResolved ? '?includeResolved=true' : ''}`,
+    );
+    return response.data;
+  },
+
+  async retryFailures(): Promise<{ retried: number; recovered: number }> {
+    const response = await api.post('/finance/health/failed-postings/retry');
+    return response.data;
+  },
+};
+
+/** Write off a rider cash shortfall. Lives on the collections API, gated on finance-writeoff. */
+export async function writeOffRiderCash(body: {
+  riderId: string;
+  mode: 'cash' | 'online';
+  amount: number;
+  reason: string;
+}) {
+  const response = await api.post('/collections/settlements/write-off', body);
+  return response.data;
+}

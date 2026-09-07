@@ -388,6 +388,7 @@ export const REPORTS: readonly ReportDefinition[] = [
   { id: 'finance.trial-balance',    label: 'Trial Balance',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/trial-balance' },
   { id: 'finance.ledger-statement', label: 'Ledger Statement', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/ledger-statement' },
   { id: 'finance.day-book',         label: 'Day Book',         surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/day-book' },
+  { id: 'finance.health',           label: 'Finance Health',   surface: REPORT_SURFACES.FINANCE, path: '/finance/health' },
 ];
 
 const REPORT_BY_ID = new Map(REPORTS.map((r) => [r.id, r]));

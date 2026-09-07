@@ -4,6 +4,7 @@ import {
   reconcileLedgerBalances,
 } from '../modules/finance/posting.service';
 import { retryFailedPostings } from '../modules/finance/sales-posting.service';
+import { runControlReconciliation } from '../modules/finance/control-reconciliation.service';
 
 /**
  * Nightly proof that every cached ledger balance still equals the lines it came from.
@@ -51,6 +52,23 @@ export function startLedgerReconcileCron(): void {
           console.log(
             `[ledger-reconcile-cron] Retried ${retried.retried} failed posting(s), `
               + `${retried.recovered} recovered`,
+          );
+        }
+
+        // The control checks: does the ledger agree with the warehouse, the collections module
+        // and the settlements. Run after the retries, so a posting that just recovered is
+        // counted rather than reported as drift.
+        const controls = await runControlReconciliation();
+        if (controls.ok) {
+          console.log(`[ledger-reconcile-cron] ${controls.checks.length} control checks agree`);
+        } else {
+          console.error(
+            `[ledger-reconcile-cron] ${controls.failing} control account(s) disagree with the `
+              + 'records behind them. The month cannot be closed until this is resolved:\n'
+              + controls.checks
+                .filter((c) => !c.ok)
+                .map((c) => `  ${c.ledgerCode} ${c.label}: ledger ${c.ledgerBalance}, records ${c.operationalValue}, out by ${c.drift}`)
+                .join('\n'),
           );
         }
 

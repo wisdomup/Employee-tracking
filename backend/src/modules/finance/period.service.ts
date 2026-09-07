@@ -17,6 +17,7 @@ import {
   periodsInFiscalYear,
   round2,
 } from './finance.rules';
+import { failingControls } from './control-reconciliation.service';
 
 /**
  * Accounting periods: which months accept postings, and what it takes to close one.
@@ -223,14 +224,27 @@ export async function closeChecks(period: string): Promise<CloseCheck[]> {
         + 'This should be impossible; it means something wrote to the ledger outside the posting service.',
   });
 
-  // The control-account reconciliation is a later step. Named here, and reported as pending
-  // rather than silently passing, so nobody reads a green close as more assurance than it is.
+  /*
+   * The control accounts must agree with the records behind them.
+   *
+   * This is the check the whole module exists for. Signing a month off against a receivable that
+   * disagrees with what the collections module says shops owe, or an inventory figure that
+   * disagrees with the warehouse, is exactly the outcome a ledger is supposed to prevent.
+   *
+   * Deliberately blocking rather than advisory. A warning at close is a warning that gets
+   * clicked past every month until the difference is a year old.
+   */
+  const failing = await failingControls();
   checks.push({
-    name: 'Control accounts reconcile',
-    ok: true,
+    name: 'Control accounts agree with the records behind them',
+    ok: failing.length === 0,
     detail:
-      'Not yet checked — automatic posting is off, so no control account has a balance to prove. '
-      + 'This becomes a blocking check once posting is switched on.',
+      failing.length === 0
+        ? 'Receivables, rider cash and stock all match their operational records.'
+        : failing
+          .map((c) => `${c.label} is out by ${round2(Math.abs(c.drift))} (account ${c.ledgerCode}).`)
+          .join(' ')
+          + ' Find the cause before closing — the ledger and the records disagree.',
   });
 
   return checks;
