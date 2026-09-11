@@ -957,3 +957,211 @@ export const paymentService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------------
+
+export type ExpenseStatus = 'draft' | 'pending_approval' | 'rejected' | 'posted' | 'cancelled';
+
+export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {
+  draft: 'Draft',
+  pending_approval: 'Waiting for approval',
+  rejected: 'Sent back',
+  posted: 'Posted',
+  cancelled: 'Cancelled',
+};
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  ledgerId: string;
+  ledgerCode: string;
+  ledgerName: string;
+  /** Every expense in the category waits for a second person. */
+  requiresApproval: boolean;
+  /** Expenses above this wait for approval even if the category otherwise goes straight through. */
+  approvalAbove: number | null;
+  requiresReceipt: boolean;
+  isActive: boolean;
+  notes?: string;
+  expenseCount: number;
+}
+
+export interface ExpenseCategoryInput {
+  name?: string;
+  ledgerId?: string;
+  requiresApproval?: boolean;
+  approvalAbove?: number | null;
+  requiresReceipt?: boolean;
+  isActive?: boolean;
+  notes?: string;
+}
+
+export interface Expense {
+  id: string;
+  expenseNo?: number;
+  /** `E-0001`, or the word Draft. The number is used only when the expense posts. */
+  reference: string;
+  categoryId: string;
+  categoryName: string;
+  ledgerId: string;
+  ledgerCode: string;
+  ledgerName: string;
+  expenseDate: string;
+  description: string;
+  payeeName?: string;
+  vendorId?: string;
+  vendorName?: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  cityKey?: string;
+  amount: number;
+  taxAmount: number;
+  totalAmount: number;
+  method: PaymentMethod;
+  paidFromLedgerId: string;
+  paidFromName: string;
+  chequeNo?: string;
+  chequeDate?: string;
+  chequeClearedAt?: string;
+  isChequeUncleared: boolean;
+  transferReference?: string;
+  attachments: string[];
+  status: ExpenseStatus;
+  /** Why it has to wait for approval, in words — or null when it goes straight through. */
+  approvalNeeded: string | null;
+  receiptRequired: boolean;
+  submittedAt?: string;
+  submittedBy?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  journalEntryId?: string;
+  cancelReason?: string;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface ExpenseInput {
+  categoryId: string;
+  expenseDate: string;
+  description: string;
+  amount: number;
+  taxAmount?: number;
+  method: PaymentMethod;
+  paidFromLedgerId: string;
+  chequeNo?: string;
+  chequeDate?: string;
+  transferReference?: string;
+  vendorId?: string;
+  payeeName?: string;
+  warehouseId?: string;
+  attachments?: string[];
+  notes?: string;
+}
+
+export interface ExpenseSummary {
+  rows: {
+    categoryId: string;
+    categoryName: string;
+    count: number;
+    amount: number;
+    taxAmount: number;
+  }[];
+  amount: number;
+  taxAmount: number;
+  count: number;
+}
+
+export const expenseCategoryService = {
+  async list(status: 'active' | 'inactive' | 'all' = 'active'): Promise<ExpenseCategory[]> {
+    const response = await api.get(`/finance/expense-categories?status=${status}`);
+    return response.data;
+  },
+
+  async create(data: ExpenseCategoryInput): Promise<ExpenseCategory> {
+    const response = await api.post('/finance/expense-categories', data);
+    return response.data;
+  },
+
+  async update(id: string, data: ExpenseCategoryInput): Promise<ExpenseCategory> {
+    const response = await api.put(`/finance/expense-categories/${id}`, data);
+    return response.data;
+  },
+};
+
+export const expenseService = {
+  async list(filters: {
+    status?: string;
+    categoryId?: string;
+    method?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    unclearedCheques?: boolean;
+  } = {}): Promise<Expense[]> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') params.append(k, String(v));
+    });
+    const response = await api.get(`/finance/expenses?${params.toString()}`);
+    return response.data;
+  },
+
+  async summary(range: { from?: string; to?: string } = {}): Promise<ExpenseSummary> {
+    const params = new URLSearchParams();
+    if (range.from) params.append('from', range.from);
+    if (range.to) params.append('to', range.to);
+    const response = await api.get(`/finance/expenses/summary?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<Expense> {
+    const response = await api.get(`/finance/expenses/${id}`);
+    return response.data;
+  },
+
+  async create(data: ExpenseInput): Promise<Expense> {
+    const response = await api.post('/finance/expenses', data);
+    return response.data;
+  },
+
+  async update(id: string, data: ExpenseInput): Promise<Expense> {
+    const response = await api.put(`/finance/expenses/${id}`, data);
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/expenses/${id}`);
+    return response.data;
+  },
+
+  /** Posts it now, or queues it for approval — the category decides which. */
+  async submit(id: string): Promise<Expense> {
+    const response = await api.patch(`/finance/expenses/${id}/submit`);
+    return response.data;
+  },
+
+  async approve(id: string): Promise<Expense> {
+    const response = await api.patch(`/finance/expenses/${id}/approve`);
+    return response.data;
+  },
+
+  async reject(id: string, reason: string): Promise<Expense> {
+    const response = await api.patch(`/finance/expenses/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  async cancel(id: string, reason: string): Promise<Expense> {
+    const response = await api.patch(`/finance/expenses/${id}/cancel`, { reason });
+    return response.data;
+  },
+
+  async clearCheque(id: string, clearedOn: string): Promise<Expense> {
+    const response = await api.patch(`/finance/expenses/${id}/clear-cheque`, { clearedOn });
+    return response.data;
+  },
+};
