@@ -556,6 +556,38 @@ async function main(): Promise<void> {
     assert.equal(grni.ok, true);
   });
 
+  await test('two bills posted at the same moment cannot both clear one delivery', async () => {
+    // Each would pass its own check, because neither can see the other yet. The lock on the
+    // receipt is what stops the second — whether it arrives mid-post or just after.
+    const contested = await makeReceipt(acmeId, 1000);
+    const drafts = await Promise.all(
+      ['RACE-1', 'RACE-2'].map((no) =>
+        bills.createBill(
+          {
+            vendorId: acme.id,
+            supplierBillNo: no,
+            billDate: new Date(),
+            matchedReceipts: [{ receiptId: String(contested._id) }],
+          },
+          String(ACTOR),
+        ),
+      ),
+    );
+
+    const results = await Promise.allSettled(
+      drafts.map((d) => bills.postBill(d.id, String(ACTOR))),
+    );
+    assert.equal(
+      results.filter((r) => r.status === 'fulfilled').length,
+      1,
+      'both bills cleared the same goods',
+    );
+
+    const { checks } = await runControlReconciliation();
+    const grni = checks.find((c) => c.checkId === 'grni')!;
+    assert.equal(grni.ok, true, 'the clearing account went negative');
+  });
+
   await test('the engine resolved accounts by role, not by code', async () => {
     // Renaming or re-coding an account must not break posting — the whole reason the ledger map
     // exists. Proved by moving the code and posting again.

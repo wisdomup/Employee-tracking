@@ -9,6 +9,7 @@ import { OrderModel } from '../../models/order.model';
 import { ReturnModel } from '../../models/return.model';
 import { StockReceiptModel } from '../../models/stock-receipt.model';
 import { PurchaseBillModel } from '../../models/purchase-bill.model';
+import { SupplierPaymentModel } from '../../models/supplier-payment.model';
 import { ControlReconciliationModel } from '../../models/control-reconciliation.model';
 import { FinanceSettingsModel } from '../../models/finance-settings.model';
 import { localDayKey } from '../region-sales/region-sales.rules';
@@ -338,6 +339,46 @@ async function checkGoodsReceivedNotInvoiced(): Promise<ControlCheck | null> {
   );
 }
 
+/**
+ * What we owe suppliers.
+ *
+ * Accounts Payable is a control account, so nothing reaches it by hand: posted bills raise it and
+ * posted payments lower it, and nothing else touches it. Its balance must therefore be exactly
+ * one minus the other. A difference means a bill or payment was stamped without its entry, or an
+ * entry was written without its document.
+ *
+ * The opening balances raised at changeover will post here too. When that step lands they belong
+ * in the operational figure below, or this check goes red on the day the books open.
+ */
+async function checkAccountsPayable(): Promise<ControlCheck | null> {
+  const ledger = await balanceOfRole('apTrade');
+  if (!ledger) return null;
+
+  const [billed, paid] = await Promise.all([
+    PurchaseBillModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+    ]).exec(),
+    SupplierPaymentModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]).exec(),
+  ]);
+
+  const postedBills = round2(billed[0]?.total ?? 0);
+  const postedPayments = round2(paid[0]?.total ?? 0);
+
+  return makeCheck(
+    'ap-trade',
+    'What we owe suppliers',
+    ledger,
+    round2(postedBills - postedPayments),
+    { postedBills, postedPayments },
+    'Every posted supplier bill, less every posted payment. A difference means one of them was '
+      + 'recorded without its entry in the accounts.',
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
@@ -350,6 +391,7 @@ const CHECKS = [
   checkInTransit,
   checkOutForDelivery,
   checkGoodsReceivedNotInvoiced,
+  checkAccountsPayable,
 ];
 
 export interface ReconciliationResult {

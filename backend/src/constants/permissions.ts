@@ -194,6 +194,21 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Post a supplier bill to the accounts',
   },
   {
+    /*
+     * Releasing money is `change`, and the seed deliberately does NOT give it to whoever records
+     * bills.
+     *
+     * The fraud accounting controls exist for, more than any other, is one person entering an
+     * invoice from a supplier and then paying it. With bills and payments on separate rows, an
+     * accountant can prepare a payment down to the cheque number while a second person releases
+     * it — and a business with one finance person can still grant both to them, knowingly.
+     *
+     * Cancelling a posted payment is on `finance-reversal`, like every other undo.
+     */
+    id: 'finance-payments', label: 'Supplier Payments', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Release a supplier payment — post it to the accounts',
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',

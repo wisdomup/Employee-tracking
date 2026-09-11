@@ -393,6 +393,13 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-bills:delete',
       'finance-bills:change',
 
+      // Payments: prepared in full, down to the cheque number, but NOT released. Entering a
+      // supplier's invoice and paying it are held apart on purpose — see `finance-payments`.
+      'finance-payments:view',
+      'finance-payments:add',
+      'finance-payments:edit',
+      'finance-payments:delete',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 
@@ -447,6 +454,13 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-bills:edit',
       'finance-bills:delete',
       'finance-bills:change',
+
+      // Releasing payments is theirs. The accountant prepares a payment; this role posts it.
+      'finance-payments:view',
+      'finance-payments:add',
+      'finance-payments:edit',
+      'finance-payments:delete',
+      'finance-payments:change',
 
       'finance-period:view',
       'finance-period:change',

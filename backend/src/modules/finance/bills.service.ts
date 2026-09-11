@@ -9,6 +9,8 @@ import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextFinanceNo } from './finance-counters';
 import { round2, MONEY_EPSILON, buildIdempotencyKey } from './finance.rules';
 import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
+import { withFinanceLocks } from './finance-locks';
+import { paidByBill, paymentsForBill, BillPaymentLine } from './payments.service';
 
 /**
  * Supplier bills, and the matching of them to goods already received.
@@ -415,6 +417,8 @@ async function assertNotDuplicate(
 // Reads
 // ---------------------------------------------------------------------------
 
+export type BillPaymentStatus = 'unpaid' | 'part_paid' | 'paid';
+
 export interface BillView {
   id: string;
   billNo?: number;
@@ -430,13 +434,31 @@ export interface BillView {
   totalAmount: number;
   status: 'draft' | 'posted' | 'cancelled';
   receiptCount: number;
+  /** Settled by posted payments. Zero on a draft or a cancelled bill, which owe nothing. */
+  paidAmount: number;
+  outstanding: number;
+  /** Null unless posted — a draft or a cancelled bill is not owed, so it is not "unpaid" either. */
+  paymentStatus: BillPaymentStatus | null;
   isOverdue: boolean;
   journalEntryId?: string;
   notes?: string;
   createdAt: Date;
 }
 
-function toView(bill: IPurchaseBill, vendorName: string): BillView {
+function toView(bill: IPurchaseBill, vendorName: string, paid = 0): BillView {
+  const isPosted = bill.status === 'posted';
+  const paidAmount = isPosted ? round2(paid) : 0;
+  // Deliberately not clamped at zero. A negative figure here would mean a bill was settled
+  // beyond its total, which the locks exist to prevent — and hiding it would hide that they failed.
+  const outstanding = isPosted ? round2(bill.totalAmount - paidAmount) : 0;
+
+  let paymentStatus: BillPaymentStatus | null = null;
+  if (isPosted) {
+    if (outstanding <= MONEY_EPSILON) paymentStatus = 'paid';
+    else if (paidAmount > MONEY_EPSILON) paymentStatus = 'part_paid';
+    else paymentStatus = 'unpaid';
+  }
+
   return {
     id: String(bill._id),
     billNo: bill.billNo,
@@ -452,9 +474,13 @@ function toView(bill: IPurchaseBill, vendorName: string): BillView {
     totalAmount: round2(bill.totalAmount),
     status: bill.status,
     receiptCount: bill.matchedReceipts.length,
-    // Only a posted bill can be overdue. A draft owes nobody anything yet, and colouring it red
-    // would send somebody chasing a payment that was never agreed.
-    isOverdue: bill.status === 'posted' && bill.dueDate.getTime() < Date.now(),
+    paidAmount,
+    outstanding,
+    paymentStatus,
+    // Overdue means money still owed past the date it was due. A bill paid in full is not
+    // overdue however old it is, and a draft owes nobody anything yet — colouring either red
+    // would send somebody chasing a payment that is not owed.
+    isOverdue: isPosted && outstanding > MONEY_EPSILON && bill.dueDate.getTime() < Date.now(),
     journalEntryId: bill.journalEntryId ? String(bill.journalEntryId) : undefined,
     notes: bill.notes,
     createdAt: bill.createdAt,
@@ -501,13 +527,26 @@ export async function listBills(filters: BillFilters = {}): Promise<BillView[]> 
     .limit(500)
     .exec();
 
-  const vendors = await VendorModel.find({ _id: { $in: bills.map((b) => b.vendorId) } })
-    .select('_id name')
-    .lean()
-    .exec();
+  const [vendors, paid] = await Promise.all([
+    VendorModel.find({ _id: { $in: bills.map((b) => b.vendorId) } })
+      .select('_id name')
+      .lean()
+      .exec(),
+    paidByBill(bills.filter((b) => b.status === 'posted').map((b) => b._id)),
+  ]);
   const nameById = new Map(vendors.map((v) => [String(v._id), v.name]));
 
-  return bills.map((b) => toView(b, nameById.get(String(b.vendorId)) ?? 'Unknown supplier'));
+  const views = bills.map((b) =>
+    toView(
+      b,
+      nameById.get(String(b.vendorId)) ?? 'Unknown supplier',
+      paid.get(String(b._id)) ?? 0,
+    ),
+  );
+
+  // The query narrowed to posted bills past their due date. One of those paid in full is past
+  // due but not overdue, and it is taken out here, where what has been paid is finally known.
+  return filters.overdue ? views.filter((v) => v.isOverdue) : views;
 }
 
 export interface BillDetail extends BillView {
@@ -526,6 +565,8 @@ export interface BillDetail extends BillView {
     ledgerName: string;
     amount: number;
   }[];
+  /** The posted payments that settled part of this bill, oldest first. */
+  payments: BillPaymentLine[];
   cancelReason?: string;
 }
 
@@ -535,7 +576,7 @@ export async function getBill(id: string): Promise<BillDetail> {
   const bill = await PurchaseBillModel.findById(id).exec();
   if (!bill) throw notFound('Bill not found');
 
-  const [vendor, receipts, ledgers] = await Promise.all([
+  const [vendor, receipts, ledgers, paid, payments] = await Promise.all([
     VendorModel.findById(bill.vendorId).select('name').lean().exec(),
     StockReceiptModel.find({ _id: { $in: bill.matchedReceipts.map((m) => m.receiptId) } })
       .select('_id documentNo receiptDate supplierName totalAmount')
@@ -545,13 +586,16 @@ export async function getBill(id: string): Promise<BillDetail> {
       .select('_id code name')
       .lean()
       .exec(),
+    paidByBill([bill._id]),
+    paymentsForBill(id),
   ]);
 
   const receiptById = new Map(receipts.map((r) => [String(r._id), r]));
   const ledgerById = new Map(ledgers.map((l) => [String(l._id), l]));
 
   return {
-    ...toView(bill, vendor?.name ?? 'Unknown supplier'),
+    ...toView(bill, vendor?.name ?? 'Unknown supplier', paid.get(String(bill._id)) ?? 0),
+    payments,
     cancelReason: bill.cancelReason,
     matchedReceipts: bill.matchedReceipts.map((m) => {
       const receipt = receiptById.get(String(m.receiptId));
@@ -692,10 +736,36 @@ export async function deleteBill(id: string, actorId?: string): Promise<{ messag
  * idempotency key — which finds the entry already there and returns it untouched rather than
  * writing a second one. Stamping first would leave the opposite: a bill that says it posted with
  * nothing in the accounts behind it, which nothing would ever detect.
+ *
+ * ## Why it holds locks
+ *
+ * Two bills posted at the same moment against the same delivery would each see it unbilled and
+ * each clear it — the one failure in this module that silently drives GRNI negative. Holding
+ * `receipt:<id>` for every delivery on the bill refuses the second; pressed again, it meets the
+ * ordinary check that says the goods are already billed.
  */
 export async function postBill(id: string, actorId?: string): Promise<BillDetail> {
   if (!Types.ObjectId.isValid(id)) throw notFound('Bill not found');
 
+  const peek = await PurchaseBillModel.findById(id).select('matchedReceipts').lean().exec();
+  if (!peek) throw notFound('Bill not found');
+
+  const lockedReceipts = new Set(peek.matchedReceipts.map((m) => String(m.receiptId)));
+  const keys = [`bill:${id}`, ...[...lockedReceipts].map((r) => `receipt:${r}`)];
+
+  return withFinanceLocks(
+    keys,
+    () => postBillHoldingLocks(id, lockedReceipts, actorId),
+    'This bill, or one of the deliveries on it, is being worked on by somebody else right now. '
+      + 'Try again in a moment.',
+  );
+}
+
+async function postBillHoldingLocks(
+  id: string,
+  lockedReceipts: Set<string>,
+  actorId?: string,
+): Promise<BillDetail> {
   const bill = await PurchaseBillModel.findById(id).exec();
   if (!bill) throw notFound('Bill not found');
   if (bill.status === 'posted') return getBill(id);
@@ -724,6 +794,12 @@ export async function postBill(id: string, actorId?: string): Promise<BillDetail
     },
     { billId: id },
   );
+
+  // The draft was edited between reading which deliveries to lock and taking the locks. Posting
+  // anyway would clear a receipt nobody is holding — the race the locks exist to close.
+  if (prepared.matchedReceipts.some((m) => !lockedReceipts.has(String(m.receiptId)))) {
+    throw conflict('This bill changed while it was being posted. Open it again and post it.');
+  }
 
   const goodsTotal = round2(prepared.matchedReceipts.reduce((s, m) => s + m.amount, 0));
 
@@ -817,11 +893,34 @@ export async function cancelBill(
 ): Promise<BillDetail> {
   if (!Types.ObjectId.isValid(id)) throw notFound('Bill not found');
 
+  // Held against a payment being released on this bill at the same moment, which would otherwise
+  // land on a bill whose debt had just been reversed away.
+  return withFinanceLocks([`bill:${id}`], () => cancelBillHoldingLock(id, reason, actorId));
+}
+
+async function cancelBillHoldingLock(
+  id: string,
+  reason: string,
+  actorId?: string,
+): Promise<BillDetail> {
   const bill = await PurchaseBillModel.findById(id).exec();
   if (!bill) throw notFound('Bill not found');
   if (bill.status === 'cancelled') throw conflict('This bill has already been cancelled.');
   if (bill.status !== 'posted') {
     throw badRequest('This bill was never posted. Delete the draft instead of cancelling it.');
+  }
+
+  /*
+   * A bill with payments standing against it cannot be cancelled. Reversing it would take the
+   * debt out of Accounts Payable while the payments that settled it stayed — the supplier would
+   * then look paid for nothing, and appear to owe the money back.
+   */
+  const paid = (await paidByBill([bill._id])).get(String(bill._id)) ?? 0;
+  if (paid > MONEY_EPSILON) {
+    throw badRequest(
+      `${paid.toFixed(2)} has been paid against this bill. Cancel those payments first — `
+        + 'cancelling the bill while they stand would leave them paying for nothing.',
+    );
   }
 
   if (bill.journalEntryId) {

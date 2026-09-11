@@ -2,6 +2,8 @@ import { Types } from 'mongoose';
 import { VendorModel, IVendor } from '../../models/vendor.model';
 import { StockReceiptModel } from '../../models/stock-receipt.model';
 import { LedgerModel } from '../../models/ledger.model';
+import { JournalLineModel } from '../../models/journal-line.model';
+import { FinanceSettingsModel } from '../../models/finance-settings.model';
 import { badRequest, conflict, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextFinanceNo } from './finance-counters';
@@ -32,6 +34,14 @@ export interface VendorView {
   /** Goods receipts linked to this supplier, and what they came to. */
   receiptCount: number;
   receiptValue: number;
+  /**
+   * What is owed to this supplier right now, read from their share of Accounts Payable.
+   *
+   * From the LEDGER, not from bills minus payments, so a payment made on account — before any
+   * invoice arrived, or as a round sum — already counts. Negative means they owe us: an advance
+   * that has not been used up yet.
+   */
+  payableBalance: number;
 }
 
 interface VendorData {
@@ -57,6 +67,7 @@ export function vendorReference(code: number): string {
 function toView(
   vendor: VendorData,
   stats?: { count: number; value: number },
+  payable?: number,
 ): VendorView {
   return {
     id: String(vendor._id),
@@ -74,7 +85,45 @@ function toView(
     notes: vendor.notes,
     receiptCount: stats?.count ?? 0,
     receiptValue: round2(stats?.value ?? 0),
+    payableBalance: round2(payable ?? 0),
   };
+}
+
+/**
+ * Each supplier's share of Accounts Payable, summed from the posting lines.
+ *
+ * Reversed lines are counted alongside posted ones, on purpose. A reversal leaves the original
+ * lines in place marked `reversed` and writes opposite lines of its own, so the pair only nets to
+ * zero when both are counted — which is how the trial balance sums them too. Counting `posted`
+ * alone would treat a cancelled bill's reversal as a payment nobody made.
+ *
+ * Returns nothing when the payables account is not mapped yet, rather than failing the list: a
+ * fresh install still has to be able to show its suppliers.
+ */
+async function payableByVendor(ids: Types.ObjectId[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+
+  const settings = await FinanceSettingsModel.findOne({ key: 'singleton' })
+    .select('ledgerMap')
+    .lean()
+    .exec();
+  const map = settings?.ledgerMap as unknown as Record<string, Types.ObjectId> | undefined;
+  if (!map?.apTrade) return new Map();
+
+  const rows = await JournalLineModel.aggregate<{ _id: Types.ObjectId; owed: number }>([
+    {
+      $match: {
+        ledgerId: new Types.ObjectId(String(map.apTrade)),
+        status: { $in: ['posted', 'reversed'] },
+        'subledgerRef.type': 'vendor',
+        'subledgerRef.id': { $in: ids },
+      },
+    },
+    // A payable is a credit balance, so what is owed is credits less debits.
+    { $group: { _id: '$subledgerRef.id', owed: { $sum: { $subtract: ['$credit', '$debit'] } } } },
+  ]).exec();
+
+  return new Map(rows.map((r) => [String(r._id), round2(r.owed)]));
 }
 
 export async function listVendors(
@@ -96,16 +145,26 @@ export async function listVendors(
   }
 
   const vendors = await VendorModel.find(query).sort({ name: 1 }).lean().exec();
-  const stats = await receiptStatsByVendor(vendors.map((v) => v._id));
+  const ids = vendors.map((v) => v._id);
+  const [stats, payables] = await Promise.all([receiptStatsByVendor(ids), payableByVendor(ids)]);
 
-  return vendors.map((v) => toView(v as VendorData, stats.get(String(v._id))));
+  return vendors.map((v) =>
+    toView(v as VendorData, stats.get(String(v._id)), payables.get(String(v._id))),
+  );
 }
 
 export async function getVendor(id: string): Promise<VendorView> {
   const vendor = await VendorModel.findById(id).lean().exec();
   if (!vendor) throw notFound('Supplier not found');
-  const stats = await receiptStatsByVendor([vendor._id]);
-  return toView(vendor as VendorData, stats.get(String(vendor._id)));
+  const [stats, payables] = await Promise.all([
+    receiptStatsByVendor([vendor._id]),
+    payableByVendor([vendor._id]),
+  ]);
+  return toView(
+    vendor as VendorData,
+    stats.get(String(vendor._id)),
+    payables.get(String(vendor._id)),
+  );
 }
 
 /** How much has been received from each supplier. One aggregation, not one query per vendor. */
