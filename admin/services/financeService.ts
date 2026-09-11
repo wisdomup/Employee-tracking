@@ -845,6 +845,10 @@ export interface Payment {
   paidFromName: string;
   chequeNo?: string;
   chequeDate?: string;
+  /** The day the cheque showed on the bank statement. */
+  chequeClearedAt?: string;
+  /** A released cheque that has not shown on the bank statement yet. */
+  isChequeUncleared: boolean;
   transferReference?: string;
   amount: number;
   allocatedAmount: number;
@@ -883,6 +887,15 @@ export interface PaymentInput {
 }
 
 export const paymentService = {
+  /**
+   * Record that a cheque showed on the bank statement. `clearedOn` is the statement date, which
+   * is when the bank balance actually moves.
+   */
+  async clearCheque(id: string, clearedOn: string): Promise<PaymentDetail> {
+    const response = await api.patch(`/finance/payments/${id}/clear-cheque`, { clearedOn });
+    return response.data;
+  },
+
   async list(filters: {
     vendorId?: string;
     status?: string;
@@ -890,6 +903,8 @@ export const paymentService = {
     from?: string;
     to?: string;
     search?: string;
+    /** Released cheques not yet on the bank statement. */
+    unclearedCheques?: boolean;
   } = {}): Promise<Payment[]> {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => {

@@ -13,8 +13,17 @@ export async function list(req: Request, res: Response, next: NextFunction) {
         from: q.from,
         to: q.to,
         search: q.search,
+        unclearedCheques: q.unclearedCheques === 'true',
       }),
     );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function clearCheque(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await payments.clearCheque(req.params.id, req.body.clearedOn, req.user!.userId));
   } catch (err) {
     next(err);
   }

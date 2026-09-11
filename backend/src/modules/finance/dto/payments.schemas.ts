@@ -73,3 +73,11 @@ export const cancelPaymentSchema = Joi.object({
     'string.empty': 'Say why this payment is being cancelled.',
   }),
 });
+
+/** The day the cheque showed on the bank statement — which is the date the bank moves on. */
+export const clearChequeSchema = Joi.object({
+  clearedOn: Joi.date().required().messages({
+    'any.required': 'Say which day the cheque cleared on the bank statement.',
+    'date.base': 'Say which day the cheque cleared on the bank statement.',
+  }),
+});

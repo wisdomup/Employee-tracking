@@ -485,6 +485,52 @@ async function main(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------
+  // Cheques clearing
+  // -------------------------------------------------------------------------
+
+  await test('uncleared cheques can be listed on their own', async () => {
+    const uncleared = await payments.listPayments({ unclearedCheques: true });
+    assert.deepEqual(uncleared.map((p) => p.id), [chequePaymentId]);
+    assert.equal(uncleared[0].isChequeUncleared, true);
+  });
+
+  await test('only a cheque clears', async () => {
+    await rejectsWith(payments.clearCheque(bankPaymentId, now, ACTOR), /Only a cheque clears/);
+  });
+
+  await test('a cheque cannot clear before it was written', async () => {
+    await rejectsWith(
+      payments.clearCheque(chequePaymentId, new Date(now.getTime() - 2 * DAY), ACTOR),
+      /cannot clear before it was written/,
+    );
+  });
+
+  await test('clearing a cheque moves it out of uncleared and into the bank', async () => {
+    const cleared = await payments.clearCheque(chequePaymentId, now, ACTOR);
+    assert.ok(cleared.chequeClearedAt, 'the clearing date was not recorded');
+    assert.equal(cleared.isChequeUncleared, false);
+
+    assert.equal(await balance('1125'), 0, 'the cheque is still held as uncleared');
+    assert.equal(await balance('1120'), -2500, 'the money did not leave the bank when it cleared');
+    assert.equal(await balance('2110'), 5300, 'clearing a cheque changed what the supplier is owed');
+
+    assert.equal((await payments.listPayments({ unclearedCheques: true })).length, 0);
+  });
+
+  await test('a cheque cannot clear twice', async () => {
+    await rejectsWith(payments.clearCheque(chequePaymentId, now, ACTOR), /already marked cleared/);
+  });
+
+  await test('a cheque that has cleared can no longer be cancelled', async () => {
+    // The money has left the bank. Reversing the payment would put it back in the books while
+    // the bank statement says it is gone.
+    await rejectsWith(
+      payments.cancelPayment(chequePaymentId, 'Changed our mind', ACTOR),
+      /has cleared/,
+    );
+  });
+
+  // -------------------------------------------------------------------------
   // Two payments at once
   // -------------------------------------------------------------------------
 

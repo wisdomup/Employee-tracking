@@ -11,6 +11,7 @@ import { LedgerModel } from '../../models/ledger.model';
 import { JournalEntryModel } from '../../models/journal-entry.model';
 import { badRequest, conflict, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
+import { localDayKey } from '../region-sales/region-sales.rules';
 import { allocateNextFinanceNo } from './finance-counters';
 import { round2, MONEY_EPSILON, buildIdempotencyKey } from './finance.rules';
 import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
@@ -446,6 +447,9 @@ export interface PaymentView {
   paidFromName: string;
   chequeNo?: string;
   chequeDate?: Date;
+  chequeClearedAt?: Date;
+  /** A released cheque that has not shown on the bank statement yet. */
+  isChequeUncleared: boolean;
   transferReference?: string;
   amount: number;
   allocatedAmount: number;
@@ -476,6 +480,9 @@ function toView(
     paidFromName,
     chequeNo: payment.chequeNo,
     chequeDate: payment.chequeDate,
+    chequeClearedAt: payment.chequeClearedAt,
+    isChequeUncleared:
+      payment.method === 'cheque' && payment.status === 'posted' && !payment.chequeClearedAt,
     transferReference: payment.transferReference,
     amount: round2(payment.amount),
     allocatedAmount,
@@ -495,6 +502,8 @@ export interface PaymentFilters {
   from?: string;
   to?: string;
   search?: string;
+  /** Released cheques not yet seen on the bank statement — the bank reconciliation worklist. */
+  unclearedCheques?: boolean;
 }
 
 export async function listPayments(filters: PaymentFilters = {}): Promise<PaymentView[]> {
@@ -505,6 +514,13 @@ export async function listPayments(filters: PaymentFilters = {}): Promise<Paymen
   }
   if (filters.status && filters.status !== 'all') query.status = filters.status;
   if (filters.method && PAYMENT_METHODS.includes(filters.method)) query.method = filters.method;
+
+  if (filters.unclearedCheques) {
+    query.method = 'cheque';
+    query.status = 'posted';
+    // Matches a field that was never set as well as one set to null.
+    query.chequeClearedAt = null;
+  }
 
   if (filters.from || filters.to) {
     const range: Record<string, Date> = {};
@@ -704,9 +720,8 @@ export async function deletePayment(id: string, actorId?: string): Promise<{ mes
  * ## Why it holds locks
  *
  * Two payments against the same invoice, posted at the same moment, would each see the whole
- * invoice unpaid and each settle it. Holding `bill:<id>` for every bill on the payment makes the
- * second one wait its turn — or, since nothing here waits, refuse and be pressed again, at which
- * point its validation sees the first payment and says the bill is already settled.
+ * invoice unpaid and each settle it. Holding `bill:<id>` for every bill on the payment refuses the
+ * second — pressed again, its validation sees the first payment and says the bill is settled.
  *
  * ## Order of operations
  *
@@ -848,6 +863,19 @@ export async function cancelPayment(
       throw badRequest('This payment was never posted. Delete the draft instead of cancelling it.');
     }
 
+    /*
+     * A cleared cheque is money that has left the bank. Reversing the payment would put the money
+     * back in the books while the bank statement says it is gone, and the bank would stop agreeing
+     * from that day on. What reverses a cleared payment is a refund from the supplier.
+     */
+    if (payment.chequeClearedAt) {
+      throw badRequest(
+        `Cheque ${payment.chequeNo} has cleared — the money has left the bank, so this payment can `
+          + 'no longer be cancelled. A refund from the supplier is not something this module '
+          + 'records yet.',
+      );
+    }
+
     if (payment.journalEntryId) {
       const entry = await JournalEntryModel.findById(payment.journalEntryId)
         .select('status')
@@ -872,6 +900,93 @@ export async function cancelPayment(
       entityId: id,
       action: 'cancelled',
       meta: { paymentNo: payment.paymentNo, amount: payment.amount, reason: reason.trim() },
+    });
+
+    return getPayment(id);
+  });
+}
+
+/**
+ * A cheque showed on the bank statement: move it out of uncleared and into the bank.
+ *
+ *     Dr  Cheques Issued, Uncleared
+ *         Cr  the bank account it was drawn on
+ *
+ * Dated the day it CLEARED, not the day it was written. The bank balance on any date has to match
+ * what the bank's own statement says for that date, and the statement moves on clearing.
+ *
+ * What the supplier is owed does not change here — that fell when the payment was released.
+ */
+export async function clearCheque(
+  id: string,
+  clearedOn: Date | string,
+  actorId?: string,
+): Promise<PaymentDetail> {
+  if (!Types.ObjectId.isValid(id)) throw notFound('Payment not found');
+
+  return withFinanceLocks([`payment:${id}`], async () => {
+    const payment = await SupplierPaymentModel.findById(id).exec();
+    if (!payment) throw notFound('Payment not found');
+
+    if (payment.method !== 'cheque') {
+      throw badRequest(
+        `Only a cheque clears. This payment was made ${METHOD_WORDS[payment.method]}, and left the `
+          + 'account the day it was released.',
+      );
+    }
+    if (payment.status !== 'posted') {
+      throw badRequest(`This payment is ${payment.status}. Only a released cheque can clear.`);
+    }
+    if (payment.chequeClearedAt) {
+      throw conflict(
+        `Cheque ${payment.chequeNo} was already marked cleared on `
+          + `${localDayKey(payment.chequeClearedAt)}.`,
+      );
+    }
+
+    const date = new Date(clearedOn);
+    if (Number.isNaN(date.getTime())) {
+      throw badRequest('Say which day the cheque cleared on the bank statement.');
+    }
+    // Compared as calendar days in the business's own timezone, so a cheque written late one
+    // evening and cleared the next morning is not refused because of the hours in between.
+    if (localDayKey(date) < localDayKey(payment.chequeDate ?? payment.paymentDate)) {
+      throw badRequest('A cheque cannot clear before it was written.');
+    }
+
+    const [vendor, chequesIssued] = await Promise.all([
+      VendorModel.findById(payment.vendorId).select('name').lean().exec(),
+      ledgerIdForRole('chequesIssued'),
+    ]);
+
+    const entry = await postEntry(
+      {
+        date,
+        narration: `Cheque ${payment.chequeNo} to ${vendor?.name ?? 'supplier'} cleared`,
+        referenceNo: payment.chequeNo,
+        sourceType: 'payment_made',
+        sourceId: id,
+        sourceModel: 'SupplierPayment',
+        idempotencyKey: buildIdempotencyKey('supplier_payment', id, 'cheque_cleared'),
+        lines: [
+          { ledgerId: chequesIssued, debit: payment.amount },
+          { ledgerId: String(payment.paidFromLedgerId), credit: payment.amount },
+        ],
+      },
+      actorId,
+    );
+
+    payment.chequeClearedAt = date;
+    payment.chequeClearedBy = actorId ? new Types.ObjectId(actorId) : undefined;
+    payment.clearingEntryId = entry._id;
+    await payment.save();
+
+    logActivityAsync({
+      employeeId: actorId,
+      module: 'payment',
+      entityId: id,
+      action: 'updated',
+      meta: { chequeNo: payment.chequeNo, chequeClearedOn: localDayKey(date) },
     });
 
     return getPayment(id);

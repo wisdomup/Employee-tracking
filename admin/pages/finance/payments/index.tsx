@@ -38,6 +38,7 @@ const PaymentsPage: React.FC = () => {
   const [method, setMethod] = useState('');
   const [vendorId, setVendorId] = useState('');
   const [search, setSearch] = useState('');
+  const [unclearedOnly, setUnclearedOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +49,7 @@ const PaymentsPage: React.FC = () => {
           method: method || undefined,
           vendorId: vendorId || undefined,
           search: search.trim() || undefined,
+          unclearedCheques: unclearedOnly || undefined,
         }),
       );
     } catch (error: any) {
@@ -55,7 +57,7 @@ const PaymentsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [status, method, vendorId, search]);
+  }, [status, method, vendorId, search, unclearedOnly]);
 
   useEffect(() => {
     load();
@@ -71,6 +73,8 @@ const PaymentsPage: React.FC = () => {
   const posted = payments.filter((p) => p.status === 'posted');
   const paidOut = posted.reduce((sum, p) => sum + p.amount, 0);
   const onAccount = posted.reduce((sum, p) => sum + p.unallocatedAmount, 0);
+  const uncleared = payments.filter((p) => p.isChequeUncleared);
+  const unclearedValue = uncleared.reduce((sum, p) => sum + p.amount, 0);
   const waiting = payments.filter((p) => p.status === 'draft');
 
   const columns = [
@@ -80,6 +84,7 @@ const PaymentsPage: React.FC = () => {
       render: (value: string, row: Payment) => (
         <div>
           <span className={styles.code}>{value}</span>
+          {row.isChequeUncleared && <span className={styles.flag}>Not cleared</span>}
           {(row.chequeNo || row.transferReference) && (
             <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
               {row.chequeNo ? `Cheque ${row.chequeNo}` : row.transferReference}
@@ -186,6 +191,12 @@ const PaymentsPage: React.FC = () => {
             <span className={styles.settingLabel}>Of which on account</span>
             <span className={styles.settingValue}>{money(onAccount)}</span>
           </div>
+          <div className={styles.settingCard}>
+            <span className={styles.settingLabel}>Cheques not yet cleared</span>
+            <span className={styles.settingValue}>
+              {uncleared.length ? `${uncleared.length} · ${money(unclearedValue)}` : '—'}
+            </span>
+          </div>
         </div>
 
         <div className={listStyles.listCard}>
@@ -216,6 +227,7 @@ const PaymentsPage: React.FC = () => {
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
                 aria-label="Paid by"
+                disabled={unclearedOnly}
               >
                 <option value="">Any method</option>
                 {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((m) => (
@@ -229,12 +241,21 @@ const PaymentsPage: React.FC = () => {
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 aria-label="Status"
+                disabled={unclearedOnly}
               >
                 <option value="all">Every status</option>
                 <option value="draft">Awaiting release</option>
                 <option value="posted">Paid</option>
                 <option value="cancelled">Cancelled</option>
               </select>
+              <label className={styles.settingLabel} style={{ display: 'flex', gap: '0.4rem' }}>
+                <input
+                  type="checkbox"
+                  checked={unclearedOnly}
+                  onChange={(e) => setUnclearedOnly(e.target.checked)}
+                />
+                Uncleared cheques only
+              </label>
             </div>
 
             <Table

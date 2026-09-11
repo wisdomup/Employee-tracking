@@ -6,6 +6,7 @@ import {
   createPaymentSchema,
   updatePaymentSchema,
   cancelPaymentSchema,
+  clearChequeSchema,
 } from './dto/payments.schemas';
 import * as payments from './payments.controller';
 
@@ -34,6 +35,7 @@ router.use(authMiddleware);
  *       - { in: query, name: from, schema: { type: string, format: date } }
  *       - { in: query, name: to, schema: { type: string, format: date } }
  *       - { in: query, name: search, schema: { type: string }, description: "Cheque number or transfer reference" }
+ *       - { in: query, name: unclearedCheques, schema: { type: boolean }, description: "Released cheques not yet on the bank statement" }
  *     responses:
  *       200: { description: Payments }
  */
@@ -155,19 +157,45 @@ router.patch('/payments/:id/post', requirePermission('finance-payments:change'),
 
 /**
  * @openapi
+ * /api/finance/payments/{id}/clear-cheque:
+ *   patch:
+ *     tags: [Finance — Payments]
+ *     summary: Record that a cheque has cleared on the bank statement
+ *     description: >
+ *       Moves the amount out of Cheques Issued, Uncleared and into the bank account the cheque
+ *       was drawn on, dated the day it cleared. What the supplier is owed does not change — that
+ *       fell when the payment was released.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: path, name: id, required: true, schema: { type: string } }
+ *     responses:
+ *       200: { description: Payment, with the clearing date }
+ *       400: { description: Not a released cheque, or dated before it was written }
+ *       409: { description: Already cleared }
+ */
+router.patch(
+  '/payments/:id/clear-cheque',
+  requirePermission('finance-payments:change'),
+  validate(clearChequeSchema),
+  payments.clearCheque,
+);
+
+/**
+ * @openapi
  * /api/finance/payments/{id}/cancel:
  *   patch:
  *     tags: [Finance — Payments]
  *     summary: Cancel a posted payment and reverse its entry
  *     description: >
  *       Guarded on the reversals row. The bills it settled become unpaid again on their own —
- *       what has been paid is derived from posted payments.
+ *       what has been paid is derived from posted payments. A cheque that has already cleared
+ *       cannot be cancelled: the money has left the bank.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - { in: path, name: id, required: true, schema: { type: string } }
  *     responses:
  *       200: { description: Cancelled payment }
- *       400: { description: The payment was never posted }
+ *       400: { description: The payment was never posted, or its cheque has cleared }
  *       409: { description: Already cancelled }
  */
 router.patch(

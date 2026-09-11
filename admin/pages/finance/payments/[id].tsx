@@ -145,6 +145,34 @@ const PaymentPage: React.FC = () => {
     }
   };
 
+  const clearCheque = async () => {
+    if (typeof id !== 'string' || !payment) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const clearedOn = window.prompt(
+      `Cheque ${payment.chequeNo} for ${money(payment.amount)} cleared on which day?\n\n`
+        + 'Use the date it shows on the bank statement (YYYY-MM-DD). The bank balance moves on '
+        + 'that date, not on the day the cheque was written.',
+      today,
+    );
+    if (clearedOn === null) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(clearedOn.trim())) {
+      toast.error('Enter the date as YYYY-MM-DD');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const updated = await paymentService.clearCheque(id, clearedOn.trim());
+      setPayment(updated);
+      toast.success(`Cheque ${updated.chequeNo} marked cleared`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Could not mark this cheque cleared');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const cancel = async () => {
     if (typeof id !== 'string' || !payment) return;
 
@@ -196,6 +224,7 @@ const PaymentPage: React.FC = () => {
   }
 
   const isDraft = payment.status === 'draft';
+  const isCheque = payment.method === 'cheque';
   const totals = paymentTotals(values);
   // The saved figures and the form's figures disagree until "Save" is pressed.
   const unsaved = JSON.stringify(paymentToPayload(values))
@@ -214,16 +243,28 @@ const PaymentPage: React.FC = () => {
         </div>
 
         {payment.status === 'posted' && (
-          <div className={`${finance.banner} ${finance.bannerOk}`}>
-            <span className={finance.bannerTitle}>Released</span>
+          <div
+            className={`${finance.banner} ${
+              payment.isChequeUncleared ? finance.bannerInfo : finance.bannerOk
+            }`}
+          >
+            <span className={finance.bannerTitle}>
+              {payment.isChequeUncleared ? 'Released — cheque not yet cleared' : 'Released'}
+            </span>
             {money(payment.amount)} paid to {payment.vendorName}.{' '}
             {payment.journalEntryId && (
               <a href={`/finance/journal/${payment.journalEntryId}`}>See the entry it wrote</a>
             )}
-            {payment.method === 'cheque' && (
+            {payment.isChequeUncleared && (
               <p className={finance.readonlyNote} style={{ marginBottom: 0 }}>
-                Held as an uncleared cheque. The bank balance moves when it clears on the
-                statement, not before.
+                The supplier is already owed less, but the bank balance has not moved. When the
+                cheque shows on the bank statement, mark it cleared with the statement date.
+              </p>
+            )}
+            {isCheque && payment.chequeClearedAt && (
+              <p className={finance.readonlyNote} style={{ marginBottom: 0 }}>
+                Cleared on {new Date(payment.chequeClearedAt).toLocaleDateString('en-PK')} — the
+                money left the bank that day.
               </p>
             )}
           </div>
@@ -297,18 +338,38 @@ const PaymentPage: React.FC = () => {
           <ReadOnlyPayment payment={payment} />
         )}
 
-        {payment.status === 'posted' && can(undefined, 'finance-reversal:change') && (
+        {payment.status === 'posted' && (
           <div className={styles.formActions}>
-            <button
-              type="button"
-              className={styles.cancelButton}
-              onClick={cancel}
-              disabled={busy}
-              style={{ color: '#b91c1c' }}
-            >
-              Cancel &amp; Reverse This Payment
-            </button>
+            {can(undefined, 'finance-reversal:change') && !payment.chequeClearedAt && (
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={cancel}
+                disabled={busy}
+                style={{ color: '#b91c1c' }}
+              >
+                Cancel &amp; Reverse This Payment
+              </button>
+            )}
+            {payment.isChequeUncleared && can(undefined, 'finance-payments:change') && (
+              <button
+                type="button"
+                className={styles.submitButton}
+                onClick={clearCheque}
+                disabled={busy}
+              >
+                Mark Cheque Cleared
+              </button>
+            )}
           </div>
+        )}
+
+        {payment.chequeClearedAt && can(undefined, 'finance-reversal:change') && (
+          <p className={finance.readonlyNote}>
+            This payment can no longer be cancelled — its cheque has cleared and the money has left
+            the bank. Reversing it would put money back in the books that the bank statement says
+            is gone.
+          </p>
         )}
       </div>
     </Layout>
@@ -338,6 +399,16 @@ const ReadOnlyPayment: React.FC<{ payment: PaymentDetail }> = ({ payment }) => (
         </span>
         <span className={finance.settingValue}>{payment.paidFromName}</span>
       </div>
+      {payment.method === 'cheque' && payment.status === 'posted' && (
+        <div className={finance.settingCard}>
+          <span className={finance.settingLabel}>Cleared</span>
+          <span className={finance.settingValue}>
+            {payment.chequeClearedAt
+              ? new Date(payment.chequeClearedAt).toLocaleDateString('en-PK')
+              : 'Not yet'}
+          </span>
+        </div>
+      )}
       {payment.transferReference && (
         <div className={finance.settingCard}>
           <span className={finance.settingLabel}>Reference</span>

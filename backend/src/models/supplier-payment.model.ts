@@ -19,7 +19,8 @@ import { Schema, model, Document, Types } from 'mongoose';
  * A cheque is not money leaving until it clears. Crediting the bank the day it is written is how
  * a system's bank balance stops matching the bank statement for the whole float period. So a
  * cheque credits `1125 Cheques Issued, Uncleared` instead, and `paidFromLedgerId` records which
- * bank account it is drawn on so bank reconciliation can clear it into that account later.
+ * bank account it is drawn on. When it shows on the statement, `chequeClearedAt` is set and a
+ * second entry moves it out of uncleared and into that bank account.
  */
 
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque';
@@ -45,12 +46,17 @@ export interface ISupplierPayment extends Document {
    * The cash or bank account the money comes out of.
    *
    * For a cheque, the bank account it is drawn on. The posting credits cheques-issued instead;
-   * this is kept for when the cheque clears.
+   * this is where the money finally leaves from when the cheque clears.
    */
   paidFromLedgerId: Types.ObjectId;
 
   chequeNo?: string;
   chequeDate?: Date;
+  /** The day the cheque showed on the bank statement. Unset until then. */
+  chequeClearedAt?: Date;
+  chequeClearedBy?: Types.ObjectId;
+  /** The entry that moved the cheque out of uncleared and into the bank. */
+  clearingEntryId?: Types.ObjectId;
   /** A bank transfer's reference, so it can be found on the statement. */
   transferReference?: string;
 
@@ -94,6 +100,9 @@ const supplierPaymentSchema = new Schema<ISupplierPayment>(
 
     chequeNo: { type: String, trim: true, maxlength: 40 },
     chequeDate: Date,
+    chequeClearedAt: Date,
+    chequeClearedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    clearingEntryId: { type: Schema.Types.ObjectId, ref: 'JournalEntry' },
     transferReference: { type: String, trim: true, maxlength: 100 },
 
     amount: { type: Number, required: true, min: 0 },
@@ -124,6 +133,8 @@ supplierPaymentSchema.index({ vendorId: 1, paymentDate: -1 });
 supplierPaymentSchema.index({ status: 1, paymentDate: -1 });
 /** "How much of this bill has been paid?" — asked by every bill view and every payment form. */
 supplierPaymentSchema.index({ 'allocations.billId': 1, status: 1 });
+/** The uncleared-cheque list, which bank reconciliation works through. */
+supplierPaymentSchema.index({ method: 1, status: 1, chequeClearedAt: 1 });
 
 /**
  * One cheque leaf, one payment.
