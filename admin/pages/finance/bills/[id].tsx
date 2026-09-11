@@ -16,7 +16,9 @@ import {
   financeService,
   vendorService,
   BillDetail,
+  BILL_PAYMENT_STATUS_LABELS,
   Ledger,
+  PAYMENT_METHOD_LABELS,
   Vendor,
 } from '../../../services/financeService';
 import styles from '../../../styles/FormPage.module.scss';
@@ -197,7 +199,9 @@ const BillPage: React.FC = () => {
   }
 
   const isDraft = bill.status === 'draft';
+  const isPosted = bill.status === 'posted';
   const totals = billTotals(values);
+  const hasPayments = bill.paidAmount > 0;
 
   return (
     <Layout>
@@ -211,11 +215,27 @@ const BillPage: React.FC = () => {
           </button>
         </div>
 
-        {bill.status === 'posted' && (
-          <div className={`${finance.banner} ${finance.bannerOk}`}>
-            <span className={finance.bannerTitle}>Posted to the accounts</span>
-            {money(bill.totalAmount)} is owed to {bill.vendorName}, due{' '}
-            {new Date(bill.dueDate).toLocaleDateString('en-PK')}.{' '}
+        {isPosted && (
+          <div
+            className={`${finance.banner} ${
+              bill.isOverdue ? finance.bannerBad : finance.bannerOk
+            }`}
+          >
+            <span className={finance.bannerTitle}>
+              {bill.paymentStatus === 'paid'
+                ? 'Posted, and paid in full'
+                : bill.isOverdue
+                  ? 'Posted, and past due'
+                  : 'Posted to the accounts'}
+            </span>
+            {bill.paymentStatus === 'paid' ? (
+              <>Nothing more is owed on this bill. </>
+            ) : (
+              <>
+                {money(bill.outstanding)} still owed to {bill.vendorName}, due{' '}
+                {new Date(bill.dueDate).toLocaleDateString('en-PK')}.{' '}
+              </>
+            )}
             {bill.journalEntryId && (
               <a href={`/finance/journal/${bill.journalEntryId}`}>See the entry it wrote</a>
             )}
@@ -288,18 +308,41 @@ const BillPage: React.FC = () => {
           <ReadOnlyBill bill={bill} />
         )}
 
-        {bill.status === 'posted' && can(undefined, 'finance-reversal:change') && (
+        {isPosted && (
           <div className={styles.formActions}>
-            <button
-              type="button"
-              className={styles.cancelButton}
-              onClick={cancel}
-              disabled={busy}
-              style={{ color: '#b91c1c' }}
-            >
-              Cancel &amp; Reverse This Bill
-            </button>
+            {can(undefined, 'finance-reversal:change') && !hasPayments && (
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={cancel}
+                disabled={busy}
+                style={{ color: '#b91c1c' }}
+              >
+                Cancel &amp; Reverse This Bill
+              </button>
+            )}
+            {bill.paymentStatus !== 'paid' && can(undefined, 'finance-payments:add') && (
+              <button
+                type="button"
+                className={styles.submitButton}
+                disabled={busy}
+                onClick={() =>
+                  router.push(
+                    `/finance/payments/create?vendorId=${bill.vendorId}&billId=${bill.id}`,
+                  )
+                }
+              >
+                Pay This Bill · {money(bill.outstanding)}
+              </button>
+            )}
           </div>
+        )}
+
+        {isPosted && hasPayments && can(undefined, 'finance-reversal:change') && (
+          <p className={finance.readonlyNote}>
+            This bill cannot be cancelled while payments stand against it — cancelling it would
+            leave them paying for nothing. Cancel those payments first if the bill itself is wrong.
+          </p>
         )}
       </div>
     </Layout>
@@ -388,6 +431,42 @@ const ReadOnlyBill: React.FC<{ bill: BillDetail }> = ({ bill }) => (
       </div>
     )}
 
+    {bill.status === 'posted' && (
+      <div className={finance.panel}>
+        <h2 className={finance.panelTitle}>Payments against this bill</h2>
+        {bill.payments.length === 0 ? (
+          <p className={finance.readonlyNote} style={{ margin: 0 }}>
+            Nothing has been paid on it yet.
+          </p>
+        ) : (
+          <table className={finance.roleTable}>
+            <thead>
+              <tr>
+                <th>Payment</th>
+                <th>Date</th>
+                <th>Paid by</th>
+                <th style={{ textAlign: 'right' }}>Towards this bill</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bill.payments.map((p) => (
+                <tr key={p.paymentId}>
+                  <td>
+                    <a className={finance.code} href={`/finance/payments/${p.paymentId}`}>
+                      {p.reference}
+                    </a>
+                  </td>
+                  <td>{new Date(p.paymentDate).toLocaleDateString('en-PK')}</td>
+                  <td>{PAYMENT_METHOD_LABELS[p.method]}</td>
+                  <td className={finance.amount}>{money(p.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    )}
+
     <div className={finance.totalsBar}>
       <div className={finance.totalsItem}>
         <span className={finance.totalsLabel}>Goods</span>
@@ -405,6 +484,25 @@ const ReadOnlyBill: React.FC<{ bill: BillDetail }> = ({ bill }) => (
         <span className={finance.totalsLabel}>Total</span>
         <span className={finance.totalsValue}>{money(bill.totalAmount)}</span>
       </div>
+      {bill.status === 'posted' && (
+        <>
+          <div className={finance.totalsItem}>
+            <span className={finance.totalsLabel}>Paid</span>
+            <span className={finance.totalsValue}>{money(bill.paidAmount)}</span>
+          </div>
+          <div className={finance.totalsVerdict}>
+            <span
+              className={
+                bill.paymentStatus === 'paid' ? finance.totalsBalanced : finance.totalsUnbalanced
+              }
+            >
+              {bill.paymentStatus === 'paid'
+                ? BILL_PAYMENT_STATUS_LABELS.paid
+                : `${money(bill.outstanding)} still owed`}
+            </span>
+          </div>
+        </>
+      )}
     </div>
 
     {bill.notes && <p className={finance.readonlyNote}>{bill.notes}</p>}

@@ -31,6 +31,7 @@ const TABS: {
   { href: '/finance/chart', label: 'Chart of Accounts', permission: 'finance-coa:view' },
   { href: '/finance/vendors', label: 'Suppliers', permission: 'finance-vendors:view' },
   { href: '/finance/bills', label: 'Bills', permission: 'finance-bills:view' },
+  { href: '/finance/payments', label: 'Payments', permission: 'finance-payments:view' },
   { href: '/finance/periods', label: 'Periods', permission: 'finance-period:view' },
   { href: '/finance/settings', label: 'Settings', permission: 'finance-coa:view' },
 ];

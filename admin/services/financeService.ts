@@ -573,6 +573,11 @@ export interface Vendor {
   notes?: string;
   receiptCount: number;
   receiptValue: number;
+  /**
+   * What is owed to this supplier now, from the ledger — so money paid on account already counts.
+   * Negative means they owe us: an advance not yet used up.
+   */
+  payableBalance: number;
 }
 
 export interface SupplierCandidate {
@@ -681,13 +686,37 @@ export interface Bill {
   totalAmount: number;
   status: 'draft' | 'posted' | 'cancelled';
   receiptCount: number;
+  /** Settled by posted payments. Zero unless the bill is posted. */
+  paidAmount: number;
+  outstanding: number;
+  /** Null unless posted — a draft or cancelled bill is not owed, so it is not "unpaid" either. */
+  paymentStatus: BillPaymentStatus | null;
+  /** Still owed and past its due date. A bill paid in full is never overdue. */
   isOverdue: boolean;
   journalEntryId?: string;
   notes?: string;
   createdAt: string;
 }
 
+export type BillPaymentStatus = 'unpaid' | 'part_paid' | 'paid';
+
+export const BILL_PAYMENT_STATUS_LABELS: Record<BillPaymentStatus, string> = {
+  unpaid: 'Unpaid',
+  part_paid: 'Part paid',
+  paid: 'Paid',
+};
+
+/** A posted payment that settled part of a bill. */
+export interface BillPayment {
+  paymentId: string;
+  reference: string;
+  paymentDate: string;
+  method: PaymentMethod;
+  amount: number;
+}
+
 export interface BillDetail extends Bill {
+  payments: BillPayment[];
   matchedReceipts: {
     receiptId: string;
     documentNo?: number;
@@ -773,6 +802,143 @@ export const billService = {
 
   async cancel(id: string, reason: string): Promise<BillDetail> {
     const response = await api.patch(`/finance/bills/${id}/cancel`, { reason });
+    return response.data;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Supplier payments
+// ---------------------------------------------------------------------------
+
+export type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque';
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  bank_transfer: 'Bank transfer',
+  cheque: 'Cheque',
+};
+
+/** A posted bill from this supplier that still has something unpaid. */
+export interface OpenBill {
+  id: string;
+  reference: string;
+  supplierBillNo?: string;
+  billDate: string;
+  dueDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  outstanding: number;
+  isOverdue: boolean;
+}
+
+export interface Payment {
+  id: string;
+  paymentNo?: number;
+  /** `P-0001`, or the word Draft. A payment carries no number until it is released. */
+  reference: string;
+  vendorId: string;
+  vendorName: string;
+  paymentDate: string;
+  method: PaymentMethod;
+  /** For a cheque, the bank account it is drawn on. */
+  paidFromLedgerId: string;
+  paidFromName: string;
+  chequeNo?: string;
+  chequeDate?: string;
+  transferReference?: string;
+  amount: number;
+  allocatedAmount: number;
+  /** Paid, but not set against any bill — held on account against the supplier. */
+  unallocatedAmount: number;
+  billCount: number;
+  status: 'draft' | 'posted' | 'cancelled';
+  journalEntryId?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PaymentDetail extends Payment {
+  allocations: {
+    billId: string;
+    reference: string;
+    supplierBillNo?: string;
+    billDate?: string;
+    billTotal: number;
+    amount: number;
+  }[];
+  cancelReason?: string;
+}
+
+export interface PaymentInput {
+  vendorId: string;
+  paymentDate: string;
+  method: PaymentMethod;
+  paidFromLedgerId: string;
+  chequeNo?: string;
+  chequeDate?: string;
+  transferReference?: string;
+  amount: number;
+  allocations?: { billId: string; amount?: number }[];
+  notes?: string;
+}
+
+export const paymentService = {
+  async list(filters: {
+    vendorId?: string;
+    status?: string;
+    method?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+  } = {}): Promise<Payment[]> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') params.append(k, String(v));
+    });
+    const response = await api.get(`/finance/payments?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<PaymentDetail> {
+    const response = await api.get(`/finance/payments/${id}`);
+    return response.data;
+  },
+
+  /**
+   * The supplier's bills with something unpaid, oldest due first.
+   *
+   * `paymentId` is passed when editing, so the bills that draft already settles stay listed
+   * instead of reading as paid the moment the form reopens.
+   */
+  async openBills(vendorId: string, paymentId?: string): Promise<OpenBill[]> {
+    const query = paymentId ? `?paymentId=${paymentId}` : '';
+    const response = await api.get(`/finance/payments/open-bills/${vendorId}${query}`);
+    return response.data;
+  },
+
+  async create(data: PaymentInput): Promise<PaymentDetail> {
+    const response = await api.post('/finance/payments', data);
+    return response.data;
+  },
+
+  async update(id: string, data: PaymentInput): Promise<PaymentDetail> {
+    const response = await api.put(`/finance/payments/${id}`, data);
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/payments/${id}`);
+    return response.data;
+  },
+
+  /** Release: post it to the accounts. */
+  async post(id: string): Promise<PaymentDetail> {
+    const response = await api.patch(`/finance/payments/${id}/post`);
+    return response.data;
+  },
+
+  async cancel(id: string, reason: string): Promise<PaymentDetail> {
+    const response = await api.patch(`/finance/payments/${id}/cancel`, { reason });
     return response.data;
   },
 };

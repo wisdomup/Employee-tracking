@@ -7,54 +7,55 @@ import Table from '../../../components/UI/Table';
 import FinanceNav from '../../../components/Finance/FinanceNav';
 import { can } from '../../../utils/permissions';
 import {
-  billService,
+  paymentService,
   vendorService,
-  Bill,
-  BILL_PAYMENT_STATUS_LABELS,
+  Payment,
+  PaymentMethod,
+  PAYMENT_METHOD_LABELS,
   Vendor,
 } from '../../../services/financeService';
 import listStyles from '../../../styles/ListPage.module.scss';
 import styles from '../../../styles/Finance.module.scss';
 
 /**
- * Supplier bills.
+ * Payments made to suppliers.
  *
- * Overdue is surfaced as a filter and a flag rather than as a separate screen, because "what is
- * due" and "what have we recorded" are the same list read two ways, and splitting them is how
- * one of the two stops being looked at.
+ * Drafts waiting to be released are called out at the top, because a payment is usually prepared
+ * by one person and released by another — and a draft the second person never sees is a supplier
+ * who never gets paid.
  */
 
 function money(value: number): string {
   return value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const BillsPage: React.FC = () => {
+const PaymentsPage: React.FC = () => {
   const router = useRouter();
-  const [bills, setBills] = useState<Bill[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('all');
+  const [method, setMethod] = useState('');
   const [vendorId, setVendorId] = useState('');
-  const [overdue, setOverdue] = useState(false);
   const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setBills(
-        await billService.list({
+      setPayments(
+        await paymentService.list({
           status: status === 'all' ? undefined : status,
+          method: method || undefined,
           vendorId: vendorId || undefined,
-          overdue: overdue || undefined,
           search: search.trim() || undefined,
         }),
       );
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Could not load the bills');
+      toast.error(error.response?.data?.message || 'Could not load the payments');
     } finally {
       setLoading(false);
     }
-  }, [status, vendorId, overdue, search]);
+  }, [status, method, vendorId, search]);
 
   useEffect(() => {
     load();
@@ -63,25 +64,25 @@ const BillsPage: React.FC = () => {
   useEffect(() => {
     vendorService
       .list({ status: 'all' })
-      .then(setVendors)
+      .then((all) => setVendors(all.filter((v) => !v.isPlaceholder)))
       .catch(() => undefined);
   }, []);
 
-  const stillOwed = bills
-    .filter((b) => b.status === 'posted')
-    .reduce((sum, b) => sum + b.outstanding, 0);
-  const overdueCount = bills.filter((b) => b.isOverdue).length;
+  const posted = payments.filter((p) => p.status === 'posted');
+  const paidOut = posted.reduce((sum, p) => sum + p.amount, 0);
+  const onAccount = posted.reduce((sum, p) => sum + p.unallocatedAmount, 0);
+  const waiting = payments.filter((p) => p.status === 'draft');
 
   const columns = [
     {
       key: 'reference',
       title: 'Ref',
-      render: (value: string, row: Bill) => (
+      render: (value: string, row: Payment) => (
         <div>
           <span className={styles.code}>{value}</span>
-          {row.supplierBillNo && (
+          {(row.chequeNo || row.transferReference) && (
             <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
-              {row.supplierBillNo}
+              {row.chequeNo ? `Cheque ${row.chequeNo}` : row.transferReference}
             </div>
           )}
         </div>
@@ -89,60 +90,45 @@ const BillsPage: React.FC = () => {
     },
     { key: 'vendorName', title: 'Supplier' },
     {
-      key: 'billDate',
-      title: 'Dated',
+      key: 'paymentDate',
+      title: 'Paid on',
       render: (v: string) => new Date(v).toLocaleDateString('en-PK'),
     },
     {
-      key: 'dueDate',
-      title: 'Due',
-      render: (v: string, row: Bill) => (
-        <span className={row.isOverdue ? styles.amountNegative : undefined}>
-          {new Date(v).toLocaleDateString('en-PK')}
-          {row.isOverdue && <span className={styles.flag}>Overdue</span>}
-        </span>
+      key: 'method',
+      title: 'How',
+      render: (v: PaymentMethod, row: Payment) => (
+        <div>
+          {PAYMENT_METHOD_LABELS[v]}
+          <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
+            {row.paidFromName}
+          </div>
+        </div>
       ),
     },
     {
-      key: 'goodsAmount',
-      title: 'Goods',
-      render: (v: number, row: Bill) => (
+      key: 'amount',
+      title: 'Amount',
+      render: (v: number, row: Payment) => (
         <span className={styles.amount}>
-          {v ? money(v) : '—'}
-          {row.receiptCount > 0 && (
+          {money(v)}
+          {row.billCount > 0 && (
             <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
-              {row.receiptCount} receipt{row.receiptCount === 1 ? '' : 's'}
+              {row.billCount} bill{row.billCount === 1 ? '' : 's'}
             </div>
           )}
         </span>
       ),
     },
     {
-      key: 'totalAmount',
-      title: 'Total',
-      render: (v: number) => <span className={styles.amount}>{money(v)}</span>,
-    },
-    {
-      key: 'outstanding',
-      title: 'Still owed',
-      render: (v: number, row: Bill) => {
-        if (row.status !== 'posted') return <span className={styles.amount}>—</span>;
-        return (
-          <span className={styles.amount}>
-            {row.paymentStatus === 'paid' ? '—' : money(v)}
-            {row.paymentStatus && (
-              <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
-                {BILL_PAYMENT_STATUS_LABELS[row.paymentStatus]}
-              </div>
-            )}
-          </span>
-        );
-      },
+      key: 'unallocatedAmount',
+      title: 'On account',
+      render: (v: number) => <span className={styles.amount}>{v > 0.005 ? money(v) : '—'}</span>,
     },
     {
       key: 'status',
       title: 'Status',
-      render: (v: Bill['status']) => (
+      render: (v: Payment['status']) => (
         <span
           className={`${styles.status} ${
             v === 'posted'
@@ -152,7 +138,7 @@ const BillsPage: React.FC = () => {
                 : styles.status_draft
           }`}
         >
-          {v === 'posted' ? 'Posted' : v === 'cancelled' ? 'Cancelled' : 'Draft'}
+          {v === 'posted' ? 'Paid' : v === 'cancelled' ? 'Cancelled' : 'Awaiting release'}
         </span>
       ),
     },
@@ -162,46 +148,43 @@ const BillsPage: React.FC = () => {
     <Layout>
       <div className={listStyles.container}>
         <div className={listStyles.header}>
-          <h1>Supplier Bills</h1>
-          {can(undefined, 'finance-bills:add') && (
+          <h1>Supplier Payments</h1>
+          {can(undefined, 'finance-payments:add') && (
             <button
               className={listStyles.addButton}
-              onClick={() => router.push('/finance/bills/create')}
+              onClick={() => router.push('/finance/payments/create')}
             >
-              + Record a Bill
+              + Prepare a Payment
             </button>
           )}
         </div>
 
         <FinanceNav />
 
-        {overdueCount > 0 && (
-          <div className={`${styles.banner} ${styles.bannerBad}`}>
+        {waiting.length > 0 && (
+          <div className={`${styles.banner} ${styles.bannerInfo}`}>
             <span className={styles.bannerTitle}>
-              {overdueCount} bill{overdueCount === 1 ? ' is' : 's are'} past due and still unpaid
+              {waiting.length} payment{waiting.length === 1 ? ' is' : 's are'} prepared and
+              waiting to be released
             </span>
-            Measured against the terms agreed with each supplier. A bill paid in full is never
-            counted here, however old it is.
+            {can(undefined, 'finance-payments:change')
+              ? 'Open each one, check it against the bills, and release it.'
+              : 'Somebody allowed to release payments needs to check and post them.'}
           </div>
         )}
 
         <div className={styles.settingsGrid}>
           <div className={styles.settingCard}>
-            <span className={styles.settingLabel}>Bills listed</span>
-            <span className={styles.settingValue}>{bills.length}</span>
+            <span className={styles.settingLabel}>Payments listed</span>
+            <span className={styles.settingValue}>{payments.length}</span>
           </div>
           <div className={styles.settingCard}>
-            <span className={styles.settingLabel}>Still owed, in this list</span>
-            <span className={styles.settingValue}>{money(stillOwed)}</span>
+            <span className={styles.settingLabel}>Paid out, in this list</span>
+            <span className={styles.settingValue}>{money(paidOut)}</span>
           </div>
           <div className={styles.settingCard}>
-            <span className={styles.settingLabel}>Past due</span>
-            <span
-              className={styles.settingValue}
-              style={overdueCount > 0 ? { color: '#b91c1c' } : undefined}
-            >
-              {overdueCount}
-            </span>
+            <span className={styles.settingLabel}>Of which on account</span>
+            <span className={styles.settingValue}>{money(onAccount)}</span>
           </div>
         </div>
 
@@ -211,7 +194,7 @@ const BillsPage: React.FC = () => {
               <input
                 type="text"
                 className={listStyles.searchInput}
-                placeholder="Search their invoice number…"
+                placeholder="Search cheque number or transfer reference…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -230,32 +213,37 @@ const BillsPage: React.FC = () => {
               </select>
               <select
                 className={listStyles.searchSelect}
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                aria-label="Paid by"
+              >
+                <option value="">Any method</option>
+                {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((m) => (
+                  <option key={m} value={m}>
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={listStyles.searchSelect}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 aria-label="Status"
               >
                 <option value="all">Every status</option>
-                <option value="draft">Drafts only</option>
-                <option value="posted">Posted only</option>
-                <option value="cancelled">Cancelled only</option>
+                <option value="draft">Awaiting release</option>
+                <option value="posted">Paid</option>
+                <option value="cancelled">Cancelled</option>
               </select>
-              <label className={styles.settingLabel} style={{ display: 'flex', gap: '0.4rem' }}>
-                <input
-                  type="checkbox"
-                  checked={overdue}
-                  onChange={(e) => setOverdue(e.target.checked)}
-                />
-                Past due and unpaid only
-              </label>
             </div>
 
             <Table
               columns={columns}
-              data={bills}
+              data={payments}
               loading={loading}
-              onRowClick={(row: Bill) => router.push(`/finance/bills/${row.id}`)}
-              exportFileName="supplier-bills"
-              exportPdfTitle="Supplier Bills"
+              onRowClick={(row: Payment) => router.push(`/finance/payments/${row.id}`)}
+              exportFileName="supplier-payments"
+              exportPdfTitle="Supplier Payments"
             />
           </div>
         </div>
@@ -264,10 +252,10 @@ const BillsPage: React.FC = () => {
   );
 };
 
-export default function BillsPageWrapper() {
+export default function PaymentsPageWrapper() {
   return (
-    <ProtectedRoute permission="finance-bills:view">
-      <BillsPage />
+    <ProtectedRoute permission="finance-payments:view">
+      <PaymentsPage />
     </ProtectedRoute>
   );
 }

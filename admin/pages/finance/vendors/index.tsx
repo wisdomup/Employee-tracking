@@ -131,6 +131,25 @@ const VendorsPage: React.FC = () => {
       render: (v: number) => <span className={styles.amount}>{v ? money(v) : '—'}</span>,
     },
     {
+      key: 'payableBalance',
+      title: 'Owed to them',
+      // From the ledger, so a payment made on account already counts. Negative is an advance
+      // they still owe us goods or an invoice against.
+      render: (v: number) =>
+        v ? (
+          <span className={`${styles.amount} ${v < 0 ? styles.amountNegative : ''}`}>
+            {money(v)}
+            {v < 0 && (
+              <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
+                paid in advance
+              </div>
+            )}
+          </span>
+        ) : (
+          <span className={styles.amount}>—</span>
+        ),
+    },
+    {
       key: 'actions',
       title: '',
       render: (_: unknown, row: Vendor) => (
