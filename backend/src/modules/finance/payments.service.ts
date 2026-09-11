@@ -16,6 +16,7 @@ import { allocateNextFinanceNo } from './finance-counters';
 import { round2, MONEY_EPSILON, buildIdempotencyKey } from './finance.rules';
 import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
 import { withFinanceLocks } from './finance-locks';
+import { loadPaidFromAccount, assertChequeLeafUnused } from './money-out';
 
 /**
  * Paying suppliers.
@@ -279,43 +280,6 @@ async function prepare(
   };
 }
 
-/**
- * The account the money comes out of must be somewhere money actually is.
- *
- * Cash-equivalent, because paying a supplier "from" an expense account would record money leaving
- * a place it was never in, and the bank balance would stay untouched while the supplier was paid.
- * Not a control account, because those belong to their own modules — rider cash is the rider's,
- * and a supplier payment out of it would make the rider appear short.
- */
-async function loadPaidFromAccount(ledgerId: string) {
-  if (!Types.ObjectId.isValid(ledgerId)) {
-    throw badRequest('Say which cash or bank account the money is coming out of.');
-  }
-
-  const ledger = await LedgerModel.findById(ledgerId)
-    .select('_id code name isActive isControl isCashEquivalent')
-    .lean()
-    .exec();
-  if (!ledger) throw badRequest('That cash or bank account does not exist.');
-
-  const label = `"${ledger.code} ${ledger.name}"`;
-  if (!ledger.isActive) throw badRequest(`${label} is deactivated and cannot be paid from.`);
-  if (ledger.isControl) {
-    throw badRequest(
-      `${label} belongs to its own module and cannot be paid from here. Choose the office cash or `
-        + 'a bank account.',
-    );
-  }
-  if (!ledger.isCashEquivalent) {
-    throw badRequest(
-      `${label} is not a cash or bank account, so no money can come out of it. Choose the office `
-        + 'cash or a bank account.',
-    );
-  }
-
-  return ledger;
-}
-
 async function prepareAllocations(
   requested: { billId: string; amount?: number }[],
   vendorId: Types.ObjectId,
@@ -399,36 +363,6 @@ async function prepareAllocations(
 
     return { billId: bill._id, amount };
   });
-}
-
-/**
- * One cheque leaf, one payment — checked before the write so the message is a sentence. The
- * unique index behind it is what holds under a race.
- */
-async function assertChequeNotReused(
-  paidFromLedgerId: Types.ObjectId,
-  chequeNo: string | undefined,
-  excludePaymentId?: string,
-): Promise<void> {
-  if (!chequeNo) return;
-
-  const query: Record<string, unknown> = { paidFromLedgerId, chequeNo };
-  if (excludePaymentId) query._id = { $ne: new Types.ObjectId(excludePaymentId) };
-
-  const existing = await SupplierPaymentModel.findOne(query)
-    .select('_id paymentNo status')
-    .lean()
-    .exec();
-  if (!existing) return;
-
-  const which = existing.paymentNo ? `payment ${paymentReference(existing.paymentNo)}` : 'a draft';
-  const cancelled = existing.status === 'cancelled'
-    ? ', which was cancelled — a cheque leaf is spent once it is written, even if the payment was called off'
-    : '';
-
-  throw conflict(
-    `Cheque ${chequeNo} from this account is already recorded as ${which}${cancelled}.`,
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -617,7 +551,7 @@ export async function getPayment(id: string): Promise<PaymentDetail> {
 
 export async function createPayment(input: PaymentInput, actorId?: string): Promise<PaymentDetail> {
   const prepared = await prepare(input);
-  await assertChequeNotReused(prepared.paidFromLedgerId, prepared.chequeNo);
+  await assertChequeLeafUnused(prepared.paidFromLedgerId, prepared.chequeNo);
 
   // No number yet. The series is allocated at posting, so an abandoned draft leaves no gap.
   const payment = await SupplierPaymentModel.create({
@@ -660,7 +594,7 @@ export async function updatePayment(
   }
 
   const prepared = await prepare(input, { paymentId: id });
-  await assertChequeNotReused(prepared.paidFromLedgerId, prepared.chequeNo, id);
+  await assertChequeLeafUnused(prepared.paidFromLedgerId, prepared.chequeNo, { paymentId: id });
 
   Object.assign(payment, prepared, {
     updatedBy: actorId ? new Types.ObjectId(actorId) : undefined,

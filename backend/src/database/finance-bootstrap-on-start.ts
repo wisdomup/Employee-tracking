@@ -51,6 +51,18 @@ export async function runFinanceBootstrapOnStart(): Promise<void> {
       );
     }
 
+    // Expense categories: seeded only on a database that has none, so a category an accountant
+    // renamed or retired is never recreated behind them on the next deploy. Loaded lazily so the
+    // expense module is not pulled in before the chart it points at exists.
+    const { seedDefaultExpenseCategories } = await import('../modules/finance/expenses.service');
+    const categories = await seedDefaultExpenseCategories();
+    if (categories.created.length > 0) {
+      console.log(
+        `[finance-bootstrap] Seeded ${categories.created.length} expense categories: `
+          + categories.created.join(', '),
+      );
+    }
+
     // The one gap the transaction-free posting design leaves: a process that died between
     // writing an entry's lines and stamping its header. The balances and every report are
     // already correct — the Day Book reads headers, so the entry would just be missing from it.

@@ -70,7 +70,9 @@ export const POSTING_EVENT_KEYS = [
   'damageClaim',
   'stockTransfer',
   'stockCount',
-  'expense',
+  // No `expense` switch. An expense is typed into the finance module by somebody asking for it to
+  // be recorded, and approved there. A switch would only create a state where an approved expense
+  // is filed nowhere. Switches are for postings that fire off the back of other people's work.
   'payroll',
 ] as const;
 

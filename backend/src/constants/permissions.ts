@@ -209,6 +209,27 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Release a supplier payment — post it to the accounts',
   },
   {
+    /*
+     * Recording and submitting an expense is `add` — one act. `change` is approving or rejecting,
+     * which the seed gives to a different role from the one that usually submits.
+     *
+     * Cancelling a posted expense is on `finance-reversal`, like every other undo.
+     */
+    id: 'finance-expenses', label: 'Expenses', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Approve or reject an expense, or mark its cheque cleared',
+  },
+  {
+    /*
+     * The approval POLICY, held apart from approving.
+     *
+     * A category's limit decides which expenses need a second person at all. Whoever can raise it
+     * can make their own spending stop needing approval, so it is a row of its own and the seed
+     * gives it only to the Finance Manager.
+     */
+    id: 'finance-expense-categories', label: 'Expense Categories', group: MODULE_GROUPS.FINANCE,
+    actions: [ACTIONS.VIEW, ACTIONS.ADD, ACTIONS.EDIT],
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',

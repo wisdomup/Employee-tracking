@@ -400,6 +400,14 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-payments:edit',
       'finance-payments:delete',
 
+      // Expenses: records and submits them, and corrects what comes back. Approving is not theirs,
+      // and neither is the category policy that decides what needs approving at all.
+      'finance-expenses:view',
+      'finance-expenses:add',
+      'finance-expenses:edit',
+      'finance-expenses:delete',
+      'finance-expense-categories:view',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 
@@ -461,6 +469,16 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-payments:edit',
       'finance-payments:delete',
       'finance-payments:change',
+
+      // Approves expenses, and owns the category policy that decides which ones need approving.
+      'finance-expenses:view',
+      'finance-expenses:add',
+      'finance-expenses:edit',
+      'finance-expenses:delete',
+      'finance-expenses:change',
+      'finance-expense-categories:view',
+      'finance-expense-categories:add',
+      'finance-expense-categories:edit',
 
       'finance-period:view',
       'finance-period:change',
