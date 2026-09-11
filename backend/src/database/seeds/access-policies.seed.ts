@@ -418,6 +418,8 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance.trial-balance',
       'finance.ledger-statement',
       'finance.day-book',
+      'finance.profit-and-loss',
+      'finance.balance-sheet',
       // The screen that says whether the books still agree with the warehouse and the
       // collections module. Both finance roles need it — it is the first thing to look at.
       'finance.health',
@@ -492,6 +494,8 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance.trial-balance',
       'finance.ledger-statement',
       'finance.day-book',
+      'finance.profit-and-loss',
+      'finance.balance-sheet',
       // The screen that says whether the books still agree with the warehouse and the
       // collections module. Both finance roles need it — it is the first thing to look at.
       'finance.health',
