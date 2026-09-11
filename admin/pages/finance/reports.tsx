@@ -10,10 +10,15 @@ import { canViewReport } from '../../utils/permissions';
 import {
   financeService,
   journalService,
+  partyReportService,
   statementService,
   BalanceSheet,
   Ledger,
+  PartyStatement,
+  PartyType,
+  PayablesAgeing,
   ProfitAndLoss,
+  ReceivablesAgeing,
 } from '../../services/financeService';
 import listStyles from '../../styles/ListPage.module.scss';
 import formStyles from '../../styles/FormPage.module.scss';
@@ -26,15 +31,26 @@ import styles from '../../styles/Finance.module.scss';
  * Reports precedent — and each tab is hidden unless its own report permission is held, because
  * reports are granted one at a time.
  *
- * The statements link every account through to its own statement, because the first thing anyone
- * does with a surprising figure is ask what is in it.
+ * Figures link through to what is behind them — an account to its statement, a shop or supplier to
+ * theirs — because the first thing anyone does with a surprising number is ask what is in it.
  */
 
-type Tab = 'profit-and-loss' | 'balance-sheet' | 'trial-balance' | 'day-book' | 'ledger-statement';
+type Tab =
+  | 'profit-and-loss'
+  | 'balance-sheet'
+  | 'receivables-ageing'
+  | 'payables-ageing'
+  | 'party-statement'
+  | 'trial-balance'
+  | 'day-book'
+  | 'ledger-statement';
 
 const TABS: { id: Tab; label: string; reportId: string }[] = [
   { id: 'profit-and-loss', label: 'Profit & Loss', reportId: 'finance.profit-and-loss' },
   { id: 'balance-sheet', label: 'Balance Sheet', reportId: 'finance.balance-sheet' },
+  { id: 'receivables-ageing', label: 'Shops Owe Us', reportId: 'finance.receivables-ageing' },
+  { id: 'payables-ageing', label: 'We Owe Suppliers', reportId: 'finance.payables-ageing' },
+  { id: 'party-statement', label: 'Shop / Supplier Statement', reportId: 'finance.party-statement' },
   { id: 'trial-balance', label: 'Trial Balance', reportId: 'finance.trial-balance' },
   { id: 'day-book', label: 'Day Book', reportId: 'finance.day-book' },
   { id: 'ledger-statement', label: 'Account Statement', reportId: 'finance.ledger-statement' },
@@ -57,6 +73,11 @@ function thisMonth(): string {
 function monthName(period: string): string {
   const [y, m] = period.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('en-PK', { month: 'long', year: 'numeric' });
+}
+
+function dayName(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-PK');
 }
 
 function lastDayOf(period: string): string {
@@ -84,13 +105,23 @@ const FinanceReportsPage: React.FC = () => {
   const [bsAsOf, setBsAsOf] = useState(thisMonth());
   const [showZero, setShowZero] = useState(false);
 
+  const [arAsOf, setArAsOf] = useState(today());
+  const [partyType, setPartyType] = useState<PartyType>('dealer');
+  const [partyId, setPartyId] = useState('');
+  const [partyFrom, setPartyFrom] = useState('');
+  const [partyTo, setPartyTo] = useState('');
+  const [partyList, setPartyList] = useState<{ id: string; name: string; detail?: string }[]>([]);
+
   const [trial, setTrial] = useState<any>(null);
   const [book, setBook] = useState<any>(null);
   const [statement, setStatement] = useState<any>(null);
   const [pl, setPl] = useState<ProfitAndLoss | null>(null);
   const [bs, setBs] = useState<BalanceSheet | null>(null);
+  const [ar, setAr] = useState<ReceivablesAgeing | null>(null);
+  const [ap, setAp] = useState<PayablesAgeing | null>(null);
+  const [party, setParty] = useState<PartyStatement | null>(null);
 
-  // Deep links: ?tab=ledger-statement&ledgerId=…&from=…&to=…
+  // Deep links: ?tab=…&ledgerId=…&from=…&to=…&partyType=…&partyId=…
   useEffect(() => {
     if (!router.isReady) return;
     const q = router.query;
@@ -98,6 +129,8 @@ const FinanceReportsPage: React.FC = () => {
     if (typeof q.ledgerId === 'string') setLedgerId(q.ledgerId);
     if (typeof q.from === 'string') setFrom(q.from);
     if (typeof q.to === 'string') setTo(q.to);
+    if (q.partyType === 'dealer' || q.partyType === 'vendor') setPartyType(q.partyType);
+    if (typeof q.partyId === 'string') setPartyId(q.partyId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
 
@@ -109,6 +142,14 @@ const FinanceReportsPage: React.FC = () => {
       .catch(() => toast.error('Could not load the accounts'));
   }, [tab, ledgers.length]);
 
+  useEffect(() => {
+    if (tab !== 'party-statement') return;
+    partyReportService
+      .parties(partyType)
+      .then(setPartyList)
+      .catch(() => toast.error('Could not load the list'));
+  }, [tab, partyType]);
+
   const run = useCallback(async () => {
     setLoading(true);
     try {
@@ -116,6 +157,21 @@ const FinanceReportsPage: React.FC = () => {
         setPl(await statementService.profitAndLoss({ from: plFrom || undefined, to: plTo, compare, showZero }));
       } else if (tab === 'balance-sheet') {
         setBs(await statementService.balanceSheet({ asOf: bsAsOf, showZero }));
+      } else if (tab === 'receivables-ageing') {
+        setAr(await partyReportService.receivablesAgeing(arAsOf));
+      } else if (tab === 'payables-ageing') {
+        setAp(await partyReportService.payablesAgeing());
+      } else if (tab === 'party-statement') {
+        if (partyId) {
+          setParty(
+            await partyReportService.statement({
+              type: partyType,
+              id: partyId,
+              from: partyFrom || undefined,
+              to: partyTo || undefined,
+            }),
+          );
+        }
       } else if (tab === 'trial-balance') {
         setTrial(await journalService.trialBalance(asOf));
       } else if (tab === 'day-book') {
@@ -128,12 +184,13 @@ const FinanceReportsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero]);
+  }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero, arAsOf, partyType, partyId, partyFrom, partyTo]);
 
   useEffect(() => {
     if (tab === 'ledger-statement' && !ledgerId) return;
+    if (tab === 'party-statement' && !partyId) return;
     run();
-  }, [run, tab, ledgerId]);
+  }, [run, tab, ledgerId, partyId]);
 
   /** From a statement line to that account's statement over the same months. */
   const openLedger = (fromPeriod: string, toPeriod: string) => (id: string) => {
@@ -145,6 +202,18 @@ const FinanceReportsPage: React.FC = () => {
     setFrom(`${fromPeriod}-01`);
     setTo(lastDayOf(toPeriod));
     setTab('ledger-statement');
+  };
+
+  const openParty = (type: PartyType, id: string) => {
+    if (!canViewReport('finance.party-statement')) {
+      toast.info('You do not have the statements report, so this account cannot be opened.');
+      return;
+    }
+    setPartyType(type);
+    setPartyId(id);
+    setPartyFrom('');
+    setPartyTo('');
+    setTab('party-statement');
   };
 
   if (visibleTabs.length === 0) {
@@ -227,6 +296,66 @@ const FinanceReportsPage: React.FC = () => {
               <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
               Show accounts with nothing on them
             </label>
+          )}
+
+          {tab === 'receivables-ageing' && (
+            <>
+              <label className={styles.settingLabel} htmlFor="arAsOf">As at</label>
+              <input
+                id="arAsOf"
+                type="date"
+                className={listStyles.searchSelect}
+                value={arAsOf}
+                onChange={(e) => setArAsOf(e.target.value)}
+              />
+            </>
+          )}
+
+          {tab === 'party-statement' && (
+            <>
+              <select
+                className={listStyles.searchSelect}
+                value={partyType}
+                onChange={(e) => {
+                  setPartyType(e.target.value as PartyType);
+                  setPartyId('');
+                  setParty(null);
+                }}
+                aria-label="Shop or supplier"
+              >
+                <option value="dealer">A shop</option>
+                <option value="vendor">A supplier</option>
+              </select>
+              <select
+                className={listStyles.searchSelect}
+                value={partyId}
+                onChange={(e) => setPartyId(e.target.value)}
+                aria-label="Which one"
+              >
+                <option value="">{partyType === 'dealer' ? 'Choose a shop…' : 'Choose a supplier…'}</option>
+                {partyList.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.detail ? ` · ${p.detail}` : ''}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                className={listStyles.searchSelect}
+                value={partyFrom}
+                onChange={(e) => setPartyFrom(e.target.value)}
+                aria-label="From"
+                title="Leave blank for the whole account"
+              />
+              <input
+                type="date"
+                className={listStyles.searchSelect}
+                value={partyTo}
+                onChange={(e) => setPartyTo(e.target.value)}
+                aria-label="To"
+              />
+            </>
           )}
 
           {tab === 'trial-balance' && (
@@ -421,6 +550,333 @@ const FinanceReportsPage: React.FC = () => {
                   here as two lines of equity. That is why this statement balances whether or not a year
                   has ever been closed.
                 </p>
+              </>
+            )}
+
+            {/* --- Receivables ageing --- */}
+            {!loading && tab === 'receivables-ageing' && ar && (
+              <>
+                <div className={`${styles.banner} ${styles.bannerInfo}`}>
+                  <span className={styles.bannerTitle}>
+                    Shops owe {statementMoney(ar.totalOwed)}
+                    {ar.bucketTotals[ar.bucketTotals.length - 1] > 0
+                      && ` — ${statementMoney(ar.bucketTotals[ar.bucketTotals.length - 1])} of it ${ar.buckets[ar.buckets.length - 1].label.toLowerCase()} days old`}
+                  </span>
+                  As at {dayName(ar.asOf)}. Aged by when the credit was taken; every recovery and return
+                  is set against the shop&apos;s oldest credit first.
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className={styles.roleTable}>
+                    <thead>
+                      <tr>
+                        <th>Shop</th>
+                        {ar.buckets.map((b) => (
+                          <th key={b.label} style={{ textAlign: 'right' }}>
+                            {b.label} days
+                          </th>
+                        ))}
+                        <th style={{ textAlign: 'right' }}>Owes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ar.rows.map((r) => (
+                        <tr key={r.dealerId}>
+                          <td>
+                            <a
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                openParty('dealer', r.dealerId);
+                              }}
+                            >
+                              {r.shopName || r.name}
+                            </a>
+                            <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
+                              {[r.shopName ? r.name : null, r.city, r.oldestDay ? `oldest ${dayName(r.oldestDay)}` : null]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </div>
+                          </td>
+                          {r.amounts.map((a, i) => (
+                            <td key={i} style={{ textAlign: 'right' }}>
+                              <span
+                                className={`${styles.amount} ${
+                                  i === r.amounts.length - 1 && a > 0 ? styles.amountNegative : ''
+                                }`}
+                              >
+                                {money(a)}
+                              </span>
+                            </td>
+                          ))}
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount} style={{ fontWeight: 600 }}>{money(r.total)}</span>
+                          </td>
+                        </tr>
+                      ))}
+                      {ar.rows.length === 0 && (
+                        <tr>
+                          <td colSpan={ar.buckets.length + 2} className={styles.muted}>
+                            No shop owed anything on this date.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className={styles.reportTotals}>
+                        <td>Total</td>
+                        {ar.bucketTotals.map((t, i) => (
+                          <td key={i} style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{money(t)}</span>
+                          </td>
+                        ))}
+                        <td style={{ textAlign: 'right' }}>
+                          <span className={styles.amount}>{money(ar.totalOwed)}</span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {ar.inCredit.length > 0 && (
+                  <div className={styles.panel}>
+                    <h2 className={styles.panelTitle}>Shops holding credit with us</h2>
+                    <p className={styles.readonlyNote} style={{ marginTop: 0 }}>
+                      They have paid or returned more than they owed. It is set against their next
+                      delivery on credit.
+                    </p>
+                    <table className={styles.roleTable}>
+                      <tbody>
+                        {ar.inCredit.map((c) => (
+                          <tr key={c.dealerId}>
+                            <td>
+                              <a
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  openParty('dealer', c.dealerId);
+                                }}
+                              >
+                                {c.shopName || c.name}
+                              </a>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className={styles.amount}>{money(c.amount)}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className={styles.settingsGrid}>
+                  <div className={styles.settingCard}>
+                    <span className={styles.settingLabel}>Owed by shops</span>
+                    <span className={styles.settingValue}>{statementMoney(ar.totalOwed)}</span>
+                  </div>
+                  <div className={styles.settingCard}>
+                    <span className={styles.settingLabel}>Less credit held</span>
+                    <span className={styles.settingValue}>{statementMoney(ar.totalInCredit)}</span>
+                  </div>
+                  <div className={styles.settingCard}>
+                    <span className={styles.settingLabel}>Receivables in the books</span>
+                    <span className={styles.settingValue}>{statementMoney(ar.netReceivable)}</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* --- Payables ageing --- */}
+            {!loading && tab === 'payables-ageing' && ap && (
+              <>
+                {ap.disagreements > 0 ? (
+                  <div className={`${styles.banner} ${styles.bannerBad}`}>
+                    <span className={styles.bannerTitle}>
+                      {ap.disagreements} supplier{ap.disagreements === 1 ? '’s' : 's’'} bills and payments
+                      do not add up to the ledger
+                    </span>
+                    Something reached their account that is not a bill or a payment. Their rows are
+                    flagged below; open their statement to find it.
+                  </div>
+                ) : (
+                  <div className={`${styles.banner} ${styles.bannerOk}`}>
+                    <span className={styles.bannerTitle}>
+                      We owe suppliers {statementMoney(ap.totals.total)}
+                      {ap.totals.overdue.some((n) => n > 0)
+                        && ` — ${statementMoney(ap.totals.overdue.reduce((s, n) => s + n, 0))} of it overdue`}
+                    </span>
+                    As at today. Overdue is counted from each bill&apos;s due date, most overdue suppliers first.
+                  </div>
+                )}
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className={styles.roleTable}>
+                    <thead>
+                      <tr>
+                        <th>Supplier</th>
+                        <th style={{ textAlign: 'right' }}>Not yet due</th>
+                        {ap.buckets.map((b) => (
+                          <th key={b.label} style={{ textAlign: 'right' }}>
+                            {b.label} days late
+                          </th>
+                        ))}
+                        <th style={{ textAlign: 'right' }}>Paid on account</th>
+                        <th style={{ textAlign: 'right' }}>We owe</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ap.rows.map((r) => (
+                        <tr key={r.vendorId}>
+                          <td>
+                            <a
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                openParty('vendor', r.vendorId);
+                              }}
+                            >
+                              {r.name}
+                            </a>
+                            {!r.agrees && (
+                              <div className={styles.amountNegative} style={{ fontSize: '0.76rem' }}>
+                                Ledger says {money(r.ledgerBalance)}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{money(r.notDue)}</span>
+                          </td>
+                          {r.overdue.map((a, i) => (
+                            <td key={i} style={{ textAlign: 'right' }}>
+                              <span className={`${styles.amount} ${a > 0 ? styles.amountNegative : ''}`}>
+                                {money(a)}
+                              </span>
+                            </td>
+                          ))}
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{statementMoney(r.onAccount)}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount} style={{ fontWeight: 600 }}>{statementMoney(r.total)}</span>
+                          </td>
+                        </tr>
+                      ))}
+                      {ap.rows.length === 0 && (
+                        <tr>
+                          <td colSpan={ap.buckets.length + 4} className={styles.muted}>
+                            Nothing is owed to any supplier.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className={styles.reportTotals}>
+                        <td>Total</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <span className={styles.amount}>{money(ap.totals.notDue)}</span>
+                        </td>
+                        {ap.totals.overdue.map((t, i) => (
+                          <td key={i} style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{money(t)}</span>
+                          </td>
+                        ))}
+                        <td style={{ textAlign: 'right' }}>
+                          <span className={styles.amount}>{statementMoney(ap.totals.onAccount)}</span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <span className={styles.amount}>{statementMoney(ap.totals.total)}</span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* --- Party statement --- */}
+            {!loading && tab === 'party-statement' && !partyId && (
+              <p className={styles.muted}>
+                Choose a {partyType === 'dealer' ? 'shop' : 'supplier'} to see their statement.
+              </p>
+            )}
+
+            {!loading && tab === 'party-statement' && partyId && party && (
+              <>
+                <div className={styles.settingsGrid}>
+                  <div className={styles.settingCard}>
+                    <span className={styles.settingLabel}>{party.party.type === 'dealer' ? 'Shop' : 'Supplier'}</span>
+                    <span className={styles.settingValue}>
+                      {party.party.name}
+                      {party.party.detail ? ` · ${party.party.detail}` : ''}
+                    </span>
+                  </div>
+                  <div className={styles.settingCard}>
+                    <span className={styles.settingLabel}>
+                      {party.from ? `Balance before ${dayName(party.from)}` : 'Opening'}
+                    </span>
+                    <span className={styles.settingValue}>{statementMoney(party.opening)}</span>
+                  </div>
+                  <div className={styles.settingCard}>
+                    <span className={styles.settingLabel}>
+                      {party.party.type === 'dealer' ? 'Owes us' : 'We owe them'}
+                    </span>
+                    <span className={styles.settingValue}>{statementMoney(party.closing)}</span>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className={styles.roleTable}>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>#</th>
+                        <th>Reference</th>
+                        <th>Description</th>
+                        <th style={{ textAlign: 'right' }}>Debit</th>
+                        <th style={{ textAlign: 'right' }}>Credit</th>
+                        <th style={{ textAlign: 'right' }}>
+                          {party.party.type === 'dealer' ? 'Owes us' : 'We owe'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {party.rows.map((row, i) => (
+                        <tr key={i}>
+                          <td>{dayName(row.day)}</td>
+                          <td>
+                            <a className={styles.code} href={`/finance/journal/${row.entryId}`}>
+                              {row.entryNo ?? '—'}
+                            </a>
+                          </td>
+                          <td className={styles.muted}>{row.referenceNo || '—'}</td>
+                          <td>{row.narration || '—'}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{money(row.debit)}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{money(row.credit)}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={`${styles.amount} ${row.balance < 0 ? styles.amountNegative : ''}`}>
+                              {statementMoney(row.balance)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {party.rows.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className={styles.muted}>Nothing in these dates.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {party.truncated && (
+                  <p className={styles.readonlyNote}>
+                    Only the first 2,000 lines are shown. Narrow the dates to see the rest.
+                  </p>
+                )}
               </>
             )}
 

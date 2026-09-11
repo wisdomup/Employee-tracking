@@ -27,7 +27,17 @@ const TABS: {
   // Health has its own tab and its own page, so it must NOT also satisfy the Reports tab —
   // a user granted only the health check would otherwise see a Reports tab that opens on an
   // empty state, which reads as something being broken rather than as not being granted.
-  { href: '/finance/reports', label: 'Reports', reportIds: ['finance.profit-and-loss', 'finance.balance-sheet', 'finance.trial-balance', 'finance.ledger-statement', 'finance.day-book'] },
+  { href: '/finance/reports', label: 'Reports', reportIds: [
+      'finance.profit-and-loss',
+      'finance.balance-sheet',
+      'finance.receivables-ageing',
+      'finance.payables-ageing',
+      'finance.party-statement',
+      'finance.trial-balance',
+      'finance.ledger-statement',
+      'finance.day-book',
+    ],
+  },
   { href: '/finance/chart', label: 'Chart of Accounts', permission: 'finance-coa:view' },
   { href: '/finance/vendors', label: 'Suppliers', permission: 'finance-vendors:view' },
   { href: '/finance/bills', label: 'Bills', permission: 'finance-bills:view' },

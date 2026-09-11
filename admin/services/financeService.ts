@@ -1254,3 +1254,108 @@ export const statementService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Ageing and party statements
+// ---------------------------------------------------------------------------
+
+export interface AgeingBucket {
+  label: string;
+  from: number;
+  to: number | null;
+}
+
+export interface ReceivablesAgeing {
+  asOf: string;
+  buckets: AgeingBucket[];
+  rows: {
+    dealerId: string;
+    name: string;
+    shopName?: string;
+    phone?: string;
+    city?: string;
+    total: number;
+    amounts: number[];
+    oldestDay?: string;
+  }[];
+  bucketTotals: number[];
+  totalOwed: number;
+  inCredit: { dealerId: string; name: string; shopName?: string; amount: number }[];
+  totalInCredit: number;
+  netReceivable: number;
+}
+
+export interface PayablesAgeing {
+  asOf: string;
+  buckets: AgeingBucket[];
+  rows: {
+    vendorId: string;
+    name: string;
+    notDue: number;
+    overdue: number[];
+    onAccount: number;
+    total: number;
+    ledgerBalance: number;
+    agrees: boolean;
+    oldestDueDate?: string;
+  }[];
+  totals: {
+    notDue: number;
+    overdue: number[];
+    onAccount: number;
+    total: number;
+    ledgerBalance: number;
+  };
+  disagreements: number;
+}
+
+export type PartyType = 'dealer' | 'vendor';
+
+export interface PartyStatement {
+  party: { type: PartyType; id: string; name: string; detail?: string };
+  ledgerCode: string;
+  ledgerName: string;
+  from?: string;
+  to?: string;
+  opening: number;
+  closing: number;
+  rows: {
+    date: string;
+    day: string;
+    entryId: string;
+    entryNo: number | null;
+    referenceNo: string | null;
+    narration: string;
+    sourceType: string;
+    debit: number;
+    credit: number;
+    balance: number;
+  }[];
+  truncated: boolean;
+}
+
+export const partyReportService = {
+  async receivablesAgeing(asOf?: string): Promise<ReceivablesAgeing> {
+    const q = asOf ? `?asOf=${asOf}` : '';
+    const response = await api.get(`/finance/reports/receivables-ageing${q}`);
+    return response.data;
+  },
+
+  async payablesAgeing(): Promise<PayablesAgeing> {
+    const response = await api.get('/finance/reports/payables-ageing');
+    return response.data;
+  },
+
+  async parties(type: PartyType): Promise<{ id: string; name: string; detail?: string }[]> {
+    const response = await api.get(`/finance/reports/parties?type=${type}`);
+    return response.data;
+  },
+
+  async statement(params: { type: PartyType; id: string; from?: string; to?: string }): Promise<PartyStatement> {
+    const q = new URLSearchParams({ type: params.type, id: params.id });
+    if (params.from) q.append('from', params.from);
+    if (params.to) q.append('to', params.to);
+    const response = await api.get(`/finance/reports/party-statement?${q.toString()}`);
+    return response.data;
+  },
+};
