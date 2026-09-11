@@ -1165,3 +1165,92 @@ export const expenseService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Financial statements
+// ---------------------------------------------------------------------------
+
+export interface StatementLine {
+  ledgerId: string;
+  code: string;
+  name: string;
+  amount: number;
+  compare?: number;
+}
+
+export interface StatementSection {
+  groupId: string;
+  code: string;
+  name: string;
+  lines: StatementLine[];
+  sections: StatementSection[];
+  total: number;
+  compareTotal?: number;
+}
+
+export interface ProfitAndLoss {
+  from: string;
+  to: string;
+  fiscalYear: string;
+  compareFrom?: string;
+  compareTo?: string;
+  income: StatementSection[];
+  incomeTotal: number;
+  costOfSales: StatementSection[];
+  costOfSalesTotal: number;
+  grossProfit: number;
+  operatingExpenses: StatementSection[];
+  operatingExpensesTotal: number;
+  netProfit: number;
+  compare: {
+    incomeTotal: number;
+    costOfSalesTotal: number;
+    grossProfit: number;
+    operatingExpensesTotal: number;
+    netProfit: number;
+  } | null;
+  warnings: string[];
+}
+
+export interface BalanceSheet {
+  asOf: string;
+  fiscalYear: string;
+  fiscalYearStart: string;
+  assets: StatementSection[];
+  totalAssets: number;
+  liabilities: StatementSection[];
+  totalLiabilities: number;
+  equity: StatementSection[];
+  equityAccountsTotal: number;
+  profitBroughtForward: number;
+  profitThisYear: number;
+  totalEquity: number;
+  balanced: boolean;
+  difference: number;
+  warnings: string[];
+}
+
+export const statementService = {
+  async profitAndLoss(params: {
+    from?: string;
+    to?: string;
+    compare?: boolean;
+    showZero?: boolean;
+  } = {}): Promise<ProfitAndLoss> {
+    const q = new URLSearchParams();
+    if (params.from) q.append('from', params.from);
+    if (params.to) q.append('to', params.to);
+    if (params.compare) q.append('compare', 'true');
+    if (params.showZero) q.append('showZero', 'true');
+    const response = await api.get(`/finance/reports/profit-and-loss?${q.toString()}`);
+    return response.data;
+  },
+
+  async balanceSheet(params: { asOf?: string; showZero?: boolean } = {}): Promise<BalanceSheet> {
+    const q = new URLSearchParams();
+    if (params.asOf) q.append('asOf', params.asOf);
+    if (params.showZero) q.append('showZero', 'true');
+    const response = await api.get(`/finance/reports/balance-sheet?${q.toString()}`);
+    return response.data;
+  },
+};
