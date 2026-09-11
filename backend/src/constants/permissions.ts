@@ -447,6 +447,9 @@ export const REPORTS: readonly ReportDefinition[] = [
   // want every finance user to see, and holding one report must not imply the others.
   { id: 'finance.profit-and-loss',  label: 'Profit & Loss',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/profit-and-loss' },
   { id: 'finance.balance-sheet',    label: 'Balance Sheet',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/balance-sheet' },
+  { id: 'finance.receivables-ageing', label: 'Receivables Ageing', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/receivables-ageing' },
+  { id: 'finance.payables-ageing',  label: 'Payables Ageing',  surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/payables-ageing' },
+  { id: 'finance.party-statement',  label: 'Shop & Supplier Statements', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/party-statement' },
   { id: 'finance.health',           label: 'Finance Health',   surface: REPORT_SURFACES.FINANCE, path: '/finance/health' },
 ];
 

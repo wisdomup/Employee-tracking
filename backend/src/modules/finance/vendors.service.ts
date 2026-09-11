@@ -100,7 +100,7 @@ function toView(
  * Returns nothing when the payables account is not mapped yet, rather than failing the list: a
  * fresh install still has to be able to show its suppliers.
  */
-async function payableByVendor(ids: Types.ObjectId[]): Promise<Map<string, number>> {
+export async function payableByVendor(ids: Types.ObjectId[]): Promise<Map<string, number>> {
   if (ids.length === 0) return new Map();
 
   const settings = await FinanceSettingsModel.findOne({ key: 'singleton' })

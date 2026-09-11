@@ -4,7 +4,7 @@ import { requireReport } from '../../middleware/permission.middleware';
 import * as statements from './statements.controller';
 
 /**
- * The financial statements.
+ * The financial statements, and the reports about who owes whom.
  *
  * Each is its own report permission, granted one at a time like every other report. Profit and
  * the business's net worth are exactly the figures an owner may reasonably not want every finance
@@ -62,6 +62,84 @@ router.get(
   '/reports/balance-sheet',
   requireReport('finance.balance-sheet'),
   statements.balanceSheet,
+);
+
+/**
+ * @openapi
+ * /api/finance/reports/receivables-ageing:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: What each shop owes, by how long ago the credit was taken
+ *     description: >
+ *       Read from each shop's lines on Accounts Receivable, applying recoveries and returns to the
+ *       oldest credit first. Can be run as at any past day, and always totals to the receivables
+ *       balance on that day. Shops holding credit with us are listed separately.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: asOf, schema: { type: string, format: date } }
+ *     responses:
+ *       200: { description: Receivables ageing }
+ */
+router.get(
+  '/reports/receivables-ageing',
+  requireReport('finance.receivables-ageing'),
+  statements.receivablesAgeing,
+);
+
+/**
+ * @openapi
+ * /api/finance/reports/payables-ageing:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: What is owed to each supplier today, by how overdue it is
+ *     description: >
+ *       Aged from posted bills against their due dates, with money paid on account as its own
+ *       column. Each supplier's figure is checked against their share of Accounts Payable and
+ *       flagged when the two disagree.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Payables ageing }
+ */
+router.get(
+  '/reports/payables-ageing',
+  requireReport('finance.payables-ageing'),
+  statements.payablesAgeing,
+);
+
+/**
+ * @openapi
+ * /api/finance/reports/parties:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: Shops or suppliers with anything on their account — the statement picker
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: type, required: true, schema: { type: string, enum: [dealer, vendor] } }
+ *     responses:
+ *       200: { description: Parties }
+ */
+router.get('/reports/parties', requireReport('finance.party-statement'), statements.partyList);
+
+/**
+ * @openapi
+ * /api/finance/reports/party-statement:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: One shop's or one supplier's account, with a running balance
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: type, required: true, schema: { type: string, enum: [dealer, vendor] } }
+ *       - { in: query, name: id, required: true, schema: { type: string } }
+ *       - { in: query, name: from, schema: { type: string, format: date } }
+ *       - { in: query, name: to, schema: { type: string, format: date } }
+ *     responses:
+ *       200: { description: Party statement }
+ *       404: { description: Shop or supplier not found }
+ */
+router.get(
+  '/reports/party-statement',
+  requireReport('finance.party-statement'),
+  statements.partyStatement,
 );
 
 export default router;
