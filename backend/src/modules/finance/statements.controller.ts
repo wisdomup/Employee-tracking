@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as statements from './financial-statements.service';
 import * as parties from './party-reports.service';
+import * as cash from './cash-reports.service';
 
 export async function profitAndLoss(req: Request, res: Response, next: NextFunction) {
   try {
@@ -62,6 +63,24 @@ export async function partyStatement(req: Request, res: Response, next: NextFunc
         to: q.to || undefined,
       }),
     );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function cashFlow(req: Request, res: Response, next: NextFunction) {
+  try {
+    const q = req.query as Record<string, string>;
+    res.json(await cash.cashFlow({ from: q.from || undefined, to: q.to || undefined }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function cashPosition(req: Request, res: Response, next: NextFunction) {
+  try {
+    const q = req.query as Record<string, string>;
+    res.json(await cash.cashPosition({ from: q.from || undefined, to: q.to || undefined }));
   } catch (err) {
     next(err);
   }

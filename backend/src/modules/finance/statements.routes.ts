@@ -142,4 +142,39 @@ router.get(
   statements.partyStatement,
 );
 
+/**
+ * @openapi
+ * /api/finance/reports/cash-flow:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: Where the cash came from and went, for a range of months
+ *     description: >
+ *       Follows only the cash and bank accounts. Each movement is classed by the account on the
+ *       other side — operating, investing or financing — read from the chart. A transfer between
+ *       cash and bank moves nothing; a cheque counts only when it clears. Opening plus the flows
+ *       always equals closing.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: from, schema: { type: string, example: "2026-07" } }
+ *       - { in: query, name: to, schema: { type: string, example: "2026-09" } }
+ *     responses:
+ *       200: { description: Cash flow }
+ */
+router.get('/reports/cash-flow', requireReport('finance.cash-flow'), statements.cashFlow);
+
+/**
+ * @openapi
+ * /api/finance/reports/cash-position:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: Each cash and bank account over a range of days, and cheques not yet cleared
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: from, schema: { type: string, format: date } }
+ *       - { in: query, name: to, schema: { type: string, format: date } }
+ *     responses:
+ *       200: { description: Cash and bank position }
+ */
+router.get('/reports/cash-position', requireReport('finance.cash-position'), statements.cashPosition);
+
 export default router;

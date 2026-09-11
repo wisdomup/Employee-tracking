@@ -423,6 +423,8 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance.receivables-ageing',
       'finance.payables-ageing',
       'finance.party-statement',
+      'finance.cash-flow',
+      'finance.cash-position',
       // The screen that says whether the books still agree with the warehouse and the
       // collections module. Both finance roles need it — it is the first thing to look at.
       'finance.health',
@@ -502,6 +504,8 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance.receivables-ageing',
       'finance.payables-ageing',
       'finance.party-statement',
+      'finance.cash-flow',
+      'finance.cash-position',
       // The screen that says whether the books still agree with the warehouse and the
       // collections module. Both finance roles need it — it is the first thing to look at.
       'finance.health',
