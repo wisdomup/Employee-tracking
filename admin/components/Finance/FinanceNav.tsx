@@ -33,6 +33,8 @@ const TABS: {
       'finance.receivables-ageing',
       'finance.payables-ageing',
       'finance.party-statement',
+      'finance.cash-flow',
+      'finance.cash-position',
       'finance.trial-balance',
       'finance.ledger-statement',
       'finance.day-book',

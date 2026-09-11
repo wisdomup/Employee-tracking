@@ -1359,3 +1359,63 @@ export const partyReportService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Cash flow and cash & bank
+// ---------------------------------------------------------------------------
+
+export interface CashFlowSection {
+  /** Positive: cash came in from that account. Negative: cash went out to it. */
+  rows: { ledgerId: string; code: string; name: string; amount: number }[];
+  total: number;
+}
+
+export interface CashFlow {
+  from: string;
+  to: string;
+  cashAccounts: { ledgerId: string; code: string; name: string; opening: number; closing: number }[];
+  openingCash: number;
+  closingCash: number;
+  operating: CashFlowSection;
+  investing: CashFlowSection;
+  financing: CashFlowSection;
+  netChange: number;
+  reconciles: boolean;
+  difference: number;
+  warnings: string[];
+}
+
+export interface CashPosition {
+  from: string;
+  to: string;
+  accounts: {
+    ledgerId: string;
+    code: string;
+    name: string;
+    opening: number;
+    moneyIn: number;
+    moneyOut: number;
+    closing: number;
+  }[];
+  totals: { opening: number; moneyIn: number; moneyOut: number; closing: number };
+  unclearedCheques: number;
+  availableAfterCheques: number;
+}
+
+export const cashReportService = {
+  async cashFlow(params: { from?: string; to?: string } = {}): Promise<CashFlow> {
+    const q = new URLSearchParams();
+    if (params.from) q.append('from', params.from);
+    if (params.to) q.append('to', params.to);
+    const response = await api.get(`/finance/reports/cash-flow?${q.toString()}`);
+    return response.data;
+  },
+
+  async cashPosition(params: { from?: string; to?: string } = {}): Promise<CashPosition> {
+    const q = new URLSearchParams();
+    if (params.from) q.append('from', params.from);
+    if (params.to) q.append('to', params.to);
+    const response = await api.get(`/finance/reports/cash-position?${q.toString()}`);
+    return response.data;
+  },
+};

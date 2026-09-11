@@ -6,13 +6,17 @@ import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
 import FinanceNav from '../../components/Finance/FinanceNav';
 import StatementTable, { statementMoney } from '../../components/Finance/StatementTable';
+import { CashFlowReport, CashPositionReport } from '../../components/Finance/CashReports';
 import { canViewReport } from '../../utils/permissions';
 import {
+  cashReportService,
   financeService,
   journalService,
   partyReportService,
   statementService,
   BalanceSheet,
+  CashFlow,
+  CashPosition,
   Ledger,
   PartyStatement,
   PartyType,
@@ -41,6 +45,8 @@ type Tab =
   | 'receivables-ageing'
   | 'payables-ageing'
   | 'party-statement'
+  | 'cash-flow'
+  | 'cash-position'
   | 'trial-balance'
   | 'day-book'
   | 'ledger-statement';
@@ -51,6 +57,8 @@ const TABS: { id: Tab; label: string; reportId: string }[] = [
   { id: 'receivables-ageing', label: 'Shops Owe Us', reportId: 'finance.receivables-ageing' },
   { id: 'payables-ageing', label: 'We Owe Suppliers', reportId: 'finance.payables-ageing' },
   { id: 'party-statement', label: 'Shop / Supplier Statement', reportId: 'finance.party-statement' },
+  { id: 'cash-flow', label: 'Cash Flow', reportId: 'finance.cash-flow' },
+  { id: 'cash-position', label: 'Cash & Bank', reportId: 'finance.cash-position' },
   { id: 'trial-balance', label: 'Trial Balance', reportId: 'finance.trial-balance' },
   { id: 'day-book', label: 'Day Book', reportId: 'finance.day-book' },
   { id: 'ledger-statement', label: 'Account Statement', reportId: 'finance.ledger-statement' },
@@ -112,6 +120,11 @@ const FinanceReportsPage: React.FC = () => {
   const [partyTo, setPartyTo] = useState('');
   const [partyList, setPartyList] = useState<{ id: string; name: string; detail?: string }[]>([]);
 
+  const [cfFrom, setCfFrom] = useState(thisMonth());
+  const [cfTo, setCfTo] = useState(thisMonth());
+  const [cpFrom, setCpFrom] = useState(`${thisMonth()}-01`);
+  const [cpTo, setCpTo] = useState(today());
+
   const [trial, setTrial] = useState<any>(null);
   const [book, setBook] = useState<any>(null);
   const [statement, setStatement] = useState<any>(null);
@@ -120,6 +133,8 @@ const FinanceReportsPage: React.FC = () => {
   const [ar, setAr] = useState<ReceivablesAgeing | null>(null);
   const [ap, setAp] = useState<PayablesAgeing | null>(null);
   const [party, setParty] = useState<PartyStatement | null>(null);
+  const [cf, setCf] = useState<CashFlow | null>(null);
+  const [cp, setCp] = useState<CashPosition | null>(null);
 
   // Deep links: ?tab=…&ledgerId=…&from=…&to=…&partyType=…&partyId=…
   useEffect(() => {
@@ -172,6 +187,10 @@ const FinanceReportsPage: React.FC = () => {
             }),
           );
         }
+      } else if (tab === 'cash-flow') {
+        setCf(await cashReportService.cashFlow({ from: cfFrom, to: cfTo }));
+      } else if (tab === 'cash-position') {
+        setCp(await cashReportService.cashPosition({ from: cpFrom, to: cpTo }));
       } else if (tab === 'trial-balance') {
         setTrial(await journalService.trialBalance(asOf));
       } else if (tab === 'day-book') {
@@ -184,7 +203,7 @@ const FinanceReportsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero, arAsOf, partyType, partyId, partyFrom, partyTo]);
+  }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero, arAsOf, partyType, partyId, partyFrom, partyTo, cfFrom, cfTo, cpFrom, cpTo]);
 
   useEffect(() => {
     if (tab === 'ledger-statement' && !ledgerId) return;
@@ -201,6 +220,18 @@ const FinanceReportsPage: React.FC = () => {
     setLedgerId(id);
     setFrom(`${fromPeriod}-01`);
     setTo(lastDayOf(toPeriod));
+    setTab('ledger-statement');
+  };
+
+  /** From a cash account to its statement over the same days. */
+  const openLedgerDays = (fromDay: string, toDay: string) => (id: string) => {
+    if (!canViewReport('finance.ledger-statement')) {
+      toast.info('You do not have the Account Statement report, so this account cannot be opened.');
+      return;
+    }
+    setLedgerId(id);
+    setFrom(fromDay);
+    setTo(toDay);
     setTab('ledger-statement');
   };
 
@@ -355,6 +386,22 @@ const FinanceReportsPage: React.FC = () => {
                 onChange={(e) => setPartyTo(e.target.value)}
                 aria-label="To"
               />
+            </>
+          )}
+
+          {tab === 'cash-flow' && (
+            <>
+              <label className={styles.settingLabel} htmlFor="cfFrom">From</label>
+              <input id="cfFrom" type="month" className={listStyles.searchSelect} value={cfFrom} onChange={(e) => setCfFrom(e.target.value)} />
+              <label className={styles.settingLabel} htmlFor="cfTo">to</label>
+              <input id="cfTo" type="month" className={listStyles.searchSelect} value={cfTo} onChange={(e) => setCfTo(e.target.value)} />
+            </>
+          )}
+
+          {tab === 'cash-position' && (
+            <>
+              <input type="date" className={listStyles.searchSelect} value={cpFrom} onChange={(e) => setCpFrom(e.target.value)} aria-label="From" />
+              <input type="date" className={listStyles.searchSelect} value={cpTo} onChange={(e) => setCpTo(e.target.value)} aria-label="To" />
             </>
           )}
 
@@ -878,6 +925,15 @@ const FinanceReportsPage: React.FC = () => {
                   </p>
                 )}
               </>
+            )}
+
+            {/* --- Cash flow and cash & bank --- */}
+            {!loading && tab === 'cash-flow' && cf && (
+              <CashFlowReport report={cf} onLedger={openLedger(cf.from, cf.to)} />
+            )}
+
+            {!loading && tab === 'cash-position' && cp && (
+              <CashPositionReport report={cp} onLedger={openLedgerDays(cp.from, cp.to)} />
             )}
 
             {/* --- Trial balance --- */}
