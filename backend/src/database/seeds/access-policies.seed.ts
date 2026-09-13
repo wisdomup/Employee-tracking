@@ -408,6 +408,13 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-expenses:delete',
       'finance-expense-categories:view',
 
+      // Payroll: prepares the month and corrects the figures. Posting it, and handing the wages
+      // over, is not theirs — the same split as supplier payments.
+      'finance-payroll:view',
+      'finance-payroll:add',
+      'finance-payroll:edit',
+      'finance-payroll:delete',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 
@@ -486,6 +493,13 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-expense-categories:view',
       'finance-expense-categories:add',
       'finance-expense-categories:edit',
+
+      // Posts the month, releases the wages, and decides on an advance.
+      'finance-payroll:view',
+      'finance-payroll:add',
+      'finance-payroll:edit',
+      'finance-payroll:delete',
+      'finance-payroll:change',
 
       'finance-period:view',
       'finance-period:change',

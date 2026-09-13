@@ -675,7 +675,6 @@ const EVENT_LABELS: Record<string, string> = {
   damageClaim: 'Record damaged stock written off',
   stockTransfer: 'Record stock moved between warehouses',
   stockCount: 'Record stock-count corrections',
-  payroll: 'Record salaries',
 };
 
 export async function listPostingSwitches(): Promise<

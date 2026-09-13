@@ -142,7 +142,7 @@ const LEDGERS: LedgerSeed[] = [
 
   // ---- Operating expenses -------------------------------------------------
   { code: '6110', name: 'Salaries & Wages', group: '6000', role: 'salaryExpense' },
-  { code: '6115', name: 'Staff Allowances & Bonus', group: '6000' },
+  { code: '6115', name: 'Staff Allowances & Bonus', group: '6000', role: 'staffAllowances' },
   { code: '6120', name: 'Fuel & Vehicle Running', group: '6000' },
   { code: '6125', name: 'Vehicle Repairs & Maintenance', group: '6000' },
   { code: '6130', name: 'Rent', group: '6000' },

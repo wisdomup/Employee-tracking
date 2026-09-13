@@ -1419,3 +1419,196 @@ export const cashReportService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Payroll and staff advances
+// ---------------------------------------------------------------------------
+
+export interface PayrollLine {
+  userId: string;
+  name: string;
+  role?: string;
+  salary: number;
+  bonus: number;
+  allowance: number;
+  gross: number;
+  advanceRecovery: number;
+  net: number;
+  /** What they still owe in advances — the cap on what this month can take back. */
+  advanceBalance: number;
+}
+
+export interface PayrollPayment {
+  paidOn: string;
+  amount: number;
+  method: 'cash' | 'bank_transfer';
+  paidFromLedgerId: string;
+  reference?: string;
+  journalEntryId: string;
+}
+
+export interface PayrollRun {
+  id: string;
+  period: string;
+  /** "July 2025". */
+  periodLabel: string;
+  status: 'draft' | 'posted' | 'cancelled';
+  employeeCount: number;
+  totals: {
+    salary: number;
+    bonus: number;
+    allowance: number;
+    gross: number;
+    advanceRecovery: number;
+    net: number;
+  };
+  paidAmount: number;
+  outstanding: number;
+  accrualEntryId?: string;
+  payments: PayrollPayment[];
+  cancelReason?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PayrollRunDetail extends PayrollRun {
+  lines: PayrollLine[];
+}
+
+export interface PayrollLineInput {
+  userId: string;
+  salary?: number;
+  bonus?: number;
+  allowance?: number;
+  advanceRecovery?: number;
+}
+
+export interface StaffAdvance {
+  id: string;
+  advanceNo?: number;
+  reference: string;
+  userId: string;
+  name: string;
+  advanceDate: string;
+  amount: number;
+  method: 'cash' | 'bank_transfer';
+  paidFromLedgerId: string;
+  paymentReference?: string;
+  reason?: string;
+  status: 'draft' | 'posted' | 'cancelled';
+  journalEntryId?: string;
+  cancelReason?: string;
+  /** Everything this employee still owes, across every advance. */
+  employeeBalance: number;
+  createdAt: string;
+}
+
+export interface StaffAdvanceInput {
+  userId: string;
+  advanceDate: string;
+  amount: number;
+  method: 'cash' | 'bank_transfer';
+  paidFromLedgerId: string;
+  reference?: string;
+  reason?: string;
+}
+
+export const payrollService = {
+  async listRuns(status?: string): Promise<PayrollRun[]> {
+    const q = status ? `?status=${status}` : '';
+    const response = await api.get(`/finance/payroll/runs${q}`);
+    return response.data;
+  },
+
+  async getRun(id: string): Promise<PayrollRunDetail> {
+    const response = await api.get(`/finance/payroll/runs/${id}`);
+    return response.data;
+  },
+
+  /** Starts the month, pre-filled from what each employee is paid. */
+  async createRun(period: string): Promise<PayrollRunDetail> {
+    const response = await api.post('/finance/payroll/runs', { period });
+    return response.data;
+  },
+
+  async updateRun(
+    id: string,
+    body: { lines?: PayrollLineInput[]; notes?: string },
+  ): Promise<PayrollRunDetail> {
+    const response = await api.put(`/finance/payroll/runs/${id}`, body);
+    return response.data;
+  },
+
+  async removeRun(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/payroll/runs/${id}`);
+    return response.data;
+  },
+
+  async postRun(id: string): Promise<PayrollRunDetail> {
+    const response = await api.patch(`/finance/payroll/runs/${id}/post`);
+    return response.data;
+  },
+
+  async payRun(
+    id: string,
+    body: {
+      paidOn: string;
+      amount: number;
+      method: 'cash' | 'bank_transfer';
+      paidFromLedgerId: string;
+      reference?: string;
+    },
+  ): Promise<PayrollRunDetail> {
+    const response = await api.post(`/finance/payroll/runs/${id}/payments`, body);
+    return response.data;
+  },
+
+  async cancelRun(id: string, reason: string): Promise<PayrollRunDetail> {
+    const response = await api.patch(`/finance/payroll/runs/${id}/cancel`, { reason });
+    return response.data;
+  },
+
+  /** Active employees with what each already owes — the advance form's list. */
+  async employees(): Promise<{ id: string; name: string; role?: string; salary: number; owed: number }[]> {
+    const response = await api.get('/finance/payroll/employees');
+    return response.data;
+  },
+
+  async listAdvances(filters: { status?: string; userId?: string } = {}): Promise<StaffAdvance[]> {
+    const q = new URLSearchParams();
+    if (filters.status) q.append('status', filters.status);
+    if (filters.userId) q.append('userId', filters.userId);
+    const response = await api.get(`/finance/payroll/advances?${q.toString()}`);
+    return response.data;
+  },
+
+  async advanceBalances(): Promise<{ userId: string; name: string; owed: number }[]> {
+    const response = await api.get('/finance/payroll/advances/balances');
+    return response.data;
+  },
+
+  async createAdvance(body: StaffAdvanceInput): Promise<StaffAdvance> {
+    const response = await api.post('/finance/payroll/advances', body);
+    return response.data;
+  },
+
+  async updateAdvance(id: string, body: StaffAdvanceInput): Promise<StaffAdvance> {
+    const response = await api.put(`/finance/payroll/advances/${id}`, body);
+    return response.data;
+  },
+
+  async removeAdvance(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/payroll/advances/${id}`);
+    return response.data;
+  },
+
+  async postAdvance(id: string): Promise<StaffAdvance> {
+    const response = await api.patch(`/finance/payroll/advances/${id}/post`);
+    return response.data;
+  },
+
+  async cancelAdvance(id: string, reason: string): Promise<StaffAdvance> {
+    const response = await api.patch(`/finance/payroll/advances/${id}/cancel`, { reason });
+    return response.data;
+  },
+};

@@ -10,6 +10,8 @@ import { ReturnModel } from '../../models/return.model';
 import { StockReceiptModel } from '../../models/stock-receipt.model';
 import { PurchaseBillModel } from '../../models/purchase-bill.model';
 import { SupplierPaymentModel } from '../../models/supplier-payment.model';
+import { PayrollRunModel } from '../../models/payroll-run.model';
+import { StaffAdvanceModel } from '../../models/staff-advance.model';
 import { ControlReconciliationModel } from '../../models/control-reconciliation.model';
 import { FinanceSettingsModel } from '../../models/finance-settings.model';
 import { localDayKey } from '../region-sales/region-sales.rules';
@@ -383,6 +385,76 @@ async function checkAccountsPayable(): Promise<ControlCheck | null> {
 // Runner
 // ---------------------------------------------------------------------------
 
+/**
+ * What staff owe the business in advances.
+ *
+ * Advances to Staff is a control account, so only two things reach it: an advance handed over, and
+ * a payroll run taking one back. Its balance must be one less the other, per employee and in total.
+ * A difference means an advance or a recovery was recorded without its entry.
+ */
+async function checkStaffAdvances(): Promise<ControlCheck | null> {
+  const ledger = await balanceOfRole('staffAdvances');
+  if (!ledger) return null;
+
+  const [advanced, recovered] = await Promise.all([
+    StaffAdvanceModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]).exec(),
+    PayrollRunModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $group: { _id: null, total: { $sum: '$totals.advanceRecovery' } } },
+    ]).exec(),
+  ]);
+
+  const handedOver = round2(advanced[0]?.total ?? 0);
+  const recoveredFromPay = round2(recovered[0]?.total ?? 0);
+
+  return makeCheck(
+    'staff-advances',
+    'Advances staff owe back',
+    ledger,
+    round2(handedOver - recoveredFromPay),
+    { handedOver, recoveredFromPay },
+    'Every advance handed over, less everything taken back out of pay.',
+  );
+}
+
+/**
+ * What is owed to staff in wages.
+ *
+ * Raised when a month is posted and cleared as the wages are handed over. An ageing balance here is
+ * a month that was accrued and never paid.
+ */
+async function checkSalariesPayable(): Promise<ControlCheck | null> {
+  const ledger = await balanceOfRole('salaryPayable');
+  if (!ledger) return null;
+
+  const [accrued, paid] = await Promise.all([
+    PayrollRunModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $group: { _id: null, total: { $sum: '$totals.net' } } },
+    ]).exec(),
+    PayrollRunModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted' } },
+      { $unwind: '$payments' },
+      { $group: { _id: null, total: { $sum: '$payments.amount' } } },
+    ]).exec(),
+  ]);
+
+  const netPay = round2(accrued[0]?.total ?? 0);
+  const handedOver = round2(paid[0]?.total ?? 0);
+
+  return makeCheck(
+    'salaries-payable',
+    'Wages owed to staff',
+    ledger,
+    round2(netPay - handedOver),
+    { netPay, handedOver },
+    'Net pay on every posted payroll run, less the wages actually handed over.',
+  );
+}
+
 const CHECKS = [
   checkAccountsReceivable,
   checkRiderCash,
@@ -392,6 +464,8 @@ const CHECKS = [
   checkOutForDelivery,
   checkGoodsReceivedNotInvoiced,
   checkAccountsPayable,
+  checkStaffAdvances,
+  checkSalariesPayable,
 ];
 
 export interface ReconciliationResult {

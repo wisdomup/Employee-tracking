@@ -44,6 +44,8 @@ export const LEDGER_ROLE_KEYS = [
   'transferShrinkage',
   'countAdjustment',
   'salaryExpense',
+  /** Bonus and allowances, kept apart from salary so the wage bill can be read either way. */
+  'staffAllowances',
   'badDebt',
   'cashDifference',
   'suspense',
@@ -70,10 +72,10 @@ export const POSTING_EVENT_KEYS = [
   'damageClaim',
   'stockTransfer',
   'stockCount',
-  // No `expense` switch. An expense is typed into the finance module by somebody asking for it to
-  // be recorded, and approved there. A switch would only create a state where an approved expense
-  // is filed nowhere. Switches are for postings that fire off the back of other people's work.
-  'payroll',
+  // No `expense` or `payroll` switch. Both are finance documents, typed and approved inside the
+  // finance module by somebody asking for them to be recorded. A switch would only create a state
+  // where an approved expense, or a posted payroll run, is filed nowhere. Switches exist for
+  // postings that fire off the back of somebody else's work.
 ] as const;
 
 export type PostingEventKey = (typeof POSTING_EVENT_KEYS)[number];

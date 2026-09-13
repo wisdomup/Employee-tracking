@@ -230,6 +230,21 @@ export const MODULES: readonly ModuleDefinition[] = [
     actions: [ACTIONS.VIEW, ACTIONS.ADD, ACTIONS.EDIT],
   },
   {
+    /*
+     * Wages, and the advances that come off them.
+     *
+     * `change` covers posting a month, handing over the wages, and paying an advance — every point
+     * at which money is committed. Preparing the month is `add` and `edit`, so the person who works
+     * through the figures need not be the person who releases them, exactly as with payments.
+     *
+     * A payroll run carries what every employee is paid. Whoever holds `view` here can read the
+     * whole company's wage bill, which is why it is not folded into the journal row.
+     */
+    id: 'finance-payroll', label: 'Payroll & Staff Advances', group: MODULE_GROUPS.FINANCE,
+    actions: FULL,
+    changeMeans: 'Post a payroll run, pay wages, or hand over a staff advance',
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',
