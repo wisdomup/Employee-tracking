@@ -113,7 +113,7 @@ const EditCatalogPage: React.FC = () => {
 
 export default function EditCatalogPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="catalogs:edit">
       <EditCatalogPage />
     </ProtectedRoute>
   );

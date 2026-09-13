@@ -343,7 +343,7 @@ const EditProductPage: React.FC = () => {
 
 export default function EditProductPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="products:edit">
       <EditProductPage />
     </ProtectedRoute>
   );

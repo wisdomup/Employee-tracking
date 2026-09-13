@@ -293,7 +293,7 @@ const CreateVisitPage: React.FC = () => {
 
 export default function CreateVisitPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="visits:add">
       <CreateVisitPage />
     </ProtectedRoute>
   );

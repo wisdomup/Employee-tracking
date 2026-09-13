@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
+import { can } from '../../../utils/permissions';
 import StatusBadge from '../../../components/UI/StatusBadge';
 import Table from '../../../components/UI/Table';
 import { employeeService, Employee } from '../../../services/employeeService';
@@ -167,12 +168,14 @@ const EmployeeDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Employee Details</h1>
           <div className={styles.headerActions}>
-            <button
-              className={styles.editButton}
-              onClick={() => router.push(`/employees/${id}/edit`)}
-            >
-              Edit
-            </button>
+            {can(undefined, 'employees:edit') && (
+              <button
+                className={styles.editButton}
+                onClick={() => router.push(`/employees/${id}/edit`)}
+              >
+                Edit
+              </button>
+            )}
             <button
               className={styles.backButton}
               onClick={() => router.push('/employees')}
@@ -406,7 +409,7 @@ const EmployeeDetailPage: React.FC = () => {
 
 export default function EmployeeDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="employees:view">
       <EmployeeDetailPage />
     </ProtectedRoute>
   );

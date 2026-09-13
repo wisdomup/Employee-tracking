@@ -120,7 +120,7 @@ const CreateRoutePage: React.FC = () => {
 
 export default function CreateRoutePageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="routes:add">
       <CreateRoutePage />
     </ProtectedRoute>
   );

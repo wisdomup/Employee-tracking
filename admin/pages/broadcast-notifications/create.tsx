@@ -169,7 +169,7 @@ const CreateBroadcastNotificationPage: React.FC = () => {
 
 export default function CreateBroadcastNotificationPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="broadcast-notifications:add">
       <CreateBroadcastNotificationPage />
     </ProtectedRoute>
   );

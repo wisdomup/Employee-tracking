@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
+import { can } from '../../../utils/permissions';
 import { routeService, Route } from '../../../services/routeService';
 import { clientService, Client } from '../../../services/clientService';
 import { visitService, Visit } from '../../../services/visitService';
@@ -184,9 +185,11 @@ const RouteDetailPage: React.FC = () => {
         <div className={styles.header}>
           <h1>Route Details</h1>
           <div className={styles.headerActions}>
-            <button className={styles.editButton} onClick={handleEdit}>
-              Edit
-            </button>
+            {can(undefined, 'routes:edit') && (
+              <button className={styles.editButton} onClick={handleEdit}>
+                Edit
+              </button>
+            )}
             <button
               className={styles.backButton}
               onClick={() => router.push('/routes')}
@@ -246,15 +249,17 @@ const RouteDetailPage: React.FC = () => {
                 )
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-                <button
-                  type="button"
-                  className={styles.editButton}
-                  onClick={handleCreateVisits}
-                  disabled={creatingVisits || !canCreateVisits}
-                  title={createVisitsDisabledReason ?? undefined}
-                >
-                  {creatingVisits ? 'Creating…' : 'Create visits'}
-                </button>
+                {can(undefined, 'visits:add') && (
+                  <button
+                    type="button"
+                    className={styles.editButton}
+                    onClick={handleCreateVisits}
+                    disabled={creatingVisits || !canCreateVisits}
+                    title={createVisitsDisabledReason ?? undefined}
+                  >
+                    {creatingVisits ? 'Creating…' : 'Create visits'}
+                  </button>
+                )}
                 {!canCreateVisits && createVisitsDisabledReason && (
                   <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                     {createVisitsDisabledReason}
@@ -333,7 +338,7 @@ const RouteDetailPage: React.FC = () => {
 
 export default function RouteDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="routes:view">
       <RouteDetailPage />
     </ProtectedRoute>
   );

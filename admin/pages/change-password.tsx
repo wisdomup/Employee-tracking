@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout/Layout';
 import ProtectedRoute from '../components/Auth/ProtectedRoute';
+import { ALL_ROLES } from '../utils/permissions';
 import api from '../services/api';
 import { PasswordInput } from '../components/UI/PasswordInput';
 import styles from '../styles/ChangePassword.module.scss';
@@ -78,7 +79,7 @@ const ChangePassword: React.FC = () => {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={ALL_ROLES}>
       <Layout>
         <div className={styles.container}>
           <div className={styles.header}>

@@ -323,7 +323,7 @@ const EditTaskPage: React.FC = () => {
 
 export default function EditTaskPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="tasks:edit">
       <EditTaskPage />
     </ProtectedRoute>
   );

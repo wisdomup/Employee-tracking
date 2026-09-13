@@ -8,7 +8,7 @@ import styles from '../../styles/FormPage.module.scss';
 
 export default function CreateCatalogPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="catalogs:add">
       <CreateCatalogPage />
     </ProtectedRoute>
   );

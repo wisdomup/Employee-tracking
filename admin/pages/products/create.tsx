@@ -292,7 +292,7 @@ const CreateProductPage: React.FC = () => {
 
 export default function CreateProductPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="products:add">
       <CreateProductPage />
     </ProtectedRoute>
   );

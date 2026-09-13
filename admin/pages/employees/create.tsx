@@ -521,7 +521,7 @@ const CreateEmployeePage: React.FC = () => {
 
 export default function CreateEmployeePageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="employees:add">
       <CreateEmployeePage />
     </ProtectedRoute>
   );

@@ -291,7 +291,7 @@ const ReportDetailPage: React.FC = () => {
 
 export default function ReportDetailPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute reportPrefix="reports.">
       <ReportDetailPage />
     </ProtectedRoute>
   );

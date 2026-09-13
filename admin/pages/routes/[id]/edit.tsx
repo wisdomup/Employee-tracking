@@ -150,7 +150,7 @@ const EditRoutePage: React.FC = () => {
 
 export default function EditRoutePageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="routes:edit">
       <EditRoutePage />
     </ProtectedRoute>
   );

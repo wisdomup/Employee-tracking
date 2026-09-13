@@ -122,7 +122,7 @@ const EditCategoryPage: React.FC = () => {
 
 export default function EditCategoryPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="categories:edit">
       <EditCategoryPage />
     </ProtectedRoute>
   );

@@ -187,15 +187,17 @@ const EmployeesPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/employees/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
+          {can(undefined, 'employees:edit') && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/employees/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
           {can(undefined, 'employees:change') && (
             <button
               className={styles.editButton}
@@ -223,15 +225,17 @@ const EmployeesPage: React.FC = () => {
               )}
             </button>
           )}
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {can(undefined, 'employees:delete') && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -287,7 +291,7 @@ const EmployeesPage: React.FC = () => {
 
 export default function EmployeesPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="employees:view">
       <EmployeesPage />
     </ProtectedRoute>
   );

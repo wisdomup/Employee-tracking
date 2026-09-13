@@ -626,7 +626,7 @@ const EditEmployeePage: React.FC = () => {
 
 export default function EditEmployeePageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="employees:edit">
       <EditEmployeePage />
     </ProtectedRoute>
   );

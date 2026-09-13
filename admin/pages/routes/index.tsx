@@ -160,36 +160,43 @@ const RoutesPage: React.FC = () => {
           >
             View
           </button>
-          <button
-            type="button"
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/routes/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              openAssignModal(row._id);
-            }}
-          >
-            Assign
-          </button>
-          <button
-            type="button"
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {can(undefined, 'routes:edit') && (
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/routes/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {/* Assigning is its own matrix row (Route Assignments), not an edit of the route. */}
+          {can(undefined, 'route-assignments:add') && (
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssignModal(row._id);
+              }}
+            >
+              Assign
+            </button>
+          )}
+          {can(undefined, 'routes:delete') && (
+            <button
+              type="button"
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -290,7 +297,7 @@ const RoutesPage: React.FC = () => {
 
 export default function RoutesPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="routes:view">
       <RoutesPage />
     </ProtectedRoute>
   );

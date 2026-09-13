@@ -91,24 +91,28 @@ const CategoriesPage: React.FC = () => {
       title: 'Actions',
       render: (_: any, row: Category) => (
         <div className={styles.actions}>
-          <button
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/categories/${row._id}/edit`);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row._id);
-            }}
-          >
-            Delete
-          </button>
+          {can(undefined, 'categories:edit') && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/categories/${row._id}/edit`);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {can(undefined, 'categories:delete') && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row._id);
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },
@@ -153,7 +157,7 @@ const CategoriesPage: React.FC = () => {
 
 export default function CategoriesPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="categories:view">
       <CategoriesPage />
     </ProtectedRoute>
   );

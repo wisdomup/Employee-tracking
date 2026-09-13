@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
+import { can } from '../../utils/permissions';
 import Table from '../../components/UI/Table';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../components/UI/SearchableSelect';
@@ -129,24 +130,29 @@ const TrashPage: React.FC = () => {
       title: 'Actions',
       render: (_: any, row: TrashItem) => (
         <div className={styles.actions}>
-          <button
-            className={styles.editButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRestore(row);
-            }}
-          >
-            Restore
-          </button>
-          <button
-            className={styles.deleteButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePermanentDelete(row);
-            }}
-          >
-            Delete Permanently
-          </button>
+          {/* Trash's `change` is restore and `delete` is the permanent purge — see the catalogue. */}
+          {can(undefined, 'trash:change') && (
+            <button
+              className={styles.editButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRestore(row);
+              }}
+            >
+              Restore
+            </button>
+          )}
+          {can(undefined, 'trash:delete') && (
+            <button
+              className={styles.deleteButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePermanentDelete(row);
+              }}
+            >
+              Delete Permanently
+            </button>
+          )}
         </div>
       ),
     },
@@ -157,13 +163,15 @@ const TrashPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Trash</h1>
-          <button
-            className={styles.deleteButton}
-            disabled={selectedKeys.length === 0 || bulkDeleting}
-            onClick={handleBulkPermanentDelete}
-          >
-            {bulkDeleting ? 'Deleting...' : `Delete Selected (${selectedKeys.length})`}
-          </button>
+          {can(undefined, 'trash:delete') && (
+            <button
+              className={styles.deleteButton}
+              disabled={selectedKeys.length === 0 || bulkDeleting}
+              onClick={handleBulkPermanentDelete}
+            >
+              {bulkDeleting ? 'Deleting...' : `Delete Selected (${selectedKeys.length})`}
+            </button>
+          )}
         </div>
 
         <div className={styles.listCard}>
@@ -230,7 +238,7 @@ const TrashPage: React.FC = () => {
 
 export default function TrashPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="trash:view">
       <TrashPage />
     </ProtectedRoute>
   );

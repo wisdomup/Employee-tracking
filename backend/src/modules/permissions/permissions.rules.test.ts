@@ -373,7 +373,13 @@ if (adminPermsExists) {
         if (!entry.name.endsWith('.tsx')) continue;
 
         const text = fs.readFileSync(full, 'utf8');
-        if (!/allowedRoles=\{\[/.test(text)) continue;
+        // Two ways to hardcode a role gate. A literal list is the obvious one. A bare
+        // `<ProtectedRoute>` is the silent one: `allowedRoles` defaults to ['admin'], so the page
+        // is admin-only while looking unguarded — 26 pages shipped that way, and ticking Routes
+        // > Add for a Salesman changed nothing because /routes itself bounced them.
+        const literalRoleList = /allowedRoles=\{\[/.test(text);
+        const implicitAdminOnly = /<ProtectedRoute>/.test(text);
+        if (!literalRoleList && !implicitAdminOnly) continue;
 
         const rel = path.relative(pagesDir, full).split(path.sep).join('/');
         if (ADMIN_ONLY_PAGES.includes(rel)) continue;

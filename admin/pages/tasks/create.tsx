@@ -269,7 +269,7 @@ const CreateTaskPage: React.FC = () => {
 
 export default function CreateTaskPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="tasks:add">
       <CreateTaskPage />
     </ProtectedRoute>
   );

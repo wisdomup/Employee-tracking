@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
+import { can } from '../../utils/permissions';
 import Table from '../../components/UI/Table';
 import { routeAssignmentService, RouteAssignment } from '../../services/routeAssignmentService';
 import { routeService, Route } from '../../services/routeService';
@@ -122,15 +123,17 @@ const AssignmentsPage: React.FC = () => {
       omitFromExport: true,
       render: (_: string, row: RouteAssignment) => (
         <div className={styles.actions}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleUnassign(row.routeId?._id || row.routeId);
-            }}
-            className={styles.deleteButton}
-          >
-            Unassign
-          </button>
+          {can(undefined, 'route-assignments:delete') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnassign(row.routeId?._id || row.routeId);
+              }}
+              className={styles.deleteButton}
+            >
+              Unassign
+            </button>
+          )}
         </div>
       ),
     },
@@ -141,9 +144,11 @@ const AssignmentsPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Route Assignments</h1>
-          <button className={styles.addButton} onClick={openModal}>
-            + Assign Route
-          </button>
+          {can(undefined, 'route-assignments:add') && (
+            <button className={styles.addButton} onClick={openModal}>
+              + Assign Route
+            </button>
+          )}
         </div>
 
         <div className={styles.listCard}>
@@ -236,7 +241,7 @@ const AssignmentsPage: React.FC = () => {
 
 export default function AssignmentsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="route-assignments:view">
       <AssignmentsPage />
     </ProtectedRoute>
   );

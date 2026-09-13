@@ -100,7 +100,7 @@ const CreateCategoryPage: React.FC = () => {
 
 export default function CreateCategoryPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="categories:add">
       <CreateCategoryPage />
     </ProtectedRoute>
   );

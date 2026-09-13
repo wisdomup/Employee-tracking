@@ -153,26 +153,30 @@ const BroadcastNotificationsPage: React.FC = () => {
             <span style={{ color: '#9ca3af', fontSize: '0.8125rem' }}>Raised automatically</span>
           ) : (
             <>
-              <button
-                type="button"
-                className={styles.editButton}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  router.push(`/broadcast-notifications/${row._id}/edit`);
-                }}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className={styles.deleteButton}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(row._id);
-                }}
-              >
-                Delete
-              </button>
+              {can(undefined, 'broadcast-notifications:edit') && (
+                <button
+                  type="button"
+                  className={styles.editButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/broadcast-notifications/${row._id}/edit`);
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+              {can(undefined, 'broadcast-notifications:delete') && (
+                <button
+                  type="button"
+                  className={styles.deleteButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(row._id);
+                  }}
+                >
+                  Delete
+                </button>
+              )}
             </>
           )}
         </div>
@@ -231,7 +235,7 @@ const BroadcastNotificationsPage: React.FC = () => {
 
 export default function BroadcastNotificationsPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="broadcast-notifications:view">
       <BroadcastNotificationsPage />
     </ProtectedRoute>
   );

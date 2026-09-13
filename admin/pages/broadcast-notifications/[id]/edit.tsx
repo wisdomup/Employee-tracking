@@ -216,7 +216,7 @@ const EditBroadcastNotificationPage: React.FC = () => {
 
 export default function EditBroadcastNotificationPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="broadcast-notifications:edit">
       <EditBroadcastNotificationPage />
     </ProtectedRoute>
   );

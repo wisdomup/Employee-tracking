@@ -481,7 +481,7 @@ const EditClientPage: React.FC = () => {
 
 export default function EditClientPageWrapper() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="dealers:edit">
       <EditClientPage />
     </ProtectedRoute>
   );
