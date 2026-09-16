@@ -67,6 +67,9 @@ export interface DealerOutstanding {
   dealerId: string;
   creditTotal: number;
   recoveredTotal: number;
+  /** Completed returns. Goods sent back reduce the debt the same way a payment does. */
+  returnedTotal: number;
+  /** Negative means the shop has sent back more than it owed and is in credit with us. */
   outstanding: number;
 }
 

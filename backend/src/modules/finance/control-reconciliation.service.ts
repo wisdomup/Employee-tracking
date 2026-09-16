@@ -115,16 +115,19 @@ async function valueOfStock(field: 'sellable' | 'inTransit' | 'damaged'): Promis
  * What every shop owes.
  *
  * The operational figure is `getDealerOutstanding` summed over all shops: credit issued on
- * deliveries, less everything recovered since.
+ * deliveries, less recoveries, less completed returns. The three terms below are that same
+ * arithmetic run in one pass instead of per shop.
  *
- * IT DOES NOT SUBTRACT RETURNS. The ledger does — a completed return credits the shop's
- * receivable — so the two differ by exactly the value of returns credited, and the difference
- * grows with every return. That is not a bug in the posting; it is the finance module surfacing
- * one in the operational figure: a shop that returned goods still shows the full amount owing on
- * the rider's screen.
+ * ## This check earned its keep before it ever went green
  *
- * The check therefore compares against credit less recoveries less returns, and reports the
- * unadjusted operational figure alongside so the gap is visible rather than absorbed.
+ * The rider-facing figure used NOT to subtract returns, while the ledger always did. The two
+ * therefore disagreed by the value of every return ever made, and the gap grew with each one —
+ * a shop that had sent goods back still showed the full amount owing, and the recovery cap let
+ * a rider collect money the shop did not owe. Nothing else in the system could have noticed;
+ * both sides were internally consistent and only differed when compared.
+ *
+ * `getDealerOutstanding` now subtracts returns, so the two agree. The breakdown is still
+ * reported term by term, because a difference with no arithmetic behind it is a dead end.
  */
 async function checkAccountsReceivable(): Promise<ControlCheck | null> {
   const ledger = await balanceOfRole('arTrade');
@@ -160,12 +163,8 @@ async function checkAccountsReceivable(): Promise<ControlCheck | null> {
       creditIssued: creditTotal,
       recovered: recoveredTotal,
       returnsCredited: returnedTotal,
-      figureShownToRiders: round2(creditTotal - recoveredTotal),
     },
-    returnedTotal > 0
-      ? 'The rider-facing outstanding figure does not subtract returns, so it is higher than '
-        + `this by ${returnedTotal}. Worth deciding whether a return should reduce what a shop owes.`
-      : undefined,
+    'Credit given to shops, less what has been collected back, less goods returned.',
   );
 }
 

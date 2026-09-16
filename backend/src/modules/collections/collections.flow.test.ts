@@ -439,6 +439,48 @@ async function main(): Promise<void> {
     assert.equal(outstanding.outstanding, 500);
   });
 
+  await test('a completed return reduces what the shop owes, and the recovery cap with it', async () => {
+    /*
+     * The bug this closes: outstanding was credit less recoveries alone, so goods sent back
+     * never came off. A shop that had returned 200 still showed 500 owing, and because
+     * `validateRecoveryAmount` caps a recovery at this figure, a rider was allowed to collect
+     * money the shop did not owe.
+     */
+    const { ReturnModel } = await import('../../models/return.model');
+
+    const sentBack = await ReturnModel.create({
+      dealerId: recoveryShop,
+      returnType: 'return',
+      products: [{ productId, quantity: 1, price: 200 }],
+      amount: 200,
+      status: 'completed',
+      createdBy: recoveryRider,
+    });
+
+    const owed = await reports.getDealerOutstanding(String(recoveryShop));
+    assert.equal(owed.returnedTotal, 200);
+    assert.equal(owed.outstanding, 300, 'the return did not come off what the shop owes');
+
+    // The cap moved with it: 500 would have been accepted before.
+    await rejectsWith(
+      recoveries.createRecovery(String(recoveryRider), {
+        dealerId: String(recoveryShop), amount: 400, mode: 'cash',
+      }),
+      /pending credit is Rs\. 300/,
+    );
+
+    // A pending return has not happened yet and must not wipe a debt.
+    sentBack.status = 'pending';
+    await sentBack.save();
+    const whilePending = await reports.getDealerOutstanding(String(recoveryShop));
+    assert.equal(whilePending.outstanding, 500, 'a return that is not back yet reduced the debt');
+
+    // Removed so the tests after this one keep the arithmetic they were written against.
+    await ReturnModel.deleteOne({ _id: sentBack._id });
+    const after = await reports.getDealerOutstanding(String(recoveryShop));
+    assert.equal(after.outstanding, 500, 'the return test did not clean up after itself');
+  });
+
   await test('recovering more than is outstanding is refused, naming the real figure', async () => {
     await rejectsWith(
       recoveries.createRecovery(String(recoveryRider), {

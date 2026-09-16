@@ -201,13 +201,20 @@ async function main(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------
-  // The gap this module surfaced
+  // The gap this module surfaced, and closed
   // -------------------------------------------------------------------------
 
-  await test('a return exposes that the rider-facing figure does not subtract returns', async () => {
-    // `getDealerOutstanding` is credit less recoveries. It never subtracts returns, so a shop
-    // that sent goods back still shows the full amount owing on the rider's screen. The ledger
-    // does subtract them, so the check reports both figures and names the gap.
+  await test('a return reduces what the shop owes, on both sides', async () => {
+    /*
+     * This check found a real bug before it ever went green.
+     *
+     * `getDealerOutstanding` used to be credit less recoveries alone, so a shop that had sent
+     * goods back still showed the full amount owing on the rider's screen while the ledger had
+     * already credited it. Both sides were internally consistent; only comparing them showed it.
+     *
+     * The operational figure now subtracts completed returns, so the two agree — and this test
+     * asserts the agreement rather than the gap.
+     */
     const returned = await ReturnModel.create({
       dealerId: DEALER,
       returnType: 'return',
@@ -229,9 +236,15 @@ async function main(): Promise<void> {
     const ar = checkById(result, 'ar-trade');
 
     assert.equal(ar.breakdown.returnsCredited, 100);
-    assert.equal(ar.breakdown.figureShownToRiders, 400, 'the operational figure was not reported');
-    assert.equal(ar.operationalValue, 300, 'the ledger comparison did not subtract the return');
-    assert.match(ar.note ?? '', /does not subtract returns/);
+    assert.equal(ar.operationalValue, 300, 'the operational figure did not subtract the return');
+    assert.equal(ar.ledgerBalance, 300, 'the ledger did not credit the shop');
+    assert.equal(ar.ok, true, 'the books and the rider-facing figure disagree about a return');
+
+    // And the same figure, asked the way the rider's screen asks it.
+    const { getDealerOutstanding } = await import('../collections/collection-reports.service');
+    const owed = await getDealerOutstanding(String(DEALER));
+    assert.equal(owed.returnedTotal, 100);
+    assert.equal(owed.outstanding, 300, 'the shop is still being chased for returned goods');
   });
 
   // -------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import { UserModel } from '../../models/user.model';
 import { DeliveryCollectionModel } from '../../models/delivery-collection.model';
 import { CreditRecoveryModel } from '../../models/credit-recovery.model';
 import { SettlementModel } from '../../models/settlement.model';
+import { ReturnModel } from '../../models/return.model';
 import { ROLES } from '../../constants/global';
 import { badRequest } from '../../utils/app-error';
 import {
@@ -177,13 +178,38 @@ export interface DealerOutstanding {
   dealerId: string;
   creditTotal: number;
   recoveredTotal: number;
+  /** Completed returns. Goods sent back reduce the debt the same way a payment does. */
+  returnedTotal: number;
+  /** Negative means the shop has sent back more than it owed and is in credit with us. */
   outstanding: number;
 }
 
-/** What one shop still owes: credit issued on deliveries, less everything recovered since. */
+/**
+ * What one shop still owes: credit issued on deliveries, less recoveries, less returns.
+ *
+ * ## Returns used not to count, and that was a bug
+ *
+ * This was credit less recoveries alone, so a shop that sent 20,000 of goods back still showed
+ * the full amount owing on the rider's screen — and `validateRecoveryAmount` caps a recovery at
+ * this figure, so a rider could be allowed to collect money the shop did not owe. The accounts
+ * always subtracted returns, so the two disagreed by the value of every return ever made and the
+ * gap grew with each one. The nightly receivables check was built to report that gap; it now has
+ * nothing to report.
+ *
+ * ## Matched to the ledger deliberately
+ *
+ * `completed` and not trashed, summing `amount` — exactly what `postCustomerReturn` credits to
+ * the shop's receivable. A pending or approved return has not happened yet and must not wipe a
+ * debt; the two sides have to agree line for line or the check goes red for a reason nobody can
+ * act on.
+ *
+ * Damage returns count too, and that is right: the shop is not charged for goods it sent back,
+ * whatever state they arrived in. Whether WE can sell them again is our problem, and the ledger
+ * already treats it as one by writing the cost off rather than putting it back on the shelf.
+ */
 export async function getDealerOutstanding(dealerId: string): Promise<DealerOutstanding> {
   const dealer = new Types.ObjectId(dealerId);
-  const [issued, recovered] = await Promise.all([
+  const [issued, recovered, returned] = await Promise.all([
     DeliveryCollectionModel.aggregate<{ total: number }>([
       { $match: { dealerId: dealer, ...NOT_VOID } },
       { $group: { _id: null, total: { $sum: '$credit' } } },
@@ -192,15 +218,22 @@ export async function getDealerOutstanding(dealerId: string): Promise<DealerOuts
       { $match: { dealerId: dealer, ...NOT_VOID } },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]),
+    ReturnModel.aggregate<{ total: number }>([
+      { $match: { dealerId: dealer, status: 'completed', isTrashed: { $ne: true } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
   ]);
 
   const creditTotal = round2(issued[0]?.total ?? 0);
   const recoveredTotal = round2(recovered[0]?.total ?? 0);
+  const returnedTotal = round2(returned[0]?.total ?? 0);
+
   return {
     dealerId,
     creditTotal,
     recoveredTotal,
-    outstanding: round2(creditTotal - recoveredTotal),
+    returnedTotal,
+    outstanding: round2(creditTotal - recoveredTotal - returnedTotal),
   };
 }
 

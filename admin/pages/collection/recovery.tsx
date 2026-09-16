@@ -229,7 +229,22 @@ const RecoveryPage: React.FC = () => {
                             {formatRs(cap)}
                           </strong>
                         </div>
-                        {cap <= 0 && (
+                        {/* Returns come off what a shop owes, so a figure lower than the
+                            paperwork says needs its reason on the screen — otherwise it turns
+                            into an argument at the counter. */}
+                        {(outstanding?.returnedTotal ?? 0) > 0 && (
+                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                            Already reduced by {formatRs(outstanding!.returnedTotal)} of returned
+                            goods.
+                          </p>
+                        )}
+                        {cap < 0 && (
+                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                            This client has sent back more than they owed, so they are in credit
+                            with us. Nothing to collect.
+                          </p>
+                        )}
+                        {cap === 0 && (
                           <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
                             This client has no pending credit.
                           </p>
