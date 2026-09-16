@@ -260,6 +260,20 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Sign off a bank reconciliation',
   },
   {
+    /*
+     * The changeover, done once in the life of the business.
+     *
+     * `edit` is typing figures on the worksheet, which writes nothing. `change` is opening the
+     * books with them — the moment the accounts stop being empty, and the figure every report
+     * afterwards starts from. There is no `add` or `delete`: there is one changeover, it is not
+     * a document anybody creates or throws away, and reopening it is an undo that lives on the
+     * reversals row.
+     */
+    id: 'finance-opening', label: 'Opening Balances', group: MODULE_GROUPS.FINANCE,
+    actions: [VIEW, EDIT, CHANGE],
+    changeMeans: 'Open the books with the entered opening balances',
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',

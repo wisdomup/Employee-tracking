@@ -517,6 +517,17 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-bank-rec:delete',
       'finance-bank-rec:change',
 
+      /*
+       * The changeover, and the Finance Manager alone.
+       *
+       * It happens once, it decides every figure the accounts start from, and it is nobody's
+       * daily work. The accountant is not given even `view`: a half-finished worksheet on a
+       * screen invites somebody to finish it.
+       */
+      'finance-opening:view',
+      'finance-opening:edit',
+      'finance-opening:change',
+
       'finance-period:view',
       'finance-period:change',
 
