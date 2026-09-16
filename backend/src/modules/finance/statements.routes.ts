@@ -177,4 +177,25 @@ router.get('/reports/cash-flow', requireReport('finance.cash-flow'), statements.
  */
 router.get('/reports/cash-position', requireReport('finance.cash-position'), statements.cashPosition);
 
+/**
+ * @openapi
+ * /api/finance/reports/tax-summary:
+ *   get:
+ *     tags: [Finance — Statements]
+ *     summary: Tax paid on purchases and charged on sales, with the supplier breakdown
+ *     description: >
+ *       Works out no tax. Every figure was typed onto a bill or an expense by a person and
+ *       posted; this adds them up. The totals come from the accounts, the supplier breakdown
+ *       from the documents — a posting to the tax account carries no supplier — and the
+ *       difference between the two is reported, because a return filed off a breakdown that
+ *       does not agree with the books is a return that does not agree with the books.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: from, schema: { type: string, format: date } }
+ *       - { in: query, name: to, schema: { type: string, format: date } }
+ *     responses:
+ *       200: { description: Tax summary with the purchase breakdown and any warnings }
+ */
+router.get('/reports/tax-summary', requireReport('finance.tax-summary'), statements.taxSummary);
+
 export default router;

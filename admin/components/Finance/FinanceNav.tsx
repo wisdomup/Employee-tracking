@@ -35,6 +35,7 @@ const TABS: {
       'finance.party-statement',
       'finance.cash-flow',
       'finance.cash-position',
+      'finance.tax-summary',
       'finance.trial-balance',
       'finance.ledger-statement',
       'finance.day-book',

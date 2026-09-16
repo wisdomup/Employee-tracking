@@ -1829,3 +1829,48 @@ export const openingBalanceService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Tax summary
+// ---------------------------------------------------------------------------
+
+/** One supplier's purchases in the period — a line on the purchase side of a return. */
+export interface TaxPartyRow {
+  vendorId: string | null;
+  name: string;
+  taxRegistrationNo?: string;
+  documentCount: number;
+  /** What the goods or services cost before tax. */
+  taxableAmount: number;
+  taxAmount: number;
+  /** False when there is no tax number, which is what stops a line being filed. */
+  filable: boolean;
+}
+
+export interface TaxSummary {
+  from: string;
+  to: string;
+  /** Tax paid on purchases, from the accounts. Claimable. */
+  inputTax: number;
+  /** Tax charged on sales, from the accounts. Owed onward. */
+  outputTax: number;
+  /** Positive is payable to the revenue office, negative is reclaimable. */
+  net: number;
+  inputTaxCode: string;
+  outputTaxCode: string;
+  purchases: TaxPartyRow[];
+  purchasesTaxTotal: number;
+  /** Accounts less documents. Anything but nil has to be explained before filing. */
+  unattributedInputTax: number;
+  warnings: string[];
+}
+
+export const taxReportService = {
+  async summary(params: { from?: string; to?: string } = {}): Promise<TaxSummary> {
+    const q = new URLSearchParams();
+    if (params.from) q.append('from', params.from);
+    if (params.to) q.append('to', params.to);
+    const response = await api.get(`/finance/reports/tax-summary?${q.toString()}`);
+    return response.data;
+  },
+};

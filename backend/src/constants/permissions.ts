@@ -496,6 +496,7 @@ export const REPORTS: readonly ReportDefinition[] = [
   { id: 'finance.party-statement',  label: 'Shop & Supplier Statements', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/party-statement' },
   { id: 'finance.cash-flow',        label: 'Cash Flow',        surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/cash-flow' },
   { id: 'finance.cash-position',    label: 'Cash & Bank',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/cash-position' },
+  { id: 'finance.tax-summary',      label: 'Tax Summary',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/tax-summary' },
   { id: 'finance.health',           label: 'Finance Health',   surface: REPORT_SURFACES.FINANCE, path: '/finance/health' },
 ];
 

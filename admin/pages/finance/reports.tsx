@@ -10,6 +10,7 @@ import { CashFlowReport, CashPositionReport } from '../../components/Finance/Cas
 import { canViewReport } from '../../utils/permissions';
 import {
   cashReportService,
+  taxReportService,
   financeService,
   journalService,
   partyReportService,
@@ -17,6 +18,7 @@ import {
   BalanceSheet,
   CashFlow,
   CashPosition,
+  TaxSummary,
   Ledger,
   PartyStatement,
   PartyType,
@@ -49,7 +51,8 @@ type Tab =
   | 'cash-position'
   | 'trial-balance'
   | 'day-book'
-  | 'ledger-statement';
+  | 'ledger-statement'
+  | 'tax-summary';
 
 const TABS: { id: Tab; label: string; reportId: string }[] = [
   { id: 'profit-and-loss', label: 'Profit & Loss', reportId: 'finance.profit-and-loss' },
@@ -62,6 +65,7 @@ const TABS: { id: Tab; label: string; reportId: string }[] = [
   { id: 'trial-balance', label: 'Trial Balance', reportId: 'finance.trial-balance' },
   { id: 'day-book', label: 'Day Book', reportId: 'finance.day-book' },
   { id: 'ledger-statement', label: 'Account Statement', reportId: 'finance.ledger-statement' },
+  { id: 'tax-summary', label: 'Tax Summary', reportId: 'finance.tax-summary' },
 ];
 
 function money(value: number): string {
@@ -124,6 +128,8 @@ const FinanceReportsPage: React.FC = () => {
   const [cfTo, setCfTo] = useState(thisMonth());
   const [cpFrom, setCpFrom] = useState(`${thisMonth()}-01`);
   const [cpTo, setCpTo] = useState(today());
+  const [taxFrom, setTaxFrom] = useState(`${thisMonth()}-01`);
+  const [taxTo, setTaxTo] = useState(today());
 
   const [trial, setTrial] = useState<any>(null);
   const [book, setBook] = useState<any>(null);
@@ -135,6 +141,7 @@ const FinanceReportsPage: React.FC = () => {
   const [party, setParty] = useState<PartyStatement | null>(null);
   const [cf, setCf] = useState<CashFlow | null>(null);
   const [cp, setCp] = useState<CashPosition | null>(null);
+  const [taxSum, setTaxSum] = useState<TaxSummary | null>(null);
 
   // Deep links: ?tab=…&ledgerId=…&from=…&to=…&partyType=…&partyId=…
   useEffect(() => {
@@ -191,6 +198,8 @@ const FinanceReportsPage: React.FC = () => {
         setCf(await cashReportService.cashFlow({ from: cfFrom, to: cfTo }));
       } else if (tab === 'cash-position') {
         setCp(await cashReportService.cashPosition({ from: cpFrom, to: cpTo }));
+      } else if (tab === 'tax-summary') {
+        setTaxSum(await taxReportService.summary({ from: taxFrom, to: taxTo }));
       } else if (tab === 'trial-balance') {
         setTrial(await journalService.trialBalance(asOf));
       } else if (tab === 'day-book') {
@@ -203,7 +212,7 @@ const FinanceReportsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero, arAsOf, partyType, partyId, partyFrom, partyTo, cfFrom, cfTo, cpFrom, cpTo]);
+  }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero, arAsOf, partyType, partyId, partyFrom, partyTo, cfFrom, cfTo, cpFrom, cpTo, taxFrom, taxTo]);
 
   useEffect(() => {
     if (tab === 'ledger-statement' && !ledgerId) return;
@@ -402,6 +411,13 @@ const FinanceReportsPage: React.FC = () => {
             <>
               <input type="date" className={listStyles.searchSelect} value={cpFrom} onChange={(e) => setCpFrom(e.target.value)} aria-label="From" />
               <input type="date" className={listStyles.searchSelect} value={cpTo} onChange={(e) => setCpTo(e.target.value)} aria-label="To" />
+            </>
+          )}
+
+          {tab === 'tax-summary' && (
+            <>
+              <input type="date" className={listStyles.searchSelect} value={taxFrom} onChange={(e) => setTaxFrom(e.target.value)} aria-label="From" />
+              <input type="date" className={listStyles.searchSelect} value={taxTo} onChange={(e) => setTaxTo(e.target.value)} aria-label="To" />
             </>
           )}
 
@@ -934,6 +950,109 @@ const FinanceReportsPage: React.FC = () => {
 
             {!loading && tab === 'cash-position' && cp && (
               <CashPositionReport report={cp} onLedger={openLedgerDays(cp.from, cp.to)} />
+            )}
+
+            {/* --- Tax summary --- */}
+            {!loading && tab === 'tax-summary' && taxSum && (
+              <>
+                {/* Warnings first. Every one of them is a reason a return filed from this page
+                    would not match the books, and finding that out afterwards is expensive. */}
+                {taxSum.warnings.map((warning) => (
+                  <div key={warning} className={`${styles.banner} ${styles.bannerBad}`}>
+                    {warning}
+                  </div>
+                ))}
+
+                <div className={styles.totalsBar}>
+                  <div className={styles.totalsItem}>
+                    <span className={styles.totalsLabel}>Tax paid on purchases</span>
+                    <span className={styles.totalsValue}>{money(taxSum.inputTax)}</span>
+                  </div>
+                  <div className={styles.totalsItem}>
+                    <span className={styles.totalsLabel}>Tax charged on sales</span>
+                    <span className={styles.totalsValue}>{money(taxSum.outputTax)}</span>
+                  </div>
+                  <div className={styles.totalsItem}>
+                    <span className={styles.totalsLabel}>
+                      {taxSum.net >= 0 ? 'Payable' : 'Reclaimable'}
+                    </span>
+                    <span
+                      className={`${styles.totalsValue} ${
+                        taxSum.net > 0 ? styles.totalsUnbalanced : styles.totalsBalanced
+                      }`}
+                    >
+                      {money(Math.abs(taxSum.net))}
+                    </span>
+                  </div>
+                  <div className={styles.totalsVerdict}>
+                    Nothing here is worked out from a rate. Every figure was typed onto a bill or
+                    an expense by a person and posted to the accounts; this page adds them up.
+                  </div>
+                </div>
+
+                <h2 className={styles.panelTitle}>Tax paid, supplier by supplier</h2>
+                <p className={styles.readonlyNote}>
+                  The totals above come from the accounts. This list comes from the bills and
+                  expenses themselves, because a posting to the tax account does not say who was
+                  paid. The two should agree — where they do not, it is called out above.
+                </p>
+
+                {taxSum.purchases.length === 0 ? (
+                  <p className={styles.muted}>
+                    No bill or expense in this period carries any tax.
+                  </p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className={styles.roleTable}>
+                      <thead>
+                        <tr>
+                          <th>Supplier</th>
+                          <th>Tax number</th>
+                          <th style={{ textAlign: 'right' }}>Documents</th>
+                          <th style={{ textAlign: 'right' }}>Before tax</th>
+                          <th style={{ textAlign: 'right' }}>Tax</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {taxSum.purchases.map((row) => (
+                          <tr key={row.vendorId ?? 'unnamed'}>
+                            <td>{row.name}</td>
+                            <td>
+                              {row.taxRegistrationNo ? (
+                                <span className={styles.code}>{row.taxRegistrationNo}</span>
+                              ) : (
+                                <span
+                                  className={styles.flag}
+                                  title="Without a tax number this line cannot go on a return."
+                                >
+                                  Missing
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>{row.documentCount}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className={styles.amount}>{money(row.taxableAmount)}</span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className={styles.amount}>{money(row.taxAmount)}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>
+                            Total from the documents
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={styles.amount}>{money(taxSum.purchasesTaxTotal)}</span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
 
             {/* --- Trial balance --- */}
