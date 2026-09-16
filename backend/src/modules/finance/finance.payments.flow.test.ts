@@ -24,6 +24,7 @@ import { openPeriod } from './period.service';
 import { postEntry } from './posting.service';
 import { runControlReconciliation } from './control-reconciliation.service';
 import { withFinanceLocks } from './finance-locks';
+import { round2 } from './finance.rules';
 import * as bills from './bills.service';
 import * as payments from './payments.service';
 import * as vendors from './vendors.service';
@@ -609,6 +610,209 @@ async function main(): Promise<void> {
       /boom/,
     );
     assert.equal(await FinanceLockModel.countDocuments({ _id: 'test:boom' }), 0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Tax withheld from the supplier
+  // -------------------------------------------------------------------------
+
+  const { TaxRateModel } = await import('../../models/tax-rate.model');
+  await TaxRateModel.syncIndexes();
+  const rates = await import('./tax-rates.service');
+
+  const whtRate = await rates.createTaxRate(
+    { name: 'Goods — filer', kind: 'withholding', percentage: 4.5 },
+    ACTOR,
+  );
+  const salesRate = await rates.createTaxRate(
+    { name: 'Standard', kind: 'sales', percentage: 18 },
+    ACTOR,
+  );
+
+  await test('a sales rate cannot be used to deduct from a supplier', async () => {
+    // Offering the wrong kind would deduct a wrong figure and nothing downstream would know it
+    // was the wrong sort of tax.
+    await rejectsWith(
+      payments.createPayment(
+        {
+          vendorId: acme.id,
+          paymentDate: now,
+          method: 'bank_transfer',
+          paidFromLedgerId: bank,
+          amount: 1000,
+          taxRateId: salesRate.id,
+        },
+        ACTOR,
+      ),
+      /is a sales tax rate and cannot be used/,
+    );
+  });
+
+  await test('a rate and a typed figure together are refused', async () => {
+    await rejectsWith(
+      payments.createPayment(
+        {
+          vendorId: acme.id,
+          paymentDate: now,
+          method: 'bank_transfer',
+          paidFromLedgerId: bank,
+          amount: 1000,
+          taxRateId: whtRate.id,
+          taxWithheldAmount: 45,
+        },
+        ACTOR,
+      ),
+      /not both/,
+    );
+  });
+
+  await test('withholding everything would leave the supplier nothing', async () => {
+    await rejectsWith(
+      payments.createPayment(
+        {
+          vendorId: acme.id,
+          paymentDate: now,
+          method: 'bank_transfer',
+          paidFromLedgerId: bank,
+          amount: 1000,
+          taxWithheldAmount: 1000,
+        },
+        ACTOR,
+      ),
+      /would leave nothing for the supplier/,
+    );
+  });
+
+  let whtPaymentId = '';
+
+  await test('the rate works the deduction out, and the net is what goes out', async () => {
+    const owedBefore = await balance('2110');
+    const bankBefore = await balance('1120');
+
+    const draft = await payments.createPayment(
+      {
+        vendorId: acme.id,
+        paymentDate: now,
+        method: 'bank_transfer',
+        paidFromLedgerId: bank,
+        amount: 1000,
+        taxRateId: whtRate.id,
+      },
+      ACTOR,
+    );
+    whtPaymentId = draft.id;
+
+    assert.equal(draft.taxWithheldAmount, 45, '4.5% of 1000');
+    assert.equal(draft.netPaid, 955);
+
+    await payments.postPayment(draft.id, ACTOR);
+
+    /*
+     * The whole point, in three figures: the supplier is square for the full 1,000, only 955
+     * left the bank, and the 45 is now owed to the revenue office instead.
+     */
+    assert.equal(
+      await balance('2110'),
+      round2(owedBefore - 1000),
+      'the supplier was not settled for the full invoice',
+    );
+    assert.equal(
+      await balance('1120'),
+      round2(bankBefore - 955),
+      'the bank moved by the gross instead of the net',
+    );
+    assert.equal(await balance('2125'), 45, 'the deduction was not held as owed onward');
+  });
+
+  await test('the books still balance with a deduction in them', async () => {
+    const { trialBalance } = await import('./journal.service');
+    const tb = await trialBalance();
+    assert.equal(tb.balanced, true);
+  });
+
+  await test('the withheld tax is reported apart from the sales-tax position', async () => {
+    // It is somebody else's tax, remitted on its own return. Folding it into the sales-tax net
+    // would overstate that and leave the withholding return with no figure at all.
+    const { taxSummary } = await import('./tax-reports.service');
+    const report = await taxSummary({ from: '2000-01-01', to: '2100-01-01' });
+
+    assert.equal(report.taxWithheld, 45);
+    assert.equal(report.net, round2(report.outputTax - report.inputTax));
+  });
+
+  await test('a cheque clears for its face value, not the gross', async () => {
+    /*
+     * Only the net was ever written on the cheque, so only the net went into "cheques issued".
+     * Clearing the gross would drive that account negative by the deduction and credit the bank
+     * with money that never moved — which the next bank reconciliation would fail on.
+     */
+    const draft = await payments.createPayment(
+      {
+        vendorId: acme.id,
+        paymentDate: now,
+        method: 'cheque',
+        paidFromLedgerId: bank,
+        chequeNo: '000999',
+        amount: 2000,
+        taxWithheldAmount: 90,
+      },
+      ACTOR,
+    );
+    await payments.postPayment(draft.id, ACTOR);
+
+    const issuedAfterWriting = await balance('1125');
+    const bankBefore = await balance('1120');
+
+    await payments.clearCheque(draft.id, new Date(), ACTOR);
+
+    assert.equal(
+      await balance('1125'),
+      round2(issuedAfterWriting + 1910),
+      'the uncleared account was cleared by the gross',
+    );
+    assert.equal(
+      await balance('1120'),
+      round2(bankBefore - 1910),
+      'the bank was credited with more than the cheque was for',
+    );
+  });
+
+  await test('a rate a payment has used cannot be deleted', async () => {
+    await rejectsWith(rates.deleteTaxRate(whtRate.id, ACTOR), /Retire it instead/);
+  });
+
+  await test('a retired rate cannot be applied to a new payment', async () => {
+    await rates.updateTaxRate(whtRate.id, { isActive: false }, ACTOR);
+    await rejectsWith(
+      payments.createPayment(
+        {
+          vendorId: acme.id,
+          paymentDate: now,
+          method: 'bank_transfer',
+          paidFromLedgerId: bank,
+          amount: 500,
+          taxRateId: whtRate.id,
+        },
+        ACTOR,
+      ),
+      /has been retired/,
+    );
+  });
+
+  await test('a rate cannot change from withholding into sales', async () => {
+    // Every payment citing it would start misdescribing what was deducted.
+    await rejectsWith(
+      rates.updateTaxRate(whtRate.id, { kind: 'sales' }, ACTOR),
+      /cannot change between sales and withholding/,
+    );
+  });
+
+  await test('cancelling a payment takes the deduction back too', async () => {
+    const owedBefore = await balance('2110');
+    await payments.cancelPayment(whtPaymentId, 'Paid the wrong supplier', ACTOR);
+
+    assert.equal(await balance('2110'), round2(owedBefore + 1000));
+    assert.equal(await balance('2125'), 90, 'the reversed deduction was left owed to the revenue');
   });
 }
 

@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import {
   paymentService,
   Ledger,
+  TaxRate,
   OpenBill,
   PaymentInput,
   PaymentMethod,
@@ -33,7 +34,11 @@ export interface PaymentFormValues {
   chequeNo: string;
   chequeDate: string;
   transferReference: string;
+  /** The GROSS: what the supplier's invoice is settled by, before anything is withheld. */
   amount: string;
+  /** A withholding rate to apply, or blank to type the figure instead. Never both. */
+  taxRateId: string;
+  taxWithheldAmount: string;
   /** billId to the amount of this payment set against it, as typed. */
   allocated: Record<string, string>;
   notes: string;
@@ -48,6 +53,8 @@ export const EMPTY_PAYMENT_FORM: PaymentFormValues = {
   chequeDate: '',
   transferReference: '',
   amount: '',
+  taxRateId: '',
+  taxWithheldAmount: '',
   allocated: {},
   notes: '',
 };
@@ -61,10 +68,30 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-export function paymentTotals(values: PaymentFormValues) {
+export function paymentTotals(values: PaymentFormValues, rates: TaxRate[] = []) {
   const amount = num(values.amount);
   const allocated = Object.values(values.allocated).reduce((sum, v) => sum + num(v), 0);
-  return { amount, allocated, onAccount: round2(amount - allocated) };
+
+  /*
+   * Withheld tax does NOT reduce what is set against the bills.
+   *
+   * The supplier's invoice is discharged in full — they are square with us — and the deduction
+   * is owed to the revenue office instead. Netting it off the allocations here would show an
+   * invoice as part-paid when it is settled, and the next payment run would chase a supplier who
+   * has already been paid.
+   */
+  const rate = rates.find((r) => r.id === values.taxRateId);
+  const withheld = rate
+    ? round2((amount * rate.percentage) / 100)
+    : round2(num(values.taxWithheldAmount));
+
+  return {
+    amount,
+    allocated,
+    onAccount: round2(amount - allocated),
+    withheld,
+    netPaid: round2(amount - withheld),
+  };
 }
 
 /** What goes to the API. Fields that do not belong to the chosen method are not sent at all. */
@@ -79,6 +106,11 @@ export function paymentToPayload(values: PaymentFormValues): PaymentInput {
     chequeDate: isCheque && values.chequeDate ? values.chequeDate : undefined,
     transferReference: !isCheque ? values.transferReference.trim() || undefined : undefined,
     amount: num(values.amount),
+    // One or the other, never both — the server refuses both rather than choosing.
+    taxRateId: values.taxRateId || undefined,
+    taxWithheldAmount: values.taxRateId
+      ? undefined
+      : (num(values.taxWithheldAmount) > 0 ? num(values.taxWithheldAmount) : undefined),
     allocations: Object.entries(values.allocated)
       .filter(([, amount]) => num(amount) > 0)
       .map(([billId, amount]) => ({ billId, amount: num(amount) })),
@@ -92,6 +124,8 @@ interface Props {
   vendors: Vendor[];
   /** Cash and bank accounts only — money can only come out of somewhere money actually is. */
   accounts: Ledger[];
+  /** Withholding rates only. A sales rate here would deduct the wrong sort of tax. */
+  withholdingRates?: TaxRate[];
   disabled?: boolean;
   /** Set when editing, so the bills this draft already settles stay on the list. */
   paymentId?: string;
@@ -104,6 +138,7 @@ const PaymentForm: React.FC<Props> = ({
   onChange,
   vendors,
   accounts,
+  withholdingRates = [],
   disabled,
   paymentId,
   preselectBillId,
@@ -150,7 +185,7 @@ const PaymentForm: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bills, preselectBillId]);
 
-  const totals = paymentTotals(values);
+  const totals = paymentTotals(values, withholdingRates);
 
   const toggleBill = (bill: OpenBill) => {
     const next = { ...values.allocated };
@@ -274,8 +309,62 @@ const PaymentForm: React.FC<Props> = ({
             placeholder="0.00"
             required
           />
+          <p className={styles.hint}>
+            What the invoice is worth, before anything is withheld — not what is handed over.
+          </p>
         </div>
       </div>
+
+      {/* Tax withheld. Hidden entirely until a rate exists, so the ordinary payment stays a
+          three-field form for businesses that never withhold anything. */}
+      {(withholdingRates.length > 0 || totals.withheld > 0) && (
+        <div className={styles.formRow}>
+          <div className={styles.formGroup}>
+            <label htmlFor="taxRateId">Tax withheld at</label>
+            <select
+              id="taxRateId"
+              className={styles.select}
+              value={values.taxRateId}
+              onChange={(e) => set('taxRateId', e.target.value)}
+              disabled={disabled || num(values.taxWithheldAmount) > 0}
+            >
+              <option value="">Nothing withheld</option>
+              {withholdingRates.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} — {r.percentage}%
+                </option>
+              ))}
+            </select>
+            <p className={styles.hint}>Pick a rate, or type the amount instead. Not both.</p>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="taxWithheldAmount">…or an amount</label>
+            <input
+              id="taxWithheldAmount"
+              type="number"
+              step="0.01"
+              min="0"
+              className={styles.input}
+              value={values.taxWithheldAmount}
+              onChange={(e) => set('taxWithheldAmount', e.target.value)}
+              disabled={disabled || Boolean(values.taxRateId)}
+              placeholder="0.00"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Actually leaving the account</label>
+            <p className={`${finance.amount}`} style={{ fontSize: '1.1rem', margin: '0.4rem 0 0' }}>
+              {money(totals.netPaid)}
+            </p>
+            <p className={styles.hint}>
+              The supplier is square for the full {money(totals.amount)}. The{' '}
+              {money(totals.withheld)} withheld is owed to the tax office instead.
+            </p>
+          </div>
+        </div>
+      )}
 
       {isCheque ? (
         <div className={styles.formRow}>

@@ -33,6 +33,15 @@ export const LEDGER_ROLE_KEYS = [
   'apTrade',
   'grni',
   'outputTax',
+  /*
+   * Tax withheld from a supplier when they are paid, owed on to the revenue office.
+   *
+   * Held apart from `outputTax` deliberately. Output tax is the business's own liability on its
+   * own sales and nets against tax paid on purchases. This is somebody else's tax, deducted on
+   * the revenue office's behalf, and nets against nothing — putting the two in one account would
+   * make both figures unfilable.
+   */
+  'taxWithheldPayable',
   'salaryPayable',
   'retainedEarnings',
   'openingEquity',

@@ -37,6 +37,15 @@ const paymentBody = {
   amount: Joi.number().positive().required().messages({
     'number.positive': 'A payment has to be for something.',
   }),
+  /*
+   * Tax withheld: a rate to apply, or a figure, and never both.
+   *
+   * `amount` above stays the GROSS — what the supplier's invoice is settled by. What leaves the
+   * bank is that less whatever is withheld, and the service works it out. Making the caller send
+   * the net instead would silently under-settle the supplier's bills by the deduction.
+   */
+  taxRateId: objectId.optional(),
+  taxWithheldAmount: Joi.number().min(0).optional(),
   allocations: Joi.array().items(allocation).default([]),
   notes: Joi.string().trim().allow('').max(1000).optional(),
 };

@@ -984,9 +984,23 @@ const FinanceReportsPage: React.FC = () => {
                       {money(Math.abs(taxSum.net))}
                     </span>
                   </div>
+                  {taxSum.taxWithheld !== 0 && (
+                    <div className={styles.totalsItem}>
+                      <span className={styles.totalsLabel}>Withheld from suppliers</span>
+                      <span className={styles.totalsValue}>{money(taxSum.taxWithheld)}</span>
+                    </div>
+                  )}
                   <div className={styles.totalsVerdict}>
-                    Nothing here is worked out from a rate. Every figure was typed onto a bill or
-                    an expense by a person and posted to the accounts; this page adds them up.
+                    Nothing here is worked out from a rate. Every figure was typed onto a bill, an
+                    expense or a payment by a person and posted to the accounts; this page adds
+                    them up.
+                    {taxSum.taxWithheld !== 0 && (
+                      <>
+                        {' '}Tax withheld from suppliers is shown on its own and is <strong>not</strong>{' '}
+                        part of the figure above — it is somebody else&apos;s tax, held until it is
+                        handed over, and it is remitted on its own return.
+                      </>
+                    )}
                   </div>
                 </div>
 

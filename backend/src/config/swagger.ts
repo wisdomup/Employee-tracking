@@ -302,6 +302,7 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, '../modules/finance/payroll.routes.ts'),
     path.join(__dirname, '../modules/finance/bank-reconciliation.routes.ts'),
     path.join(__dirname, '../modules/finance/opening-balances.routes.ts'),
+    path.join(__dirname, '../modules/finance/tax-rates.routes.ts'),
     // Also scan compiled JS in dist/ when running built app
     path.join(__dirname, '../modules/auth/auth.routes.js'),
     path.join(__dirname, '../modules/users/users.routes.js'),
@@ -338,6 +339,7 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, '../modules/finance/payroll.routes.js'),
     path.join(__dirname, '../modules/finance/bank-reconciliation.routes.js'),
     path.join(__dirname, '../modules/finance/opening-balances.routes.js'),
+    path.join(__dirname, '../modules/finance/tax-rates.routes.js'),
   ],
 };
 

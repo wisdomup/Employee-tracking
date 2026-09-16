@@ -423,6 +423,10 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-bank-rec:edit',
       'finance-bank-rec:delete',
 
+      // The rates the payment form offers. Reading them is part of recording a payment;
+      // deciding what they are is the Finance Manager's.
+      'finance-tax-rates:view',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 
@@ -516,7 +520,15 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-bank-rec:add',
       'finance-bank-rec:edit',
       'finance-bank-rec:delete',
+
       'finance-bank-rec:change',
+
+      // Decides what the business is registered for, and at what rate.
+      'finance-tax-rates:view',
+      'finance-tax-rates:add',
+      'finance-tax-rates:edit',
+      'finance-tax-rates:delete',
+      'finance-tax-rates:change',
 
       /*
        * The changeover, and the Finance Manager alone.

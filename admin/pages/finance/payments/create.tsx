@@ -15,6 +15,8 @@ import {
   paymentService,
   vendorService,
   Ledger,
+  TaxRate,
+  taxRateService,
   Vendor,
 } from '../../../services/financeService';
 import styles from '../../../styles/FormPage.module.scss';
@@ -25,6 +27,7 @@ const CreatePaymentPage: React.FC = () => {
   const [values, setValues] = useState<PaymentFormValues>(EMPTY_PAYMENT_FORM);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [accounts, setAccounts] = useState<Ledger[]>([]);
+  const [withholdingRates, setWithholdingRates] = useState<TaxRate[]>([]);
   const [saving, setSaving] = useState(false);
   const [preselectBillId, setPreselectBillId] = useState<string | undefined>();
 
@@ -50,6 +53,11 @@ const CreatePaymentPage: React.FC = () => {
       // Rider cash and collections in transit belong to their own modules. Paying a supplier out
       // of them would make a rider look short with nothing in that module to explain it.
       .then((all) => setAccounts(all.filter((l) => !l.isControl)))
+      .catch(() => undefined);
+    // Only withholding rates: a sales rate here would deduct the wrong sort of tax.
+    taxRateService
+      .list({ kind: 'withholding', status: 'active' })
+      .then(setWithholdingRates)
       .catch(() => undefined);
   }, []);
 
@@ -114,6 +122,7 @@ const CreatePaymentPage: React.FC = () => {
             onChange={setValues}
             vendors={vendors}
             accounts={accounts}
+            withholdingRates={withholdingRates}
             disabled={saving}
             preselectBillId={preselectBillId}
           />

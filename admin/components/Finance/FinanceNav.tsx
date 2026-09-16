@@ -52,6 +52,7 @@ const TABS: {
     label: 'Bank Reconciliation',
     permission: 'finance-bank-rec:view',
   },
+  { href: '/finance/tax-rates', label: 'Tax Rates', permission: 'finance-tax-rates:view' },
   { href: '/finance/periods', label: 'Periods', permission: 'finance-period:view' },
   {
     href: '/finance/opening-balances',

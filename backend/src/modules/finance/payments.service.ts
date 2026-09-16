@@ -17,6 +17,7 @@ import { round2, MONEY_EPSILON, buildIdempotencyKey } from './finance.rules';
 import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
 import { withFinanceLocks } from './finance-locks';
 import { loadPaidFromAccount, assertChequeLeafUnused } from './money-out';
+import { amountAtRate } from './tax-rates.service';
 
 /**
  * Paying suppliers.
@@ -193,6 +194,15 @@ export interface PaymentInput {
   chequeDate?: Date | string | null;
   transferReference?: string;
   amount: number;
+  /**
+   * Tax withheld, given EITHER as a rate to apply OR as a figure, never both.
+   *
+   * Both together would leave the question of which wins, and the answer would be decided by
+   * whichever branch happened to run first — the same reason assigning supplier names takes one
+   * or the other. Pick a rate and the system works it out; type a figure and you own it.
+   */
+  taxRateId?: string;
+  taxWithheldAmount?: number;
   allocations?: { billId: string; amount?: number }[];
   notes?: string;
 }
@@ -207,6 +217,8 @@ interface PreparedPayment {
   chequeDate?: Date;
   transferReference?: string;
   amount: number;
+  taxWithheldAmount: number;
+  taxRateId?: Types.ObjectId;
   allocations: { billId: Types.ObjectId; amount: number }[];
   notes?: string;
 }
@@ -254,6 +266,8 @@ async function prepare(
     if (Number.isNaN(chequeDate.getTime())) throw badRequest('The cheque date is not a date.');
   }
 
+  const { taxWithheldAmount, taxRateId } = await prepareWithholding(input, amount);
+
   const allocations = await prepareAllocations(
     input.allocations ?? [],
     vendor._id,
@@ -262,6 +276,8 @@ async function prepare(
   );
 
   return {
+    taxWithheldAmount,
+    taxRateId,
     vendorId: vendor._id,
     vendorName: vendor.name,
     paymentDate,
@@ -278,6 +294,54 @@ async function prepare(
     allocations,
     notes: input.notes?.trim() || undefined,
   };
+}
+
+/**
+ * How much of this payment is tax kept back from the supplier.
+ *
+ * The allocations are untouched by it: a bill for 100,000 is discharged by a payment of 100,000
+ * whether or not 4,500 of that went to the revenue office instead of the supplier. Only the
+ * amount that leaves the bank changes, and only the posting knows that.
+ */
+async function prepareWithholding(
+  input: PaymentInput,
+  amount: number,
+): Promise<{ taxWithheldAmount: number; taxRateId?: Types.ObjectId }> {
+  const hasRate = Boolean(input.taxRateId);
+  const hasFigure = input.taxWithheldAmount !== undefined && input.taxWithheldAmount !== null;
+
+  if (hasRate && hasFigure) {
+    throw badRequest(
+      'Choose a withholding rate or enter the amount deducted — not both. Two figures that could '
+        + 'disagree would leave nobody able to say which one was actually kept back.',
+    );
+  }
+
+  if (!hasRate && !hasFigure) return { taxWithheldAmount: 0 };
+
+  let withheld: number;
+  let rateId: Types.ObjectId | undefined;
+
+  if (hasRate) {
+    const { rate, amount: computed } = await amountAtRate(input.taxRateId!, amount, 'withholding');
+    withheld = computed;
+    rateId = rate._id;
+  } else {
+    withheld = round2(input.taxWithheldAmount!);
+  }
+
+  if (withheld < 0) throw badRequest('Tax withheld cannot be a negative amount.');
+  if (withheld < MONEY_EPSILON) return { taxWithheldAmount: 0, taxRateId: rateId };
+
+  if (amount - withheld < MONEY_EPSILON) {
+    throw badRequest(
+      `Withholding ${withheld.toFixed(2)} out of ${amount.toFixed(2)} would leave nothing for the `
+        + 'supplier. Check the figure — the amount is what the invoice is worth, not what is '
+        + 'being handed over.',
+    );
+  }
+
+  return { taxWithheldAmount: withheld, taxRateId: rateId };
 }
 
 async function prepareAllocations(
@@ -385,7 +449,12 @@ export interface PaymentView {
   /** A released cheque that has not shown on the bank statement yet. */
   isChequeUncleared: boolean;
   transferReference?: string;
+  /** The gross: what the supplier's account is settled by. */
   amount: number;
+  /** Kept back from the supplier and owed on to the revenue office. */
+  taxWithheldAmount: number;
+  /** `amount` less the tax withheld — what actually left the account. */
+  netPaid: number;
   allocatedAmount: number;
   /** Paid, but not set against any bill yet — held on account against the supplier. */
   unallocatedAmount: number;
@@ -419,7 +488,11 @@ function toView(
       payment.method === 'cheque' && payment.status === 'posted' && !payment.chequeClearedAt,
     transferReference: payment.transferReference,
     amount: round2(payment.amount),
+    taxWithheldAmount: round2(payment.taxWithheldAmount ?? 0),
+    netPaid: round2(payment.amount - (payment.taxWithheldAmount ?? 0)),
     allocatedAmount,
+    // Against the GROSS: the supplier's debt is discharged by the whole figure, whatever share
+    // of it went to the revenue office instead of to them.
     unallocatedAmount: round2(payment.amount - allocatedAmount),
     billCount: payment.allocations.length,
     status: payment.status,
@@ -692,6 +765,9 @@ export async function postPayment(id: string, actorId?: string): Promise<Payment
           chequeDate: payment.chequeDate,
           transferReference: payment.transferReference,
           amount: payment.amount,
+          // The figure as recorded, not the rate. A rate edited since the draft was typed must
+          // not quietly change what is deducted from this supplier.
+          taxWithheldAmount: payment.taxWithheldAmount,
           allocations: payment.allocations.map((a) => ({
             billId: String(a.billId),
             amount: a.amount,
@@ -707,12 +783,27 @@ export async function postPayment(id: string, actorId?: string): Promise<Payment
         throw conflict('This payment changed while it was being posted. Open it again and post it.');
       }
 
-      const [apTrade, creditLedger] = await Promise.all([
+      const [apTrade, creditLedger, taxWithheld] = await Promise.all([
         ledgerIdForRole('apTrade'),
         prepared.method === 'cheque'
           ? ledgerIdForRole('chequesIssued')
           : Promise.resolve(String(prepared.paidFromLedgerId)),
+        prepared.taxWithheldAmount > 0
+          ? ledgerIdForRole('taxWithheldPayable')
+          : Promise.resolve(''),
       ]);
+
+      /*
+       * Tax withheld is where the supplier's account and the bank part company.
+       *
+       *   Dr  Accounts Payable        the whole invoice — the supplier is square with us
+       *       Cr  bank or cash        what actually went out
+       *       Cr  Withholding Tax     what we kept back and now owe onward
+       *
+       * Crediting the bank with the gross instead would show money leaving that never did, and
+       * the bank reconciliation would fail by the deduction on the day it was made.
+       */
+      const netPaid = round2(prepared.amount - prepared.taxWithheldAmount);
 
       const instrument = prepared.method === 'cheque'
         ? `by cheque ${prepared.chequeNo}`
@@ -737,11 +828,18 @@ export async function postPayment(id: string, actorId?: string): Promise<Payment
             },
             {
               ledgerId: creditLedger,
-              credit: prepared.amount,
+              credit: netPaid,
               lineNarration: prepared.method === 'cheque'
                 ? `Cheque ${prepared.chequeNo}, not yet cleared`
                 : undefined,
             },
+            ...(prepared.taxWithheldAmount > 0
+              ? [{
+                ledgerId: taxWithheld,
+                credit: prepared.taxWithheldAmount,
+                lineNarration: 'Tax withheld from the supplier',
+              }]
+              : []),
           ],
         },
         actorId,
@@ -893,6 +991,8 @@ export async function clearCheque(
       ledgerIdForRole('chequesIssued'),
     ]);
 
+    const chequeFace = round2(payment.amount - (payment.taxWithheldAmount ?? 0));
+
     const entry = await postEntry(
       {
         date,
@@ -902,9 +1002,17 @@ export async function clearCheque(
         sourceId: id,
         sourceModel: 'SupplierPayment',
         idempotencyKey: buildIdempotencyKey('supplier_payment', id, 'cheque_cleared'),
+        /*
+         * The NET, not the gross.
+         *
+         * Only what was actually written on the cheque went into "cheques issued" — the withheld
+         * portion never did, it went straight to the tax liability. Clearing the gross would
+         * drive that account negative by the deduction and credit the bank with money that never
+         * moved, which the next bank reconciliation would fail on.
+         */
         lines: [
-          { ledgerId: chequesIssued, debit: payment.amount },
-          { ledgerId: String(payment.paidFromLedgerId), credit: payment.amount },
+          { ledgerId: chequesIssued, debit: chequeFace },
+          { ledgerId: String(payment.paidFromLedgerId), credit: chequeFace },
         ],
       },
       actorId,

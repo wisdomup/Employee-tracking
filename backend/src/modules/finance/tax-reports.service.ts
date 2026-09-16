@@ -59,8 +59,18 @@ export interface TaxSummary {
   outputTax: number;
   /** Positive is payable to the revenue office, negative is reclaimable. */
   net: number;
+  /**
+   * Tax deducted from suppliers when they were paid, held until it is remitted.
+   *
+   * Reported beside the other two and NEVER added into `net`. This is somebody else's tax,
+   * deducted on the revenue office's behalf; it nets against nothing and is remitted on its own
+   * return. Rolling it into the sales-tax position would overstate what is owed there and leave
+   * the withholding return with no figure at all.
+   */
+  taxWithheld: number;
   inputTaxCode: string;
   outputTaxCode: string;
+  withheldTaxCode: string;
   /** Supplier by supplier, from the documents — the purchase side of a return. */
   purchases: TaxPartyRow[];
   purchasesTaxTotal: number;
@@ -229,21 +239,26 @@ export async function taxSummary(input: { from?: string; to?: string } = {}): Pr
   // A month back by default, which is the shortest period anybody files for.
   const from = input.from || to.slice(0, 8) + '01';
 
-  const [inputRole, outputRole] = await Promise.all([
+  const [inputRole, outputRole, withheldRole] = await Promise.all([
     ledgerForRole('inputTax'),
     ledgerForRole('outputTax'),
+    ledgerForRole('taxWithheldPayable'),
   ]);
 
   const warnings: string[] = [];
 
-  const [inputTax, outputTax, purchases] = await Promise.all([
+  const [inputTax, outputTax, taxWithheld, purchases] = await Promise.all([
     inputRole ? movementInWindow(inputRole.id, from, to, true) : Promise.resolve(0),
     outputRole ? movementInWindow(outputRole.id, from, to, false) : Promise.resolve(0),
+    withheldRole ? movementInWindow(withheldRole.id, from, to, false) : Promise.resolve(0),
     purchaseBreakdown(from, to),
   ]);
 
   if (!inputRole) warnings.push('No account is set up to hold tax paid on purchases.');
   if (!outputRole) warnings.push('No account is set up to hold tax charged on sales.');
+  if (!withheldRole) {
+    warnings.push('No account is set up to hold tax withheld from suppliers.');
+  }
 
   const purchasesTaxTotal = round2(purchases.reduce((sum, row) => sum + row.taxAmount, 0));
   const unattributedInputTax = round2(inputTax - purchasesTaxTotal);
@@ -285,7 +300,10 @@ export async function taxSummary(input: { from?: string; to?: string } = {}): Pr
     to,
     inputTax,
     outputTax,
+    // Withheld tax is deliberately absent from this sum — see the field's note.
     net: normaliseZero(round2(outputTax - inputTax)),
+    taxWithheld,
+    withheldTaxCode: withheldRole?.code ?? '',
     inputTaxCode: inputRole?.code ?? '',
     outputTaxCode: outputRole?.code ?? '',
     purchases,

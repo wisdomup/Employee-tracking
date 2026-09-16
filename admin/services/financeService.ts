@@ -850,7 +850,12 @@ export interface Payment {
   /** A released cheque that has not shown on the bank statement yet. */
   isChequeUncleared: boolean;
   transferReference?: string;
+  /** The gross: what the supplier's invoice is settled by, before anything is withheld. */
   amount: number;
+  /** Kept back from the supplier and owed on to the revenue office. */
+  taxWithheldAmount: number;
+  /** `amount` less the tax withheld — what actually left the account. */
+  netPaid: number;
   allocatedAmount: number;
   /** Paid, but not set against any bill — held on account against the supplier. */
   unallocatedAmount: number;
@@ -881,7 +886,11 @@ export interface PaymentInput {
   chequeNo?: string;
   chequeDate?: string;
   transferReference?: string;
+  /** The gross — what the invoice is settled by, not what is handed over. */
   amount: number;
+  /** A withholding rate to apply, or a figure. Never both; the server refuses both. */
+  taxRateId?: string;
+  taxWithheldAmount?: number;
   allocations?: { billId: string; amount?: number }[];
   notes?: string;
 }
@@ -1860,6 +1869,9 @@ export interface TaxSummary {
   outputTaxCode: string;
   purchases: TaxPartyRow[];
   purchasesTaxTotal: number;
+  /** Withheld from suppliers. Reported apart and NEVER part of `net` — see the report. */
+  taxWithheld: number;
+  withheldTaxCode: string;
   /** Accounts less documents. Anything but nil has to be explained before filing. */
   unattributedInputTax: number;
   warnings: string[];
@@ -1871,6 +1883,72 @@ export const taxReportService = {
     if (params.from) q.append('from', params.from);
     if (params.to) q.append('to', params.to);
     const response = await api.get(`/finance/reports/tax-summary?${q.toString()}`);
+    return response.data;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Tax rates
+// ---------------------------------------------------------------------------
+
+/**
+ * `sales` is tax charged TO a customer; `withholding` is tax deducted FROM a supplier when they
+ * are paid. Opposite in almost every respect, which is why one screen never offers the other.
+ */
+export type TaxRateKind = 'sales' | 'withholding';
+
+export const TAX_RATE_KIND_LABELS: Record<TaxRateKind, string> = {
+  sales: 'Charged on sales',
+  withholding: 'Withheld from suppliers',
+};
+
+export interface TaxRate {
+  id: string;
+  name: string;
+  kind: TaxRateKind;
+  /** A percentage, not a multiplier: 17, 4.5, 0.25. */
+  percentage: number;
+  notes?: string;
+  isActive: boolean;
+  /** Posted documents citing it. Above zero it can be retired but never deleted. */
+  usageCount: number;
+}
+
+export interface TaxRateInput {
+  name: string;
+  kind: TaxRateKind;
+  percentage: number;
+  notes?: string;
+}
+
+export const taxRateService = {
+  async list(
+    filters: { kind?: TaxRateKind; status?: string } = {},
+  ): Promise<TaxRate[]> {
+    const q = new URLSearchParams();
+    if (filters.kind) q.append('kind', filters.kind);
+    if (filters.status) q.append('status', filters.status);
+    const response = await api.get(`/finance/tax-rates?${q.toString()}`);
+    return response.data;
+  },
+
+  async create(body: TaxRateInput): Promise<TaxRate> {
+    const response = await api.post('/finance/tax-rates', body);
+    return response.data;
+  },
+
+  async update(id: string, body: Partial<TaxRateInput>): Promise<TaxRate> {
+    const response = await api.put(`/finance/tax-rates/${id}`, body);
+    return response.data;
+  },
+
+  async setStatus(id: string, isActive: boolean): Promise<TaxRate> {
+    const response = await api.patch(`/finance/tax-rates/${id}/status`, { isActive });
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/tax-rates/${id}`);
     return response.data;
   },
 };

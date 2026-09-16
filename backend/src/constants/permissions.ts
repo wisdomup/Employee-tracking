@@ -261,6 +261,15 @@ export const MODULES: readonly ModuleDefinition[] = [
   },
   {
     /*
+     * `view` is separated from the rest and granted widely, because the payment form offers
+     * these rates and a clerk who cannot read them cannot record a deduction at all. Deciding
+     * what the rates ARE is a different matter and stays with the Finance Manager.
+     */
+    id: 'finance-tax-rates', label: 'Tax Rates', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Retire a tax rate, or bring one back',
+  },
+  {
+    /*
      * The changeover, done once in the life of the business.
      *
      * `edit` is typing figures on the worksheet, which writes nothing. `change` is opening the

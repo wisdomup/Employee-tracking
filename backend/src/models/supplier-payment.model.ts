@@ -60,7 +60,22 @@ export interface ISupplierPayment extends Document {
   /** A bank transfer's reference, so it can be found on the statement. */
   transferReference?: string;
 
+  /**
+   * The GROSS figure: what the supplier's account is settled by.
+   *
+   * With tax withheld this is NOT what leaves the bank. The supplier's invoice is discharged in
+   * full, less money goes out, and the difference is owed to the revenue office instead. Keeping
+   * `amount` as the gross is what lets the allocations to bills stay exactly as they were — a
+   * bill for 100,000 is paid off by a payment of 100,000 whether or not 4,500 of it went to the
+   * tax authority rather than the supplier.
+   */
   amount: number;
+
+  /** Deducted from the supplier and owed on to the revenue office. Zero on most payments. */
+  taxWithheldAmount: number;
+  /** The rate it was worked out at, kept for the trail. Absent when a figure was typed by hand. */
+  taxRateId?: Types.ObjectId;
+
   allocations: IBillAllocation[];
 
   status: 'draft' | 'posted' | 'cancelled';
@@ -106,6 +121,8 @@ const supplierPaymentSchema = new Schema<ISupplierPayment>(
     transferReference: { type: String, trim: true, maxlength: 100 },
 
     amount: { type: Number, required: true, min: 0 },
+    taxWithheldAmount: { type: Number, default: 0, min: 0 },
+    taxRateId: { type: Schema.Types.ObjectId, ref: 'TaxRate' },
     allocations: { type: [allocationSchema], default: [] },
 
     status: { type: String, enum: ['draft', 'posted', 'cancelled'], default: 'draft' },

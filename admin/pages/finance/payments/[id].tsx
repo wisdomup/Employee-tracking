@@ -16,6 +16,8 @@ import {
   paymentService,
   vendorService,
   Ledger,
+  TaxRate,
+  taxRateService,
   PaymentDetail,
   PAYMENT_METHOD_LABELS,
   Vendor,
@@ -41,6 +43,10 @@ function paymentToForm(payment: PaymentDetail): PaymentFormValues {
     chequeDate: payment.chequeDate ? payment.chequeDate.slice(0, 10) : '',
     transferReference: payment.transferReference ?? '',
     amount: String(payment.amount),
+    // The figure as recorded, never the rate it came from — a rate edited since must not change
+    // what this payment says was deducted.
+    taxRateId: '',
+    taxWithheldAmount: payment.taxWithheldAmount ? String(payment.taxWithheldAmount) : '',
     allocated: Object.fromEntries(payment.allocations.map((a) => [a.billId, String(a.amount)])),
     notes: payment.notes ?? '',
   };
@@ -54,6 +60,7 @@ const PaymentPage: React.FC = () => {
   const [values, setValues] = useState<PaymentFormValues | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [accounts, setAccounts] = useState<Ledger[]>([]);
+  const [withholdingRates, setWithholdingRates] = useState<TaxRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -84,6 +91,11 @@ const PaymentPage: React.FC = () => {
     financeService
       .getLedgers({ isCashEquivalent: true, status: 'active' })
       .then((all) => setAccounts(all.filter((l) => !l.isControl)))
+      .catch(() => undefined);
+    // Only withholding rates: a sales rate here would deduct the wrong sort of tax.
+    taxRateService
+      .list({ kind: 'withholding', status: 'active' })
+      .then(setWithholdingRates)
       .catch(() => undefined);
   }, []);
 
@@ -296,6 +308,7 @@ const PaymentPage: React.FC = () => {
               onChange={setValues}
               vendors={vendors}
               accounts={accounts}
+              withholdingRates={withholdingRates}
               disabled={busy}
               paymentId={payment.id}
             />

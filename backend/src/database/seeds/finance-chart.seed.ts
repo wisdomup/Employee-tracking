@@ -115,6 +115,9 @@ const LEDGERS: LedgerSeed[] = [
   { code: '2115', name: 'Goods Received Not Invoiced', group: '2100', role: 'grni',
     note: 'Stock received against no supplier bill yet. An ageing balance here is a missing invoice.' },
   { code: '2120', name: 'Output Tax Payable', group: '2100', role: 'outputTax' },
+  { code: '2125', name: 'Withholding Tax Payable', group: '2100', role: 'taxWithheldPayable',
+    note: 'Tax deducted from suppliers when they are paid, held until it is remitted. Not the '
+      + "business's own tax and never netted against input tax." },
   { code: '2130', name: 'Salaries & Wages Payable', group: '2100', role: 'salaryPayable' },
   { code: '2140', name: 'Accrued Expenses', group: '2100' },
   { code: '2210', name: 'Loans Payable', group: '2200' },
