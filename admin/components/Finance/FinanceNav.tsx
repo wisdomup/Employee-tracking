@@ -52,6 +52,11 @@ const TABS: {
     permission: 'finance-bank-rec:view',
   },
   { href: '/finance/periods', label: 'Periods', permission: 'finance-period:view' },
+  {
+    href: '/finance/opening-balances',
+    label: 'Opening Balances',
+    permission: 'finance-opening:view',
+  },
   { href: '/finance/settings', label: 'Settings', permission: 'finance-coa:view' },
 ];
 

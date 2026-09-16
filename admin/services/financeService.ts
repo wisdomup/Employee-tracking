@@ -1744,3 +1744,88 @@ export const bankReconciliationService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Opening balances — the changeover
+// ---------------------------------------------------------------------------
+
+export type MigrationStage = 'not-started' | 'balances-entered' | 'complete';
+
+export interface MigrationStatus {
+  stage: MigrationStage;
+  booksOpenedAt: string | null;
+  cutoverDate: string | null;
+  openingEntryId: string | null;
+  openingEntryNo: number | null;
+  /** While this is not zero the changeover is unfinished. That zero is the proof. */
+  openingEquityBalance: number;
+  openingEquityCode: string;
+  closingEntryId: string | null;
+}
+
+export interface OpeningWorksheetRow {
+  ledgerId: string;
+  code: string;
+  name: string;
+  groupName: string;
+  accountType: AccountType;
+  isDebitNatured: boolean;
+  /** Positive means the account's own direction: an asset held, a liability owed. */
+  amount: number;
+  editable: boolean;
+  /** Why it cannot be typed here, or where the figure comes from instead. */
+  note?: string;
+}
+
+export interface OpeningWorksheet {
+  status: MigrationStatus;
+  rows: OpeningWorksheetRow[];
+  totalDebits: number;
+  totalCredits: number;
+  /** What the business was worth at changeover — everything owned less everything owed. */
+  openingEquity: number;
+}
+
+export interface OpeningEntryResult {
+  entryId: string;
+  entryNo?: number;
+  totalDebit: number;
+  totalCredit: number;
+  openingEquity: number;
+  status: MigrationStatus;
+}
+
+export const openingBalanceService = {
+  async status(): Promise<MigrationStatus> {
+    const response = await api.get('/finance/opening-balances/status');
+    return response.data;
+  },
+
+  async worksheet(): Promise<OpeningWorksheet> {
+    const response = await api.get('/finance/opening-balances/worksheet');
+    return response.data;
+  },
+
+  async save(entries: { ledgerId: string; amount: number }[]): Promise<OpeningWorksheet> {
+    const response = await api.put('/finance/opening-balances/worksheet', { entries });
+    return response.data;
+  },
+
+  async post(cutoverDate: string, narration?: string): Promise<OpeningEntryResult> {
+    const response = await api.post('/finance/opening-balances/post', {
+      cutoverDate,
+      narration,
+    });
+    return response.data;
+  },
+
+  async closeEquity(toLedgerId: string): Promise<MigrationStatus> {
+    const response = await api.post('/finance/opening-balances/close-equity', { toLedgerId });
+    return response.data;
+  },
+
+  async reopen(reason: string): Promise<OpeningWorksheet> {
+    const response = await api.post('/finance/opening-balances/reopen', { reason });
+    return response.data;
+  },
+};
