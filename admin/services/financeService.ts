@@ -1612,3 +1612,135 @@ export const payrollService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Bank reconciliation
+// ---------------------------------------------------------------------------
+
+/** A cash or bank account, and how far its statements have been checked off. */
+export interface ReconcilableAccount {
+  ledgerId: string;
+  code: string;
+  name: string;
+  currentBalance: number;
+  lastStatementDate: string | null;
+  lastReconciledAt: string | null;
+  /** A reconciliation already in progress on this account, if there is one. */
+  openDraftId: string | null;
+}
+
+/** One line on the account, waiting to be ticked off against the statement. */
+export interface WorksheetLine {
+  lineId: string;
+  date: string;
+  entryNo: number | null;
+  entryId: string;
+  referenceNo: string | null;
+  narration: string;
+  sourceType: string;
+  debit: number;
+  credit: number;
+  /** Signed the way the account runs: positive puts money in, negative takes it out. */
+  effect: number;
+  cleared: boolean;
+}
+
+export interface BankReconciliation {
+  id: string;
+  ledgerId: string;
+  ledgerCode: string;
+  ledgerName: string;
+  statementDate: string;
+  statementClosingBalance: number;
+  status: 'draft' | 'completed';
+  /** What our books say the account held on the statement date. */
+  bookBalance: number;
+  clearedTotal: number;
+  /** Recorded by us, not yet seen by the bank. */
+  unclearedTotal: number;
+  /** What the bank ought to be showing if every unticked item is simply still in flight. */
+  expectedStatementBalance: number;
+  difference: number;
+  balances: boolean;
+  clearedCount: number;
+  unclearedCount: number;
+  notes?: string;
+  completedAt?: string;
+  reopenReason?: string;
+  createdAt: string;
+}
+
+export interface BankReconciliationDetail extends BankReconciliation {
+  lines: WorksheetLine[];
+  truncated: boolean;
+}
+
+export interface BankReconciliationInput {
+  ledgerId: string;
+  statementDate: string;
+  statementClosingBalance: number;
+  notes?: string;
+}
+
+export const bankReconciliationService = {
+  async accounts(): Promise<ReconcilableAccount[]> {
+    const response = await api.get('/finance/bank-reconciliation/accounts');
+    return response.data;
+  },
+
+  async list(
+    filters: { ledgerId?: string; status?: string } = {},
+  ): Promise<BankReconciliation[]> {
+    const q = new URLSearchParams();
+    if (filters.ledgerId) q.append('ledgerId', filters.ledgerId);
+    if (filters.status) q.append('status', filters.status);
+    const response = await api.get(`/finance/bank-reconciliation?${q.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<BankReconciliationDetail> {
+    const response = await api.get(`/finance/bank-reconciliation/${id}`);
+    return response.data;
+  },
+
+  async create(body: BankReconciliationInput): Promise<BankReconciliationDetail> {
+    const response = await api.post('/finance/bank-reconciliation', body);
+    return response.data;
+  },
+
+  async update(
+    id: string,
+    body: { statementClosingBalance?: number; notes?: string },
+  ): Promise<BankReconciliationDetail> {
+    const response = await api.put(`/finance/bank-reconciliation/${id}`, body);
+    return response.data;
+  },
+
+  /** Ticks a batch on or off — a whole statement page in one request, not one line at a time. */
+  async setLines(
+    id: string,
+    lineIds: string[],
+    cleared: boolean,
+  ): Promise<BankReconciliationDetail> {
+    const response = await api.patch(`/finance/bank-reconciliation/${id}/lines`, {
+      lineIds,
+      cleared,
+    });
+    return response.data;
+  },
+
+  async complete(id: string): Promise<BankReconciliationDetail> {
+    const response = await api.patch(`/finance/bank-reconciliation/${id}/complete`);
+    return response.data;
+  },
+
+  async reopen(id: string, reason: string): Promise<BankReconciliationDetail> {
+    const response = await api.patch(`/finance/bank-reconciliation/${id}/reopen`, { reason });
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/bank-reconciliation/${id}`);
+    return response.data;
+  },
+};

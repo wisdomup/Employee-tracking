@@ -46,6 +46,11 @@ const TABS: {
   { href: '/finance/payments', label: 'Payments', permission: 'finance-payments:view' },
   { href: '/finance/expenses', label: 'Expenses', permission: 'finance-expenses:view' },
   { href: '/finance/payroll', label: 'Payroll', permission: 'finance-payroll:view' },
+  {
+    href: '/finance/bank-reconciliation',
+    label: 'Bank Reconciliation',
+    permission: 'finance-bank-rec:view',
+  },
   { href: '/finance/periods', label: 'Periods', permission: 'finance-period:view' },
   { href: '/finance/settings', label: 'Settings', permission: 'finance-coa:view' },
 ];
