@@ -245,6 +245,21 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Post a payroll run, pay wages, or hand over a staff advance',
   },
   {
+    /*
+     * `change` is signing the reconciliation off, held apart from `edit`.
+     *
+     * Ticking lines against a statement is clerical. Declaring that the bank agreed is a
+     * statement of fact that the month-end close and everyone reading the accounts then relies
+     * on. Under one cell the two could not be separated.
+     *
+     * Reopening a signed-off reconciliation is NOT here — it is an undo, so it lives on
+     * `finance-reversal` with the others.
+     */
+    id: 'finance-bank-rec', label: 'Bank Reconciliation', group: MODULE_GROUPS.FINANCE,
+    actions: FULL,
+    changeMeans: 'Sign off a bank reconciliation',
+  },
+  {
     id: 'finance-period', label: 'Accounting Periods', group: MODULE_GROUPS.FINANCE,
     actions: [VIEW, CHANGE],
     changeMeans: 'Open, close or reopen an accounting month',

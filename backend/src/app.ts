@@ -40,6 +40,7 @@ import financePaymentsRouter from './modules/finance/payments.routes';
 import financeExpensesRouter from './modules/finance/expenses.routes';
 import financeStatementsRouter from './modules/finance/statements.routes';
 import financePayrollRouter from './modules/finance/payroll.routes';
+import financeBankRecRouter from './modules/finance/bank-reconciliation.routes';
 
 const app = express();
 
@@ -95,6 +96,7 @@ app.use('/api/finance', financePaymentsRouter);
 app.use('/api/finance', financeExpensesRouter);
 app.use('/api/finance', financeStatementsRouter);
 app.use('/api/finance', financePayrollRouter);
+app.use('/api/finance', financeBankRecRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({ message: 'GPS Tracking App backend is running' });

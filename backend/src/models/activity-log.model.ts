@@ -34,6 +34,7 @@ export type ActivityModule =
   | 'expense'
   | 'payment'
   | 'tax_rate'
+  | 'bank_reconciliation'
   | 'period'
   | 'payroll'
   | 'staff_advance';
@@ -64,6 +65,7 @@ const ACTIVITY_MODULES: ActivityModule[] = [
   'attendance', 'warehouse', 'stock', 'stock_receipt', 'stock_transfer', 'damage_claim',
   'stock_count', 'opening_stock', 'collection', 'credit_recovery', 'settlement',
   'ledger', 'journal_entry', 'vendor', 'bill', 'expense', 'payment', 'tax_rate', 'period',
+  'bank_reconciliation',
   'payroll', 'staff_advance',
 ];
 

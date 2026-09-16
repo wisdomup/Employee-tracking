@@ -415,6 +415,14 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-payroll:edit',
       'finance-payroll:delete',
 
+      // Bank reconciliation: does the work of ticking the statement off, which is the clerical
+      // half. Signing it off is the Finance Manager's — that signature is what the month-end
+      // close and everyone reading the accounts afterwards relies on.
+      'finance-bank-rec:view',
+      'finance-bank-rec:add',
+      'finance-bank-rec:edit',
+      'finance-bank-rec:delete',
+
       // Sees which months are open, so they know where an entry will land. Cannot close one.
       'finance-period:view',
 
@@ -500,6 +508,14 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-payroll:edit',
       'finance-payroll:delete',
       'finance-payroll:change',
+
+      // Signs the bank reconciliation off. Reopening a signed-off one rides on
+      // `finance-reversal:change`, which they already hold.
+      'finance-bank-rec:view',
+      'finance-bank-rec:add',
+      'finance-bank-rec:edit',
+      'finance-bank-rec:delete',
+      'finance-bank-rec:change',
 
       'finance-period:view',
       'finance-period:change',
