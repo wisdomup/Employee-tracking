@@ -7,7 +7,7 @@ import { StockTransferModel } from '../../models/stock-transfer.model';
 import { StockCountModel } from '../../models/stock-count.model';
 import { WarehouseModel } from '../../models/warehouse.model';
 import { JournalEntryModel } from '../../models/journal-entry.model';
-import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
+import { postEntry, reverseEntry, ledgerIdForRole, NOT_A_REVERSAL } from './posting.service';
 import { attemptPosting, postingEnabled } from './sales-posting.service';
 import { JournalLineInput, buildIdempotencyKey, round2 } from './finance.rules';
 
@@ -168,8 +168,10 @@ export async function postStockReceiptReversal(
     // would file a fresh failure row on every retry instead of bumping the existing one, and the
     // health screen would fill with duplicates of a single problem.
     //
-    // The reversal itself is idempotent regardless: it looks for entries still `posted`, and a
-    // second call finds none because the first already marked them `reversed`.
+    // The reversal itself is idempotent regardless: it looks for entries still `posted` that are
+    // not themselves reversals, and a second call finds none because the first already marked the
+    // original `reversed`. That second clause is load-bearing — without it the reversal it just
+    // wrote would match, and reversing THAT would put the stock back.
     buildIdempotencyKey('stock_receipt', receiptId, 'cancel'),
     { sourceType: 'stock_receipt_reversal', sourceId: receiptId, sourceModel: 'StockReceipt' },
     () =>
@@ -612,6 +614,9 @@ async function reverseLivePosting(
     sourceType: where.sourceType,
     sourceId: new Types.ObjectId(where.sourceId),
     status: 'posted',
+    // Without this, a second correction reverses the first correction's reversal and puts the
+    // original value back on the shelf. See `NOT_A_REVERSAL`.
+    ...NOT_A_REVERSAL,
   };
   if (where.exceptKey) query.idempotencyKey = { $ne: where.exceptKey };
 

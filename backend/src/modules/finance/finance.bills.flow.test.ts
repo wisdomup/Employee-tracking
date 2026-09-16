@@ -195,6 +195,47 @@ async function main(): Promise<void> {
     await StockReceiptModel.deleteOne({ _id: unposted._id }).exec();
   });
 
+  await test('a receipt whose posting was REVERSED cannot be billed', async () => {
+    /*
+     * The regression this exists for.
+     *
+     * A reversal carries the receipt's own sourceType and sourceId and is itself `posted`, so a
+     * naive "has this receipt posted?" finds the reversal and says yes. The GRNI credit is gone,
+     * and a bill clearing it would drive 2115 negative by the amount — the exact failure this
+     * whole module is arranged to prevent.
+     */
+    const undone = await makeReceipt(acmeId, 1_500);
+    const { JournalEntryModel } = await import('../../models/journal-entry.model');
+    const entry = await JournalEntryModel.findOne({
+      sourceType: 'stock_receipt',
+      sourceId: undone._id,
+      status: 'posted',
+    }).lean();
+
+    const { reverseEntry } = await import('./posting.service');
+    await reverseEntry(String(entry!._id), { reason: 'Recorded in error' }, String(ACTOR));
+
+    const open = await bills.openReceiptsForVendor(acme.id);
+    assert.ok(
+      !open.some((r) => r.id === String(undone._id)),
+      'a receipt with no live posting was offered for billing',
+    );
+
+    await rejectsWith(
+      bills.createBill(
+        {
+          vendorId: acme.id,
+          billDate: new Date(),
+          matchedReceipts: [{ receiptId: String(undone._id) }],
+        },
+        String(ACTOR),
+      ),
+      /never written to the accounts/,
+    );
+
+    await StockReceiptModel.deleteOne({ _id: undone._id }).exec();
+  });
+
   await test("one supplier's receipt cannot go on another's bill", async () => {
     await rejectsWith(
       bills.createBill(

@@ -13,7 +13,7 @@ import { CreditRecoveryModel } from '../../models/credit-recovery.model';
 import { WarehouseModel } from '../../models/warehouse.model';
 import { badRequest } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
-import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
+import { postEntry, reverseEntry, ledgerIdForRole, NOT_A_REVERSAL } from './posting.service';
 import { JournalLineInput, buildIdempotencyKey, round2 } from './finance.rules';
 
 /**
@@ -602,6 +602,9 @@ export async function postCreditRecoveryVoid(
     sourceType: 'credit_recovery',
     sourceId: new Types.ObjectId(recoveryId),
     status: 'posted',
+    // Otherwise voiding twice finds the first void's reversal and reverses THAT, putting the
+    // recovery back on the shop's account. See `NOT_A_REVERSAL`.
+    ...NOT_A_REVERSAL,
   }).select('_id').lean().exec();
   if (!live) return false;
 

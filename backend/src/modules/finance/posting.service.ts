@@ -383,6 +383,24 @@ async function finishPosting(
 }
 
 /**
+ * Add to any query that means "the original postings for this document".
+ *
+ * A reversal COPIES the `sourceType`, `sourceId` and `referenceNo` of the entry it undoes, and is
+ * itself `posted` — deliberately, so that a document's whole history reads together on a report.
+ * The cost is that `{ sourceType, sourceId, status: 'posted' }` matches the reversal too, and
+ * every caller that reads it as "what is currently live" is then wrong in the same way:
+ *
+ *   - a correction pass reverses the previous correction's REVERSAL, putting the original figure
+ *     back — so editing a document twice counts it twice;
+ *   - a document whose posting was reversed still answers "yes, it posted", so downstream work
+ *     goes ahead against a balance that is no longer there.
+ *
+ * Both have been live bugs in this module. Anything asking whether a source document currently
+ * has something posted must carry this.
+ */
+export const NOT_A_REVERSAL = { reversalOf: null } as const;
+
+/**
  * Reverse a posted entry.
  *
  * Creates a NEW entry with every debit and credit swapped. Neither document is otherwise

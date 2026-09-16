@@ -118,6 +118,65 @@ async function main(): Promise<void> {
     assert.equal(await balance('1150'), 5800, 'the receipt was valued at the average, not its rate');
   });
 
+  await test('correcting a receipt twice does not re-apply the first version', async () => {
+    /*
+     * The regression this exists for.
+     *
+     * A correction reverses what the receipt previously posted and writes the new figure. But a
+     * REVERSAL copies the sourceType and sourceId of the entry it undoes and is itself `posted` —
+     * so a second correction, looking for "everything this receipt currently has posted", would
+     * find the first correction's reversal, reverse THAT, and put the original value back on the
+     * shelf. Two corrections would leave stock counted twice, against nothing in the warehouse.
+     */
+    const edited = await StockReceiptModel.create({
+      receiptDate: new Date(),
+      supplierName: 'Acme Traders',
+      warehouseId: MAIN,
+      products: [{ productId: PRODUCT, quantity: 10, rate: 100 }],
+      totalPieces: 10,
+      totalAmount: 1000,
+      status: 'posted',
+      createdBy: ACTOR,
+    });
+
+    const before = await balance('1150');
+    const grniBefore = await balance('2115');
+    await inventory.postStockReceipt(String(edited._id), String(ACTOR));
+    assert.equal(await balance('1150'), round2(before + 1000));
+
+    // First correction: 1,000 becomes 600.
+    edited.products = [{ productId: PRODUCT, quantity: 10, rate: 60 }] as never;
+    edited.totalAmount = 600;
+    edited.updatedAt = new Date(Date.now() + 1000);
+    await edited.save();
+    await inventory.postStockReceipt(String(edited._id), String(ACTOR));
+    assert.equal(await balance('1150'), round2(before + 600), 'the first correction is wrong');
+
+    // Second correction: 600 becomes 400.
+    edited.products = [{ productId: PRODUCT, quantity: 10, rate: 40 }] as never;
+    edited.totalAmount = 400;
+    edited.updatedAt = new Date(Date.now() + 2000);
+    await edited.save();
+    await inventory.postStockReceipt(String(edited._id), String(ACTOR));
+
+    assert.equal(
+      await balance('1150'),
+      round2(before + 400),
+      'the first version was put back on the shelf by the second correction',
+    );
+    assert.equal(
+      await balance('2115'),
+      round2(grniBefore + 400),
+      'the supplier liability was restated twice',
+    );
+
+    // Leave the books as the rest of the file expects them.
+    edited.status = 'cancelled';
+    await edited.save();
+    await inventory.postStockReceiptReversal(String(edited._id), String(ACTOR));
+    assert.equal(await balance('1150'), before, 'the correction test did not clean up after itself');
+  });
+
   await test('cancelling a receipt takes the value back off the shelf', async () => {
     const before = await balance('1150');
     receipt.status = 'cancelled';

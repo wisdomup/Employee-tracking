@@ -8,7 +8,7 @@ import { FinanceSettingsModel } from '../../models/finance-settings.model';
 import { badRequest, conflict, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { round2, MONEY_EPSILON } from './finance.rules';
-import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
+import { postEntry, reverseEntry, ledgerIdForRole, NOT_A_REVERSAL } from './posting.service';
 import { withFinanceLocks } from './finance-locks';
 
 /**
@@ -83,7 +83,7 @@ async function liveEntry(referenceNo: string) {
     sourceType: 'opening_balance',
     status: 'posted',
     referenceNo,
-    reversalOf: null,
+    ...NOT_A_REVERSAL,
   })
     .sort({ createdAt: 1 })
     .lean()
@@ -109,7 +109,7 @@ async function liveEntriesOutside(
 ): Promise<number> {
   const query: Record<string, unknown> = {
     status: 'posted',
-    reversalOf: null,
+    ...NOT_A_REVERSAL,
     sourceType: { $ne: 'opening_balance' },
   };
 

@@ -8,7 +8,7 @@ import { badRequest, conflict, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { allocateNextFinanceNo } from './finance-counters';
 import { round2, MONEY_EPSILON, buildIdempotencyKey } from './finance.rules';
-import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
+import { postEntry, reverseEntry, ledgerIdForRole, NOT_A_REVERSAL } from './posting.service';
 import { withFinanceLocks } from './finance-locks';
 import { paidByBill, paymentsForBill, BillPaymentLine } from './payments.service';
 
@@ -74,6 +74,10 @@ async function receiptsWithLivePosting(receiptIds: Types.ObjectId[]): Promise<Se
     sourceType: 'stock_receipt',
     sourceId: { $in: receiptIds },
     status: 'posted',
+    // A reversal carries the receipt's own sourceType and sourceId and is itself posted, so
+    // without this a receipt whose posting was REVERSED still answers "yes, it posted" — and a
+    // bill would then clear GRNI that is no longer there. See `NOT_A_REVERSAL`.
+    ...NOT_A_REVERSAL,
   })
     .select('sourceId')
     .lean()
