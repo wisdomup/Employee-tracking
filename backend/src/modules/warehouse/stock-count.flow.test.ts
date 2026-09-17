@@ -246,7 +246,7 @@ async function main() {
     assert.equal(p?.purchasePrice, 10, 'found or lost pieces enter at the existing average');
   });
 
-  await test('you cannot approve a count you submitted', async () => {
+  await test('an admin needs no approval — submitting applies their own count', async () => {
     await resetStock(100, 50);
     const count = await counts.openStockCount({ warehouseId }, adminA);
     await counts.saveStockCountLines(
@@ -254,13 +254,24 @@ async function main() {
       [{ productId: productA, countedSellable: 90, countedDamaged: 0 }],
       adminA,
     );
-    await counts.submitStockCount(String(count._id), adminA);
-    await rejectsWith(
-      counts.approveStockCount(String(count._id), adminA.userId),
-      /cannot approve a count you submitted/i,
-    );
-    await counts.approveStockCount(String(count._id), adminB.userId);
+    const submitted = await counts.submitStockCount(String(count._id), adminA);
+    assert.equal(submitted.status, 'approved', 'no separate approval step for an admin');
     assert.equal((await balance(productA)).sellable, 90);
+  });
+
+  await test('a count submitted by staff still waits for an admin', async () => {
+    await resetStock(100, 50);
+    const count = await counts.openStockCount({ warehouseId }, staff);
+    await counts.saveStockCountLines(
+      String(count._id),
+      [{ productId: productA, countedSellable: 80, countedDamaged: 50 }],
+      staff,
+    );
+    const submitted = await counts.submitStockCount(String(count._id), staff);
+    assert.equal(submitted.status, 'submitted');
+    assert.equal((await balance(productA)).sellable, 100, 'nothing moved on submission');
+    await counts.approveStockCount(String(count._id), adminB.userId);
+    assert.equal((await balance(productA)).sellable, 80);
   });
 
   await test('rejection changes no stock', async () => {

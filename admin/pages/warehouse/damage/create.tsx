@@ -126,7 +126,7 @@ function CreateDamagePage() {
 
     setLoading(true);
     try {
-      await damageClaimService.createRecord({
+      const claim = await damageClaimService.createRecord({
         ...(user?.role === 'admin' ? { warehouseId } : {}),
         source,
         ...(source === 'client_claim' ? { clientName: clientName.trim() } : {}),
@@ -134,7 +134,12 @@ function CreateDamagePage() {
         reason: reason.trim(),
         products: validLines.map((l) => ({ productId: l.productId, quantity: l.qty })),
       });
-      toast.success('Entry recorded and sent for approval — no stock has moved yet');
+      // An admin's entry is approved as it is raised, so the write-off has already applied.
+      toast.success(
+        claim?.status === 'approved'
+          ? 'Entry approved — the pieces have moved from Sellable to Damaged'
+          : 'Entry recorded and sent for approval — no stock has moved yet',
+      );
       router.push('/warehouse/damage');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to record the entry'));
@@ -289,7 +294,7 @@ function CreateDamagePage() {
               className={styles.submitButton}
               disabled={loading || !warehouseId || Boolean(excess)}
             >
-              {loading ? 'Recording…' : 'Send for approval'}
+              {loading ? 'Recording…' : user?.role === 'admin' ? 'Record entry' : 'Send for approval'}
             </button>
           </div>
         </form>

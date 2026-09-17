@@ -3,6 +3,7 @@ import { StockTransferModel, IStockTransfer } from '../../models/stock-transfer.
 import { WarehouseModel } from '../../models/warehouse.model';
 import { ProductModel } from '../../models/product.model';
 import { badRequest, forbidden, notFound } from '../../utils/app-error';
+import { ROLES } from '../../constants/global';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
   postTransferOut,
@@ -126,6 +127,13 @@ export async function createTransfer(
     },
   });
 
+  // An admin needs no approval from anyone: their transfer is approved as it is raised, so the
+  // stock leaves the source into in-transit straight away and there is no pending row for them to
+  // chase. Everyone else's still waits for an admin.
+  if (actor.role === ROLES.ADMIN) {
+    return approveTransfer(String(transfer._id), actor.userId);
+  }
+
   notifyTransferPending(transfer);
 
   return findTransferById(String(transfer._id));
@@ -215,11 +223,9 @@ export async function approveTransfer(id: string, actorId: string) {
   if (!transfer) throw notFound('Transfer not found');
   assertStatus(transfer, ['pending'], 'approve');
 
-  // Approval is the only control on stock leaving a warehouse — the person who raised it must not
-  // also be the person who waves it through.
-  if (String(transfer.createdBy) === actorId) {
-    throw forbidden('You cannot approve a transfer you created — ask another admin');
-  }
+  // No self-approval guard: approval is admin-only, and an admin is not subject to their own
+  // controls — they raise a transfer and it is approved on the spot (see `createTransfer`). The
+  // four-eyes rule this used to enforce also deadlocked any company running a single admin.
 
   const claimed = await StockTransferModel.findOneAndUpdate(
     { _id: id, status: 'pending' },

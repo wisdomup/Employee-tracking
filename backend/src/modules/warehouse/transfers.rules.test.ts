@@ -195,18 +195,25 @@ async function main() {
     assert.equal(await mirror(productA), 70);
   });
 
-  await test('you cannot approve a transfer you raised yourself', async () => {
+  await test('an admin needs no approval — their own transfer is approved as it is raised', async () => {
     const own = await transfers.createTransfer(
       { fromWarehouseId: mainId, toWarehouseId: lahoreId, products: [{ productId: productB, sentQty: 5 }] },
       adminA,
     );
-    await rejectsWith(
-      transfers.approveTransfer(String(own._id), adminA.userId),
-      /cannot approve a transfer you created/i,
-    );
-    // Another admin can.
-    await transfers.approveTransfer(String(own._id), adminB.userId);
+    assert.equal(own.status, 'approved', 'no pending step for an admin');
+    // Stock left the source there and then, exactly as a separate approval would have moved it.
     assert.equal((await balance(mainId, productB)).inTransit, 5);
+    assert.equal((await balance(mainId, productB)).sellable, 95);
+  });
+
+  await test('a second admin can still approve a transfer raised by staff', async () => {
+    const raised = await transfers.createTransfer(
+      { toWarehouseId: lahoreId, products: [{ productId: productB, sentQty: 4 }] },
+      staffMain,
+    );
+    assert.equal(raised.status, 'pending', 'staff still wait for an admin');
+    await transfers.approveTransfer(String(raised._id), adminB.userId);
+    assert.equal((await balance(mainId, productB)).inTransit, 9);
   });
 
   await test('approving twice is refused', async () => {
@@ -500,7 +507,7 @@ async function main() {
     assert.equal(await mirror(productA), 88);
   });
 
-  await test('you cannot approve an entry you raised yourself', async () => {
+  await test('an admin needs no approval — their own entry writes the stock off at once', async () => {
     const claim = await damage.createDamageClaim(
       {
         warehouseId: mainId,
@@ -510,11 +517,7 @@ async function main() {
       },
       adminA,
     );
-    await rejectsWith(
-      damage.approveDamageClaim(String(claim._id), adminA.userId),
-      /cannot approve an entry you created/i,
-    );
-    await damage.approveDamageClaim(String(claim._id), adminB.userId);
+    assert.equal(claim.status, 'approved', 'no pending step for an admin');
     assert.equal((await balance(mainId, productA)).damaged, 15);
   });
 
@@ -574,14 +577,15 @@ async function main() {
   });
 
   await test('staff only see their own warehouse’s entries', async () => {
+    // Raised by the Lahore storekeeper, not an admin: an admin's entry would write the stock off
+    // on the spot, and Lahore holds none — the point here is only that it exists and is scoped.
     await damage.createDamageClaim(
       {
-        warehouseId: lahoreId,
         source: 'internal_damage',
         reason: 'Lahore breakage',
         products: [{ productId: productA, quantity: 1 }],
       },
-      adminA,
+      staffLahore,
     );
     const mainRows = await damage.findAllDamageClaims({}, staffMain);
     assert.ok(mainRows.length > 0);

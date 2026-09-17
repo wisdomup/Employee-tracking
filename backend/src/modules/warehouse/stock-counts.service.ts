@@ -3,6 +3,7 @@ import { StockCountModel, IStockCountLine } from '../../models/stock-count.model
 import { WarehouseStockModel } from '../../models/warehouse-stock.model';
 import { ProductModel } from '../../models/product.model';
 import { badRequest, forbidden, notFound } from '../../utils/app-error';
+import { ROLES } from '../../constants/global';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
   postStockCount,
@@ -207,6 +208,14 @@ export async function submitStockCount(id: string, actor: { userId: string; role
     meta: { documentNo: count.documentNo, differenceCount },
   });
 
+  // An admin needs no approval: submitting applies the count's adjustments immediately. Only the
+  // count is returned — `approveStockCount` also hands back drift, and submit's callers expect the
+  // document alone.
+  if (actor.role === ROLES.ADMIN) {
+    const { count: approved } = await approveStockCount(id, actor.userId);
+    return approved;
+  }
+
   notifyStockCountSubmitted({
     _id: count._id,
     documentNo: count.documentNo,
@@ -237,9 +246,8 @@ export async function approveStockCount(id: string, actorId: string) {
   if (count.status !== 'submitted') {
     throw badRequest(`Only a submitted count can be approved. This one is "${count.status}".`);
   }
-  if (String(count.submittedBy ?? count.createdBy) === actorId) {
-    throw forbidden('You cannot approve a count you submitted — ask another admin');
-  }
+  // No self-approval guard — approval is admin-only, and an admin's own count is approved as it is
+  // submitted (see `submitStockCount`).
 
   const balances = await WarehouseStockModel.find({
     warehouseId: count.warehouseId,

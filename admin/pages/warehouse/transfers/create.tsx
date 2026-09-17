@@ -112,13 +112,18 @@ function CreateTransferPage() {
 
     setLoading(true);
     try {
-      await stockTransferService.createTransfer({
+      const transfer = await stockTransferService.createTransfer({
         ...(user?.role === 'admin' ? { fromWarehouseId } : {}),
         toWarehouseId,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         products: validLines.map((l) => ({ productId: l.productId, sentQty: l.qty })),
       });
-      toast.success('Transfer raised and sent for approval — no stock has moved yet');
+      // An admin's transfer is approved as it is raised, so the stock has already left the source.
+      toast.success(
+        transfer?.status === 'approved'
+          ? 'Transfer approved — the stock has left the source and is in transit'
+          : 'Transfer raised and sent for approval — no stock has moved yet',
+      );
       router.push('/warehouse/transfers');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to raise the transfer'));
@@ -228,7 +233,7 @@ function CreateTransferPage() {
               className={styles.submitButton}
               disabled={loading || !fromWarehouseId || !toWarehouseId || Boolean(excess)}
             >
-              {loading ? 'Raising…' : 'Send for approval'}
+              {loading ? 'Raising…' : user?.role === 'admin' ? 'Raise transfer' : 'Send for approval'}
             </button>
           </div>
         </form>

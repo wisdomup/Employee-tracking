@@ -16,7 +16,7 @@ import {
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import { employeeDisplayLabel } from '../../../../utils/employeeDisplayLabel';
 import { formatPieces } from '../../../../utils/formatCurrency';
-import { can } from '../../../../utils/permissions';
+import { can, isAdmin } from '../../../../utils/permissions';
 import { useAuth } from '../../../../contexts/AuthContext';
 import DataExportButton from '../../../../components/UI/DataExportButton';
 import type { TableExportColumn } from '../../../../utils/tableExport';
@@ -203,9 +203,14 @@ function StockCountDetailPage() {
 
   const handleSubmit = async () => {
     if (!id || typeof id !== 'string') return;
+    // An admin's count is approved as it is submitted, so for them this is the moment the stock
+    // figures change — the confirmation has to say so rather than promise a later review.
+    const applyNow = isAdmin();
     if (
       !window.confirm(
-        `Submit this count for approval?\n\n${totals.differingLines} product(s) differ from the system figure. Nothing is corrected until an admin approves it.`,
+        applyNow
+          ? `Submit and apply this count?\n\n${totals.differingLines} product(s) differ from the system figure. Submitting corrects the stock straight away.`
+          : `Submit this count for approval?\n\n${totals.differingLines} product(s) differ from the system figure. Nothing is corrected until an admin approves it.`,
       )
     ) {
       return;
@@ -223,7 +228,7 @@ function StockCountDetailPage() {
         })),
       );
       await stockCountService.submitCount(id);
-      toast.success('Submitted for approval');
+      toast.success(applyNow ? 'Count applied — the stock figures are corrected' : 'Submitted for approval');
       fetchCount();
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to submit the count'));
@@ -542,7 +547,7 @@ function StockCountDetailPage() {
                 onClick={handleSubmit}
                 disabled={busy}
               >
-                Submit for approval
+                {isAdmin() ? 'Submit and apply' : 'Submit for approval'}
               </button>
             </>
           )}

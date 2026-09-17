@@ -3,6 +3,7 @@ import { DamageClaimModel } from '../../models/damage-claim.model';
 import { ProductModel } from '../../models/product.model';
 import { DealerModel } from '../../models/dealer.model';
 import { badRequest, forbidden, notFound } from '../../utils/app-error';
+import { ROLES } from '../../constants/global';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
   postDamageClaim,
@@ -97,6 +98,12 @@ export async function createDamageClaim(
     },
   });
 
+  // An admin needs no approval: the write-off applies as the entry is raised. Anyone else's entry
+  // stays pending until an admin approves it.
+  if (actor.role === ROLES.ADMIN) {
+    return approveDamageClaim(String(claim._id), actor.userId);
+  }
+
   notifyDamageClaimPending({
     _id: claim._id,
     documentNo: claim.documentNo,
@@ -188,11 +195,9 @@ export async function approveDamageClaim(id: string, actorId: string) {
     throw badRequest(`Only a pending entry can be approved. This one is "${claim.status}".`);
   }
 
-  // Approval is the only control on a write-off: raising an entry for 500 pieces and approving it
-  // yourself would be a straight route to making stock disappear.
-  if (String(claim.createdBy) === actorId) {
-    throw forbidden('You cannot approve an entry you created — ask another admin');
-  }
+  // No self-approval guard. Approval is admin-only and an admin is exempt from their own controls,
+  // so an admin's own entry is approved as it is raised (see `createDamageClaim`). The write-off
+  // control that remains is that only an admin can approve at all.
 
   const claimed = await DamageClaimModel.findOneAndUpdate(
     { _id: id, status: 'pending' },
