@@ -12,6 +12,7 @@ import { PurchaseBillModel } from '../../models/purchase-bill.model';
 import { SupplierPaymentModel } from '../../models/supplier-payment.model';
 import { PayrollRunModel } from '../../models/payroll-run.model';
 import { StaffAdvanceModel } from '../../models/staff-advance.model';
+import { VoucherModel } from '../../models/voucher.model';
 import { ControlReconciliationModel } from '../../models/control-reconciliation.model';
 import { FinanceSettingsModel } from '../../models/finance-settings.model';
 import { localDayKey } from '../region-sales/region-sales.rules';
@@ -133,7 +134,7 @@ async function checkAccountsReceivable(): Promise<ControlCheck | null> {
   const ledger = await balanceOfRole('arTrade');
   if (!ledger) return null;
 
-  const [credit, recovered, returned] = await Promise.all([
+  const [credit, recovered, returned, byVoucher] = await Promise.all([
     DeliveryCollectionModel.aggregate<{ total: number }>([
       { $match: NOT_VOID },
       { $group: { _id: null, total: { $sum: '$credit' } } },
@@ -146,13 +147,22 @@ async function checkAccountsReceivable(): Promise<ControlCheck | null> {
       { $match: { status: 'completed', isTrashed: { $ne: true } } },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).exec(),
+    // A shop paying at the office, or being refunded, goes through a voucher rather than a rider.
+    VoucherModel.aggregate<{ total: number }>([
+      { $match: { status: 'posted', 'lines.subledgerType': 'dealer' } },
+      { $unwind: '$lines' },
+      { $match: { 'lines.subledgerType': 'dealer' } },
+      { $group: { _id: null, total: { $sum: { $subtract: ['$lines.credit', '$lines.debit'] } } } },
+    ]).exec(),
   ]);
 
   const creditTotal = round2(credit[0]?.total ?? 0);
   const recoveredTotal = round2(recovered[0]?.total ?? 0);
   const returnedTotal = round2(returned[0]?.total ?? 0);
 
-  const expected = round2(creditTotal - recoveredTotal - returnedTotal);
+  const voucherTotal = round2(byVoucher[0]?.total ?? 0);
+
+  const expected = round2(creditTotal - recoveredTotal - returnedTotal - voucherTotal);
 
   return makeCheck(
     'ar-trade',
@@ -163,8 +173,10 @@ async function checkAccountsReceivable(): Promise<ControlCheck | null> {
       creditIssued: creditTotal,
       recovered: recoveredTotal,
       returnsCredited: returnedTotal,
+      receivedByVoucher: voucherTotal,
     },
-    'Credit given to shops, less what has been collected back, less goods returned.',
+    'Credit given to shops, less what has been collected back, less goods returned, less what was '
+      + 'taken at the office on a voucher.',
   );
 }
 

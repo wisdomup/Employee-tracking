@@ -38,6 +38,7 @@ export type JournalSourceType =
   | 'payment_received'
   | 'payment_made'
   | 'expense'
+  | 'voucher'
   | 'payroll_accrual'
   | 'salary_payment'
   | 'staff_advance'
@@ -50,7 +51,7 @@ export const JOURNAL_SOURCE_TYPES: JournalSourceType[] = [
   'settlement_received', 'settlement_variance', 'stock_receipt', 'stock_receipt_reversal',
   'customer_return', 'damage_claim', 'transfer_out', 'transfer_in', 'transfer_shrinkage',
   'stock_count_adjustment', 'invoice', 'bill', 'payment_received', 'payment_made', 'expense',
-  'payroll_accrual', 'salary_payment', 'staff_advance', 'bad_debt_writeoff', 'year_end_close',
+  'voucher', 'payroll_accrual', 'salary_payment', 'staff_advance', 'bad_debt_writeoff', 'year_end_close',
 ];
 
 export type JournalStatus = 'draft' | 'posted' | 'reversed' | 'void';

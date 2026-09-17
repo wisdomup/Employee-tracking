@@ -38,7 +38,8 @@ export type ActivityModule =
   | 'opening_balance'
   | 'period'
   | 'payroll'
-  | 'staff_advance';
+  | 'staff_advance'
+  | 'voucher';
 
 export type ActivityAction =
   | 'created'
@@ -67,7 +68,7 @@ const ACTIVITY_MODULES: ActivityModule[] = [
   'stock_count', 'opening_stock', 'collection', 'credit_recovery', 'settlement',
   'ledger', 'journal_entry', 'vendor', 'bill', 'expense', 'payment', 'tax_rate', 'period',
   'bank_reconciliation', 'opening_balance',
-  'payroll', 'staff_advance',
+  'payroll', 'staff_advance', 'voucher',
 ];
 
 const ACTIVITY_ACTIONS: ActivityAction[] = [

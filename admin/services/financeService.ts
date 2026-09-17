@@ -1952,3 +1952,194 @@ export const taxRateService = {
     return response.data;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Vouchers — the six manual documents
+// ---------------------------------------------------------------------------
+
+export type VoucherCategory = 'CPV' | 'CRV' | 'BPV' | 'BRV' | 'CV' | 'JV';
+
+export const VOUCHER_CATEGORIES: VoucherCategory[] = ['CPV', 'CRV', 'BPV', 'BRV', 'CV', 'JV'];
+
+export const VOUCHER_CATEGORY_LABELS: Record<VoucherCategory, string> = {
+  CPV: 'Cash Payment Voucher',
+  CRV: 'Cash Receipt Voucher',
+  BPV: 'Bank Payment Voucher',
+  BRV: 'Bank Receipt Voucher',
+  CV: 'Contra — money between our own accounts',
+  JV: 'Journal Voucher',
+};
+
+/** What each one is actually for, in the words the person filling it in would use. */
+export const VOUCHER_CATEGORY_HELP: Record<VoucherCategory, string> = {
+  CPV: 'Cash paid out of the office cash box — a refund to a shop, money drawn by the owner, a tax bill settled in cash.',
+  CRV: 'Cash taken in at the office — a shop paying at the counter, capital put in, a loan received in cash.',
+  BPV: 'Money leaving a bank account by cheque or transfer.',
+  BRV: 'Money arriving in a bank account.',
+  CV: 'Our own money moving between our own cash and bank accounts. Nothing is earned, spent, owed or collected.',
+  JV: 'A correction or a month-end adjustment. It balances, it moves no money, and it touches no control account.',
+};
+
+export type ContraSubtype = 'bank_deposit' | 'cash_withdrawal' | 'bank_to_bank' | 'cash_to_cash';
+
+export const CONTRA_SUBTYPES: ContraSubtype[] = [
+  'bank_deposit',
+  'cash_withdrawal',
+  'bank_to_bank',
+  'cash_to_cash',
+];
+
+export const CONTRA_SUBTYPE_LABELS: Record<ContraSubtype, string> = {
+  bank_deposit: 'Cash deposited into the bank',
+  cash_withdrawal: 'Cash drawn from the bank',
+  bank_to_bank: 'Between two bank accounts',
+  cash_to_cash: 'Between two cash accounts',
+};
+
+export type VoucherStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'posted'
+  | 'cancelled';
+
+export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
+  draft: 'Draft',
+  submitted: 'Waiting for approval',
+  approved: 'Approved, not posted',
+  rejected: 'Sent back',
+  posted: 'Posted',
+  cancelled: 'Cancelled',
+};
+
+export interface VoucherLine {
+  ledgerId: string;
+  ledgerCode: string;
+  ledgerName: string;
+  debit: number;
+  credit: number;
+  narration?: string;
+  partyName?: string;
+}
+
+export interface Voucher {
+  id: string;
+  voucherNo?: number;
+  /** `CPV-0001` once posted, `Draft` until then — numbers are allocated at posting. */
+  reference: string;
+  category: VoucherCategory;
+  categoryLabel: string;
+  subtype?: ContraSubtype;
+  voucherDate: string;
+  narration: string;
+  /** The cheque number, slip number or challan — not the voucher's own reference. */
+  paymentReference?: string;
+  attachments: string[];
+  partyType?: 'dealer';
+  partyId?: string;
+  partyName?: string;
+  amount: number;
+  status: VoucherStatus;
+  submittedAt?: string;
+  submittedBy?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectionReason?: string;
+  journalEntryId?: string;
+  cancelReason?: string;
+  createdBy?: string;
+  createdAt: string;
+  lines: VoucherLine[];
+}
+
+export interface VoucherInput {
+  category: VoucherCategory;
+  subtype?: ContraSubtype;
+  voucherDate: string;
+  narration: string;
+  reference?: string;
+  attachments?: string[];
+  cashBankLedgerId?: string;
+  counterLedgerId?: string;
+  partyType?: 'dealer';
+  partyId?: string;
+  amount?: number;
+  fromLedgerId?: string;
+  toLedgerId?: string;
+  lines?: { ledgerId: string; debit?: number; credit?: number; narration?: string }[];
+}
+
+export const voucherService = {
+  async list(
+    filters: {
+      category?: VoucherCategory;
+      status?: VoucherStatus | 'all';
+      from?: string;
+      to?: string;
+      partyId?: string;
+      search?: string;
+    } = {},
+  ): Promise<Voucher[]> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') params.append(k, String(v));
+    });
+    const response = await api.get(`/finance/vouchers?${params.toString()}`);
+    return response.data;
+  },
+
+  /** The shop picker, behind the voucher permission rather than the Clients one. */
+  async shops(search?: string): Promise<{ id: string; name: string; shopName?: string }[]> {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    const response = await api.get(`/finance/vouchers/shops?${params.toString()}`);
+    return response.data;
+  },
+
+  async get(id: string): Promise<Voucher> {
+    const response = await api.get(`/finance/vouchers/${id}`);
+    return response.data;
+  },
+
+  async create(data: VoucherInput): Promise<Voucher> {
+    const response = await api.post('/finance/vouchers', data);
+    return response.data;
+  },
+
+  async update(id: string, data: VoucherInput): Promise<Voucher> {
+    const response = await api.put(`/finance/vouchers/${id}`, data);
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete(`/finance/vouchers/${id}`);
+    return response.data;
+  },
+
+  async submit(id: string): Promise<Voucher> {
+    const response = await api.patch(`/finance/vouchers/${id}/submit`);
+    return response.data;
+  },
+
+  async approve(id: string): Promise<Voucher> {
+    const response = await api.patch(`/finance/vouchers/${id}/approve`);
+    return response.data;
+  },
+
+  async reject(id: string, reason: string): Promise<Voucher> {
+    const response = await api.patch(`/finance/vouchers/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  /** Approval and posting are separate acts: this is the one that writes to the accounts. */
+  async post(id: string): Promise<Voucher> {
+    const response = await api.patch(`/finance/vouchers/${id}/post`);
+    return response.data;
+  },
+
+  async cancel(id: string, reason: string): Promise<Voucher> {
+    const response = await api.patch(`/finance/vouchers/${id}/cancel`, { reason });
+    return response.data;
+  },
+};

@@ -157,6 +157,19 @@ export const MODULES: readonly ModuleDefinition[] = [
     changeMeans: 'Activate or deactivate an account group or ledger',
   },
   {
+    /*
+     * The six manual vouchers — CPV, CRV, BPV, BRV, CV and JV.
+     *
+     * `add` raises and submits one; `change` approves, sends back and posts it, and the service
+     * refuses an approval from whoever raised it. A voucher can be pointed at almost any account,
+     * which is precisely why it is the one document here that always waits for a second person.
+     *
+     * Cancelling a posted voucher is on `finance-reversal`, like every other undo.
+     */
+    id: 'finance-vouchers', label: 'Vouchers', group: MODULE_GROUPS.FINANCE, actions: FULL,
+    changeMeans: 'Approve, send back, or post a voucher',
+  },
+  {
     id: 'finance-journal', label: 'Journal Entries', group: MODULE_GROUPS.FINANCE, actions: FULL,
     changeMeans: 'Post a draft entry to the ledger',
   },

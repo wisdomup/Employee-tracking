@@ -368,6 +368,13 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       'finance-journal:delete',
       'finance-journal:change',
 
+      // Vouchers: raises and submits them. Approving and posting is somebody else's — a voucher
+      // reaches almost any account, so it always waits for a second pair of eyes.
+      'finance-vouchers:view',
+      'finance-vouchers:add',
+      'finance-vouchers:edit',
+      'finance-vouchers:delete',
+
       /*
        * `finance-reversal:change` is deliberately ABSENT, and this is the whole reason reversal
        * has its own matrix row.
@@ -469,6 +476,13 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
 
       'finance-reversal:view',
       'finance-reversal:change',
+
+      // Approves, sends back and posts vouchers.
+      'finance-vouchers:view',
+      'finance-vouchers:add',
+      'finance-vouchers:edit',
+      'finance-vouchers:delete',
+      'finance-vouchers:change',
 
       /*
        * Suppliers and bills, in full.

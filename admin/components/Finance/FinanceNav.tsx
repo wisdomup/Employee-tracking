@@ -46,6 +46,7 @@ const TABS: {
   { href: '/finance/bills', label: 'Bills', permission: 'finance-bills:view' },
   { href: '/finance/payments', label: 'Payments', permission: 'finance-payments:view' },
   { href: '/finance/expenses', label: 'Expenses', permission: 'finance-expenses:view' },
+  { href: '/finance/vouchers', label: 'Vouchers', permission: 'finance-vouchers:view' },
   { href: '/finance/payroll', label: 'Payroll', permission: 'finance-payroll:view' },
   {
     href: '/finance/bank-reconciliation',

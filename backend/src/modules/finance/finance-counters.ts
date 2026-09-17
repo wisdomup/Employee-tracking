@@ -22,7 +22,13 @@ export type FinanceDocumentKind =
   | 'financePaymentInNo'
   | 'financePaymentOutNo'
   | 'financeVendorNo'
-  | 'financeAdvanceNo';
+  | 'financeAdvanceNo'
+  | 'voucherCpvNo'
+  | 'voucherCrvNo'
+  | 'voucherBpvNo'
+  | 'voucherBrvNo'
+  | 'voucherCvNo'
+  | 'voucherJvNo';
 
 export const FINANCE_DOCUMENT_KINDS: FinanceDocumentKind[] = [
   'financeJournalNo',
@@ -33,6 +39,12 @@ export const FINANCE_DOCUMENT_KINDS: FinanceDocumentKind[] = [
   'financePaymentOutNo',
   'financeVendorNo',
   'financeAdvanceNo',
+  'voucherCpvNo',
+  'voucherCrvNo',
+  'voucherBpvNo',
+  'voucherBrvNo',
+  'voucherCvNo',
+  'voucherJvNo',
 ];
 
 export async function allocateNextFinanceNo(kind: FinanceDocumentKind): Promise<number> {
