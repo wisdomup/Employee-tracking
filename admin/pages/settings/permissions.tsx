@@ -25,7 +25,9 @@ import styles from '../../styles/Permissions.module.scss';
  *    greyed `n/a` rather than an unchecked box, so "not allowed" stays distinguishable from
  *    "cannot be allowed".
  *  - **Reports** get a flat allow-list, one checkbox per individual report. There is no
- *    add/edit/delete axis and no export — reports are view-only for everyone, Admin included.
+ *    add/edit/delete axis — a report is either readable or it is not. Downloading is not part
+ *    of that tick: the `exports:view` cell under System governs every CSV and PDF button in
+ *    the app, reports included.
  *
  * The Admin role has no tab. It resolves to full access before any policy is read, which is
  * exactly what stops this screen from being able to lock you out of this screen.
@@ -188,8 +190,9 @@ function PermissionsPage() {
             <h1>Roles &amp; Permissions</h1>
             <p>
               Control what each role can do, module by module and action by action. Reports are
-              granted one report at a time and are view-only for everyone — there is no export,
-              print or download on any report, for any role.
+              granted one report at a time, with no add, edit or delete on a report. Downloading is
+              a separate cell — <strong>Data Export (CSV / PDF)</strong>, under <em>System</em> —
+              which controls the CSV and PDF buttons on lists, dashboards and reports alike.
             </p>
           </div>
         </div>

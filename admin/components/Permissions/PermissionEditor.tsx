@@ -8,7 +8,7 @@ import styles from '../../styles/Permissions.module.scss';
  *
  * Extracted rather than duplicated because the two screens must agree on the parts that are
  * easy to get subtly wrong — which action cells render as `n/a`, how the row and column
- * "all" shortcuts behave, and the fact that reports carry one tick and no export. Two copies
+ * "all" shortcuts behave, and the fact that a report carries one tick and no action axis. Two copies
  * of that would drift, and the drift would be invisible until an admin ticked something that
  * did nothing.
  *
@@ -193,7 +193,8 @@ const PermissionEditor: React.FC<Props> = ({
               ))}
             </div>
             <p className={styles.viewOnlyNote}>
-              View only. No export, print or download is available on these reports for any role.
+              One tick per report, with no add, edit or delete. Downloading is set separately by
+              the Data Export (CSV / PDF) cell under System.
             </p>
           </div>
         );
