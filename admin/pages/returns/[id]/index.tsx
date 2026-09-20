@@ -243,19 +243,19 @@ const ReturnDetailPage: React.FC = () => {
               >
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    <th style={{ padding: '0.625rem 0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
                       Product
                     </th>
-                    <th style={{ padding: '0.625rem 0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
                       Barcode
                     </th>
-                    <th style={{ padding: '0.625rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
                       Qty
                     </th>
-                    <th style={{ padding: '0.625rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
                       Unit Price
                     </th>
-                    <th style={{ padding: '0.625rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151', borderBottom: '2px solid #e5e7eb' }}>
                       Subtotal
                     </th>
                   </tr>
@@ -265,15 +265,15 @@ const ReturnDetailPage: React.FC = () => {
                     const product = p.productId;
                     return (
                       <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '0.625rem 0.75rem' }}>{product?.name || '-'}</td>
-                        <td style={{ padding: '0.625rem 0.75rem', color: '#6b7280' }}>
+                        <td style={{ padding: '0.5rem 0.75rem' }}>{product?.name || '-'}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', color: '#6b7280' }}>
                           {product?.barcode || '-'}
                         </td>
-                        <td style={{ padding: '0.625rem 0.75rem', textAlign: 'right' }}>{p.quantity}</td>
-                        <td style={{ padding: '0.625rem 0.75rem', textAlign: 'right' }}>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{p.quantity}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
                           Rs. {(p.price ?? 0).toFixed(2)}
                         </td>
-                        <td style={{ padding: '0.625rem 0.75rem', textAlign: 'right', fontWeight: 500 }}>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 500 }}>
                           Rs. {((p.quantity ?? 0) * (p.price ?? 0)).toFixed(2)}
                         </td>
                       </tr>
@@ -282,10 +282,10 @@ const ReturnDetailPage: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr style={{ background: '#f9fafb' }}>
-                    <td colSpan={4} style={{ padding: '0.625rem 0.75rem', textAlign: 'right', fontWeight: 700, color: '#374151' }}>
+                    <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 700, color: '#374151' }}>
                       Products Total:
                     </td>
-                    <td style={{ padding: '0.625rem 0.75rem', textAlign: 'right', fontWeight: 700, color: '#1d4ed8' }}>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 700, color: '#1d4ed8' }}>
                       Rs.{' '}
                       {(returnItem.products || [])
                         .reduce((s: number, p: any) => s + (p.quantity ?? 0) * (p.price ?? 0), 0)

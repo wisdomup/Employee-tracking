@@ -419,14 +419,14 @@ function StockInDetailPage() {
 }
 
 const th: React.CSSProperties = {
-  padding: '0.5rem',
+  padding: '0.5rem 0.75rem',
   textAlign: 'left',
   fontWeight: 600,
   color: '#374151',
   borderBottom: '1px solid #e5e7eb',
 };
 
-const td: React.CSSProperties = { padding: '0.5rem', borderBottom: '1px solid #f3f4f6' };
+const td: React.CSSProperties = { padding: '0.5rem 0.75rem', borderBottom: '1px solid #f3f4f6' };
 
 export default function StockInDetailPageWrapper() {
   return (

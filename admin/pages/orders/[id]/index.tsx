@@ -479,17 +479,17 @@ const OrderDetailPage: React.FC = () => {
               <table style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse', color: '#1f2937' }}>
                 <thead>
                   <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Product</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Qty</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Unit Price</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Discount</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Subtotal</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Product</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 600, color: '#374151' }}>Qty</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Unit Price</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Discount</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {order.products?.map((item, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '0.75rem', color: '#1f2937' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', color: '#1f2937' }}>
                         <span style={{ color: '#1f2937' }}>{item.productId?.name || 'Unknown Product'}</span>
                         {item.productId?.barcode && (
                           <span style={{ display: 'block', fontSize: '0.75rem', color: '#4b5563' }}>
@@ -497,12 +497,12 @@ const OrderDetailPage: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center', color: '#1f2937' }}>{item.quantity}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#1f2937' }}>Rs. {item.price.toFixed(2)}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', color: '#1f2937' }}>{item.quantity}</td>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#1f2937' }}>Rs. {item.price.toFixed(2)}</td>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857' }}>
                         {lineDiscountOf(item) > 0 ? `-Rs. ${lineDiscountOf(item).toFixed(2)}` : '—'}
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 500, color: '#1f2937' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 500, color: '#1f2937' }}>
                         Rs. {(item.quantity * item.price - lineDiscountOf(item)).toFixed(2)}
                       </td>
                     </tr>
@@ -510,57 +510,57 @@ const OrderDetailPage: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>
+                    <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#374151' }}>
                       Subtotal:
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: '#1f2937' }}>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#1f2937' }}>
                       Rs. {totalPrice.toFixed(2)}
                     </td>
                   </tr>
                   {itemsDiscountTotal > 0 && (
                     <tr>
-                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                      <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
                         Item Discounts:
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857' }}>
                         -Rs. {itemsDiscountTotal.toFixed(2)}
                       </td>
                     </tr>
                   )}
                   {discount > 0 && (
                     <tr>
-                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                      <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
                         Order Discount:
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857' }}>
                         -Rs. {discount.toFixed(2)}
                       </td>
                     </tr>
                   )}
                   <tr style={{ background: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                    <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#374151' }}>
+                    <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#374151' }}>
                       Grand Total:
                     </td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#1d4ed8' }}>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem', color: '#1d4ed8' }}>
                       Rs. {grandTotal.toFixed(2)}
                     </td>
                   </tr>
                   {order.paidAmount !== undefined && (
                     <tr>
-                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
+                      <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857', fontWeight: 600 }}>
                         Paid:
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#047857' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: '#047857' }}>
                         Rs. {order.paidAmount.toFixed(2)}
                       </td>
                     </tr>
                   )}
                   {order.paidAmount !== undefined && (
                     <tr>
-                      <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>
+                      <td colSpan={4} style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>
                         Balance Due:
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: grandTotal - order.paidAmount > 0 ? '#b91c1c' : '#047857' }}>
                         Rs. {(grandTotal - order.paidAmount).toFixed(2)}
                       </td>
                     </tr>
