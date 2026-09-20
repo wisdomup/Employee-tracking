@@ -57,6 +57,13 @@ export interface TableColumnConfig {
   totalValue?: (row: any) => number;
   /** Formats the aggregate; defaults to a locale-grouped number. */
   totalRender?: (value: number) => React.ReactNode;
+  /**
+   * Floor for this column's width, e.g. `'220px'`. Columns share the width equally by default,
+   * which is right until one of them holds something that cannot shrink — a row of buttons, a
+   * long reference. Setting this stops the column wrapping its contents and dragging every row
+   * in the table taller.
+   */
+  minWidth?: string;
   /** Backward-compatible alias for pages that still provide string formatting via `totalFormat`. */
   totalFormat?: (value: number) => string;
 }
@@ -94,6 +101,22 @@ interface TableProps {
 
 
 
+/**
+ * Buttons do not wrap gracefully: an Actions column left at its equal share squeezed "View /
+ * Navigate / Delete" onto three lines, and because a row is as tall as its tallest cell, every
+ * row in the table became 120px of mostly white space. Pages declare this column the same way
+ * everywhere (`key: 'actions'`), so the floor is applied here rather than in 28 call sites.
+ *
+ * 216px holds the common three — View, Navigate, Delete — on one line. A page that shows four
+ * buttons to some role still wraps to two lines; it grows that table's rows and nothing else,
+ * and a column wide enough for every page's worst case would waste the width on all of them.
+ * Such a page can pass its own `minWidth`.
+ */
+const ACTION_COLUMN_MIN_WIDTH = '216px';
+
+const isActionColumn = (column: TableColumnConfig) =>
+  column.key === 'actions' || /^actions?$/i.test(column.title.trim());
+
 const Table: React.FC<TableProps> = ({
   columns,
   data,
@@ -119,14 +142,21 @@ const Table: React.FC<TableProps> = ({
 
   const normalizedColumns = useMemo<TableColumn<any>[]>(
     () =>
-      columns.map((column) => ({
-        name: column.title,
-        selector: (row: any) => row[column.key],
-        cell: column.render
-          ? (row: any) => column.render?.(row[column.key], row)
-          : undefined,
-        sortable: true,
-      })),
+      columns.map((column) => {
+        const actions = isActionColumn(column);
+        const minWidth = column.minWidth ?? (actions ? ACTION_COLUMN_MIN_WIDTH : undefined);
+
+        return {
+          name: column.title,
+          selector: (row: any) => row[column.key],
+          cell: column.render
+            ? (row: any) => column.render?.(row[column.key], row)
+            : undefined,
+          // Sorting a column of buttons orders rows by nothing.
+          sortable: !actions,
+          ...(minWidth ? { minWidth, grow: 0 } : {}),
+        };
+      }),
     [columns],
   );
 

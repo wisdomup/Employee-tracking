@@ -44,7 +44,14 @@
 }
 
 .filterSelect {
+  flex: 0 1 210px;
   min-width: 170px;
+  max-width: 240px;
+
+  @media (max-width: 480px) {
+    flex-basis: 100%;
+    max-width: none;
+  }
 }
 
 .kpiGrid {

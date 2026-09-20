@@ -99,6 +99,20 @@
   text-align: center;
 }
 
+/* Matches SearchableSelect: tighter on a desktop, untouched at touch sizes. */
+@media (min-width: 901px) {
+  .input {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.9375rem;
+  }
+
+  .option {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.9375rem;
+  }
+}
+
 @media (max-width: 900px) {
   .input {
     font-size: max(18px, 1.125rem);

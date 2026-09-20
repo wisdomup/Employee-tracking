@@ -106,6 +106,16 @@ select option {
   color: #fff !important;
 }
 
+/* Keep in step with the option style in `SearchableSelect.tsx`; whichever of the two the
+ * cascade lands on, the menu reads the same. */
+@media (min-width: 901px) {
+  .adminSelect__option {
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    padding: 0.375rem 0.625rem;
+  }
+}
+
 @media (max-width: 900px) {
   .adminSelect__option {
     font-size: max(18px, 1.125rem);

@@ -47,8 +47,9 @@ const selectStyles: StylesConfig<SearchableSelectOption, false, GroupBase<Search
     borderRadius: 8,
     boxShadow: '0 12px 32px rgba(15, 23, 42, 0.18)',
     /* Portaled menu inherits the control width; in a narrow table cell that squeezed option
-     * labels to one character per line. Floor the width, cap it to the viewport. */
-    minWidth: 260,
+     * labels to one character per line. Floor the width, cap it to the viewport. The floor is
+     * what a filter select needs to read, not what a form field is wide. */
+    minWidth: 200,
     maxWidth: 'min(420px, 92vw)',
     marginTop: 4,
     marginBottom: 4,
@@ -60,6 +61,8 @@ const selectStyles: StylesConfig<SearchableSelectOption, false, GroupBase<Search
     maxHeight: 280,
     padding: '4px 0',
   }),
+  /* Emotion processes these objects, so a nested media query works and keeps the roomy
+   * touch-sized option on phones while the desktop menu tightens up. */
   option: (base, state) => ({
     ...base,
     backgroundColor: state.isSelected
@@ -72,6 +75,11 @@ const selectStyles: StylesConfig<SearchableSelectOption, false, GroupBase<Search
     padding: '10px 12px',
     fontSize: 'max(16px, 1rem)',
     lineHeight: 1.45,
+    '@media (min-width: 901px)': {
+      padding: '6px 10px',
+      fontSize: '0.9375rem',
+      lineHeight: 1.35,
+    },
   }),
 };
 

@@ -151,7 +151,14 @@
 }
 
 .reportSelect {
+  flex: 0 1 180px;
   min-width: 140px;
+  max-width: 220px;
+
+  @media (max-width: 480px) {
+    flex-basis: 100%;
+    max-width: none;
+  }
 }
 
 /* Matches `Reports.module.scss` — Sales & Stock Highlights KPI strip */

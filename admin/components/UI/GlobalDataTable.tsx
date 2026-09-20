@@ -16,8 +16,8 @@ interface GlobalDataTableProps<T> {
   subHeaderComponent?: React.ReactNode;
   /**
    * One entry per column, rendered as a grand-total row under the table. `null` leaves the cell
-   * blank. Geometry mirrors react-data-table-component's own cells (`flex: 1 0 0`, `min-width:
-   * 100px`, 16px side padding) so the totals line up with the columns above them.
+   * blank. Geometry mirrors the cells above (`flex: 1 0 0`, `min-width: 100px`, and the same
+   * 12px side padding set in `cells`) so the totals line up with their columns.
    */
   footerCells?: (React.ReactNode | null)[];
 }
@@ -39,7 +39,7 @@ function GlobalDataTable<T>({
     () => ({
       subHeader: {
         style: {
-          padding: '0 0 12px 0',
+          padding: '0 0 8px 0',
           backgroundColor: 'transparent',
         },
       },
@@ -64,19 +64,32 @@ function GlobalDataTable<T>({
         style: {
           backgroundColor: '#f3f4f6',
           borderBottom: '1px solid #d1d5db',
-          minHeight: '48px',
+          minHeight: '40px',
         },
       },
       headCells: {
         style: {
           color: 'var(--admin-primary)',
-          fontSize: '14px',
+          fontSize: '13px',
           fontWeight: 700,
-          paddingTop: '12px',
-          paddingBottom: '12px',
+          paddingTop: '8px',
+          paddingBottom: '8px',
+          // react-data-table-component's own default is 16px a side. A list of short cells —
+          // a phone number, a status, a city — spent more width on gutters than on data.
+          paddingLeft: '12px',
+          paddingRight: '12px',
           whiteSpace: 'normal',
           overflowWrap: 'anywhere',
           wordBreak: 'break-word',
+          // react-data-table-component puts the label in a div of its own that is nowrap with an
+          // ellipsis, which is how "Client Name" became "Client N…" once the columns narrowed.
+          // Wrapping instead costs a second line on the few headings that need one. The div is a
+          // grandchild on a sortable column, so this matches any depth rather than `& > div`.
+          '& div': {
+            whiteSpace: 'normal',
+            overflow: 'visible',
+            textOverflow: 'clip',
+          },
           borderRight: '1px solid #e5e7eb',
           '&:last-of-type': {
             borderRight: 'none',
@@ -87,7 +100,9 @@ function GlobalDataTable<T>({
         style: {
           color: '#1f2937',
           fontSize: '14px',
-          minHeight: '46px',
+          // Tall enough for one line of 14px text plus its padding and no more; a row with
+          // wrapped text or a button still grows to fit its own content.
+          minHeight: '38px',
         },
         highlightOnHoverStyle: {
           backgroundColor: '#eff6ff',
@@ -97,14 +112,18 @@ function GlobalDataTable<T>({
       cells: {
         style: {
           color: '#1f2937',
-          paddingTop: '12px',
-          paddingBottom: '12px',
+          paddingTop: '8px',
+          paddingBottom: '8px',
+          paddingLeft: '12px',
+          paddingRight: '12px',
           whiteSpace: 'normal',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           overflowWrap: 'anywhere',
           wordBreak: 'break-word',
-          alignItems: 'flex-start',
+          // Centred, so a one-line cell sits level with the badges and buttons beside it
+          // instead of riding at the top of a row some taller neighbour has stretched.
+          alignItems: 'center',
           borderRight: '1px solid #f3f4f6',
           '&:last-of-type': {
             borderRight: 'none',
@@ -115,8 +134,8 @@ function GlobalDataTable<T>({
         style: {
           color: '#374151',
           fontSize: '13px',
-          minHeight: '52px',
-          marginTop: '12px',
+          minHeight: '44px',
+          marginTop: '8px',
           backgroundColor: 'transparent',
           borderTopStyle: 'none',
           borderTopWidth: '0',
@@ -127,7 +146,7 @@ function GlobalDataTable<T>({
         style: {
           color: '#4b5563',
           fontSize: '14px',
-          padding: '16px',
+          padding: '12px',
           backgroundColor: '#ffffff',
         },
       },
@@ -154,7 +173,7 @@ function GlobalDataTable<T>({
         highlightOnHover={Boolean(onRowClick)}
         pointerOnHover={Boolean(onRowClick)}
         onRowClicked={onRowClick}
-        noDataComponent={<div style={{ padding: '1rem', color: '#4b5563' }}>{noDataText}</div>}
+        noDataComponent={<div style={{ padding: '0.75rem', color: '#4b5563' }}>{noDataText}</div>}
         customStyles={tableStyles}
         fixedHeader={fixedHeader}
         fixedHeaderScrollHeight={fixedHeaderHeight}
@@ -186,7 +205,7 @@ function GlobalDataTable<T>({
                 flexBasis: 0,
                 minWidth: '100px',
                 maxWidth: '100%',
-                padding: '12px 16px',
+                padding: '8px 12px',
                 boxSizing: 'border-box',
                 borderRight: index < footerCells.length - 1 ? '1px solid #dbe1ea' : 'none',
                 whiteSpace: 'normal',

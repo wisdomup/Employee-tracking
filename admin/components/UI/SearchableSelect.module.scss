@@ -67,6 +67,22 @@
 
 /* Portaled menu/option styles live in `styles/globals.scss` (CSS modules require a local class). */
 
+/*
+ * Desktop only. The 44px control and 16px text below are a touch target and an iOS
+ * zoom-on-focus guard; both matter on a rider's phone and neither earns its height on an
+ * admin's monitor, where the control sits next to 38px table rows.
+ */
+@media (min-width: 901px) {
+  .wrap :global(.adminSelect__control) {
+    min-height: 2.25rem;
+    font-size: 0.9375rem;
+  }
+
+  .wrap :global(.adminSelect__value-container) {
+    padding: 0.0625rem 0.5rem;
+  }
+}
+
 @media (max-width: 900px) {
   .wrap :global(.adminSelect__control) {
     font-size: max(18px, 1.125rem);
