@@ -55,6 +55,15 @@ export const LEDGER_ROLE_KEYS = [
   'salaryExpense',
   /** Bonus and allowances, kept apart from salary so the wage bill can be read either way. */
   'staffAllowances',
+  /**
+   * Late-start fines taken off pay.
+   *
+   * Income, not a credit against the wage bill. Netting it into `salaryExpense` would understate
+   * what staff actually cost and overstate nothing — two figures wrong to make one line shorter.
+   * Nothing posts here until a fine is recovered from a payroll run: a fine that is raised, then
+   * waived, never touches the books at all.
+   */
+  'staffFines',
   'badDebt',
   'cashDifference',
   'suspense',

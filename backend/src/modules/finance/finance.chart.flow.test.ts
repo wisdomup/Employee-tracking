@@ -14,7 +14,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { AccountGroupModel } from '../../models/account-group.model';
 import { LedgerModel } from '../../models/ledger.model';
 import { FinanceSettingsModel, LEDGER_ROLE_KEYS } from '../../models/finance-settings.model';
-import { seedFinanceChart } from '../../database/seeds/finance-chart.seed';
+import { ensureRoleLedgers, seedFinanceChart } from '../../database/seeds/finance-chart.seed';
 import * as chart from './chart.service';
 import { MONEY_EPSILON, normalBalanceFor } from './finance.rules';
 
@@ -385,6 +385,76 @@ async function main(): Promise<void> {
     for (const l of ledgers) {
       assert.ok(Math.abs(l.cachedBalance) < MONEY_EPSILON, `${l.code} opened with a balance`);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Giving a newly added engine role an account on a chart that already exists
+  // -------------------------------------------------------------------------
+
+  await test('a role added by a later release gets an account on an existing chart', async () => {
+    // Exactly the state every installed database was in when `staffFines` was added: the chart
+    // is there, so `seedFinanceChart` is skipped, and the role resolves to nothing. The first
+    // payroll run recovering a fine would have failed in production.
+    const fines = await LedgerModel.findOne({ code: '4220' }).lean();
+    await LedgerModel.deleteOne({ _id: fines!._id }).exec();
+    await FinanceSettingsModel.updateOne(
+      { key: 'singleton' },
+      { $unset: { 'ledgerMap.staffFines': 1 } },
+    ).exec();
+
+    const repair = await ensureRoleLedgers();
+
+    assert.deepEqual(repair.created, ['staffFines']);
+    assert.deepEqual(repair.unresolved, []);
+    const remade = await LedgerModel.findOne({ code: '4220' }).lean();
+    assert.ok(remade, 'the account was not recreated');
+    assert.equal(remade!.isSystem, true, 'a role account must not be deletable');
+
+    const settings = await FinanceSettingsModel.findOne({ key: 'singleton' }).lean();
+    const map = settings!.ledgerMap as unknown as Record<string, unknown>;
+    assert.equal(String(map.staffFines), String(remade!._id));
+  });
+
+  await test("a role the accountant re-coded is left exactly where it is", async () => {
+    // The reason the seed cannot simply be re-run: matching by code would build a second account
+    // under the old code and repoint the role at it, stranding every posted line on the first.
+    const before = await LedgerModel.findOne({ code: '4220' }).exec();
+    before!.code = '4225';
+    before!.name = 'Staff Fines — Recovered from Pay';
+    await before!.save();
+
+    const repair = await ensureRoleLedgers();
+
+    assert.deepEqual(repair.created, []);
+    assert.deepEqual(repair.adopted, []);
+    assert.equal(await LedgerModel.countDocuments({ code: '4220' }).exec(), 0, 'a duplicate was created');
+
+    const settings = await FinanceSettingsModel.findOne({ key: 'singleton' }).lean();
+    const map = settings!.ledgerMap as unknown as Record<string, unknown>;
+    assert.equal(String(map.staffFines), String(before!._id));
+
+    // Put it back, so the balance check at the end of the suite reads the chart it expects.
+    before!.code = '4220';
+    before!.name = 'Staff Fines Recovered';
+    await before!.save();
+  });
+
+  await test('an unmapped role adopts the account already sitting on its code', async () => {
+    // Somebody created the account by hand before upgrading. Adopting it keeps the history they
+    // have already posted to it instead of opening a second account beside it.
+    await FinanceSettingsModel.updateOne(
+      { key: 'singleton' },
+      { $unset: { 'ledgerMap.staffFines': 1 } },
+    ).exec();
+    const existing = await LedgerModel.findOne({ code: '4220' }).lean();
+
+    const repair = await ensureRoleLedgers();
+
+    assert.deepEqual(repair.adopted, ['staffFines']);
+    assert.deepEqual(repair.created, []);
+    const settings = await FinanceSettingsModel.findOne({ key: 'singleton' }).lean();
+    const map = settings!.ledgerMap as unknown as Record<string, unknown>;
+    assert.equal(String(map.staffFines), String(existing!._id));
   });
 }
 

@@ -29,7 +29,10 @@ import styles from '../../../styles/Finance.module.scss';
  * whatever instalments the money actually leaves in.
  */
 
-type Edits = Record<string, { salary: string; bonus: string; allowance: string; advanceRecovery: string }>;
+type Edits = Record<
+  string,
+  { salary: string; bonus: string; allowance: string; advanceRecovery: string; fineRecovery: string }
+>;
 
 function num(value: string): number {
   const parsed = Number(value);
@@ -45,6 +48,7 @@ function editsFrom(run: PayrollRunDetail): Edits {
         bonus: String(l.bonus),
         allowance: String(l.allowance),
         advanceRecovery: String(l.advanceRecovery),
+        fineRecovery: String(l.fineRecovery),
       },
     ]),
   );
@@ -111,17 +115,24 @@ const PayrollRunPage: React.FC = () => {
 
   // Recomputed as you type, so the totals at the bottom are the ones you are about to post.
   const live = run.lines.map((l) => {
-    const e = edits[l.userId] ?? { salary: '0', bonus: '0', allowance: '0', advanceRecovery: '0' };
+    const e = edits[l.userId]
+      ?? { salary: '0', bonus: '0', allowance: '0', advanceRecovery: '0', fineRecovery: '0' };
     const gross = num(e.salary) + num(e.bonus) + num(e.allowance);
-    return { ...l, ...e, grossLive: gross, netLive: gross - num(e.advanceRecovery) };
+    return {
+      ...l,
+      ...e,
+      grossLive: gross,
+      netLive: gross - num(e.advanceRecovery) - num(e.fineRecovery),
+    };
   });
   const totals = live.reduce(
     (acc, l) => ({
       gross: acc.gross + l.grossLive,
       recovery: acc.recovery + num(l.advanceRecovery),
+      fines: acc.fines + num(l.fineRecovery),
       net: acc.net + l.netLive,
     }),
-    { gross: 0, recovery: 0, net: 0 },
+    { gross: 0, recovery: 0, fines: 0, net: 0 },
   );
 
   const perform = async (work: () => Promise<PayrollRunDetail>, success: string, failure: string) => {
@@ -143,6 +154,7 @@ const PayrollRunPage: React.FC = () => {
       bonus: num(edits[l.userId].bonus),
       allowance: num(edits[l.userId].allowance),
       advanceRecovery: num(edits[l.userId].advanceRecovery),
+      fineRecovery: num(edits[l.userId].fineRecovery),
     }));
     perform(() => payrollService.updateRun(id, { lines }), 'Payroll saved', 'Could not save this payroll run');
   };
@@ -154,6 +166,8 @@ const PayrollRunPage: React.FC = () => {
           + `${run.employeeCount} people\n`
           + `Wage bill: ${money(run.totals.gross)}\n`
           + `Advances recovered: ${money(run.totals.advanceRecovery)}\n`
+          + `Late-start fines recovered: ${money(run.totals.fineRecovery)}\n`
+
           + `To be paid to staff: ${money(run.totals.net)}\n\n`
           + 'This records what is owed. It pays nobody — payments are recorded afterwards.',
       )
@@ -270,6 +284,7 @@ const PayrollRunPage: React.FC = () => {
                   <th style={{ textAlign: 'right' }}>Bonus</th>
                   <th style={{ textAlign: 'right' }}>Allowance</th>
                   <th style={{ textAlign: 'right' }}>Advance back</th>
+                  <th style={{ textAlign: 'right' }}>Fines back</th>
                   <th style={{ textAlign: 'right' }}>Takes home</th>
                 </tr>
               </thead>
@@ -283,8 +298,13 @@ const PayrollRunPage: React.FC = () => {
                           owes {money(l.advanceBalance)} in advances
                         </div>
                       )}
+                      {l.fineBalance > 0.005 && (
+                        <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
+                          owes {money(l.fineBalance)} in late-start fines
+                        </div>
+                      )}
                     </td>
-                    {(['salary', 'bonus', 'allowance', 'advanceRecovery'] as const).map((field) => (
+                    {(['salary', 'bonus', 'allowance', 'advanceRecovery', 'fineRecovery'] as const).map((field) => (
                       <td key={field} style={{ textAlign: 'right', width: '8rem' }}>
                         {isDraft && can(undefined, 'finance-payroll:edit') ? (
                           <input
@@ -322,6 +342,9 @@ const PayrollRunPage: React.FC = () => {
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <span className={styles.amount}>{money(totals.recovery)}</span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <span className={styles.amount}>{money(totals.fines)}</span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <span className={styles.amount}>{money(totals.net)}</span>

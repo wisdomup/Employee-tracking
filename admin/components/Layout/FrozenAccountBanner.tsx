@@ -3,6 +3,7 @@ import { CheckCircle, Snowflake } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { accountFreezeService, FreezeStatus } from '../../services/accountFreezeService';
+import { formatRs } from '../../utils/formatCurrency';
 import styles from './FrozenAccountBanner.module.scss';
 
 /** Same number the login page offers for "Contact admin". */
@@ -58,6 +59,15 @@ const FrozenAccountBanner: React.FC = () => {
             An admin cleared you for today — carry on with your visits as normal. Reach your
             first shop by {status.deadline} tomorrow to avoid being frozen again.
           </p>
+          {/* Being let back to work is not the same as the fine being cancelled. Saying so
+              here is the difference between a rider who knows what they owe and one who
+              finds out at the end of the month. */}
+          {status.outstandingFines > 0 && (
+            <p className={styles.meta}>
+              {formatRs(status.outstandingFines)} in late-start fines is still on your account
+              and will come off your pay. Only an admin can cancel a fine.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -70,6 +80,9 @@ const FrozenAccountBanner: React.FC = () => {
     user?.frozenReason ||
     'Your account is frozen. Please contact the admin to have it unfrozen.';
   const frozenAt = status?.frozenAt ?? user?.frozenAt ?? null;
+  // Only from the server: the stored user copy has no fine on it, and a stale zero would
+  // read as "no fine" to somebody who has just been charged.
+  const todayFine = status?.todayFine ?? null;
 
   return (
     <div className={styles.banner} role="alert">
@@ -77,6 +90,23 @@ const FrozenAccountBanner: React.FC = () => {
       <div className={styles.body}>
         <p className={styles.title}>Your account is frozen</p>
         <p className={styles.reason}>{reason}</p>
+        {/* The money, stated on its own line rather than buried in the reason sentence: a
+            fine a rider skim-reads past is a fine they dispute at payroll. */}
+        {todayFine && todayFine.status === 'outstanding' && (
+          <p className={styles.fine}>
+            {formatRs(todayFine.amount)} fine added for today&apos;s late start, to be deducted
+            from your pay.
+            {status && status.outstandingFines > todayFine.amount && (
+              <> {formatRs(status.outstandingFines)} outstanding in total.</>
+            )}
+          </p>
+        )}
+        {todayFine?.status === 'waived' && (
+          <p className={styles.meta}>
+            The admin has cancelled today&apos;s {formatRs(todayFine.amount)} fine. The
+            account stays frozen until they unfreeze it.
+          </p>
+        )}
         {frozenAt && (
           <p className={styles.meta}>
             Frozen on {format(new Date(frozenAt), 'MMM dd, yyyy')} at{' '}

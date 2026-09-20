@@ -4,6 +4,7 @@ import Header from './Header';
 import OrderTakerBottomNav from './OrderTakerBottomNav';
 import RiderBottomNav from './RiderBottomNav';
 import FrozenAccountBanner from './FrozenAccountBanner';
+import FreezeFinesAdminBanner from './FreezeFinesAdminBanner';
 import RoleFallbackBanner from './RoleFallbackBanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { BroadcastInboxProvider } from '../../contexts/BroadcastInboxContext';
@@ -55,6 +56,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Above the page content on every screen — the freeze applies everywhere,
                 so a rider must not have to find the right page to learn about it. */}
             <FrozenAccountBanner />
+            {/* The admin's counterpart: the same event, told to the person who can act on
+                it. Renders nothing for riders, and nothing on a day with no freezes. */}
+            <FreezeFinesAdminBanner />
             {children}
           </main>
           <OrderTakerBottomNav />

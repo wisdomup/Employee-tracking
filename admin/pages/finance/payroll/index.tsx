@@ -95,6 +95,11 @@ const PayrollPage: React.FC = () => {
               less {money(v.advanceRecovery)} recovered
             </div>
           )}
+          {v.fineRecovery > 0 && (
+            <div className={styles.muted} style={{ fontSize: '0.76rem' }}>
+              less {money(v.fineRecovery)} in fines
+            </div>
+          )}
         </span>
       ),
     },

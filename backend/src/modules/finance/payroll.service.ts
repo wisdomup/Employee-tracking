@@ -18,6 +18,7 @@ import {
 import { postEntry, reverseEntry, ledgerIdForRole } from './posting.service';
 import { withFinanceLocks } from './finance-locks';
 import { loadPaidFromAccount } from './money-out';
+import { fineBalanceByEmployee } from '../account-freeze/account-freeze.service';
 
 /**
  * Payroll, and the advances that come off it.
@@ -114,6 +115,7 @@ export interface PayrollLineInput {
   bonus?: number;
   allowance?: number;
   advanceRecovery?: number;
+  fineRecovery?: number;
 }
 
 export interface PayrollLineView {
@@ -125,9 +127,12 @@ export interface PayrollLineView {
   allowance: number;
   gross: number;
   advanceRecovery: number;
+  fineRecovery: number;
   net: number;
   /** What they still owe in advances, for the screen to cap the recovery against. */
   advanceBalance: number;
+  /** What they still owe in late-start fines, for the screen to cap the deduction against. */
+  fineBalance: number;
 }
 
 export interface PayrollRunView {
@@ -158,7 +163,17 @@ export interface PayrollRunDetail extends PayrollRunView {
   lines: PayrollLineView[];
 }
 
-function totalsOf(lines: { salary: number; bonus: number; allowance: number; gross: number; advanceRecovery: number; net: number }[]) {
+function totalsOf(
+  lines: {
+    salary: number;
+    bonus: number;
+    allowance: number;
+    gross: number;
+    advanceRecovery: number;
+    fineRecovery: number;
+    net: number;
+  }[],
+) {
   const sum = (pick: (l: typeof lines[number]) => number) => round2(lines.reduce((s, l) => s + pick(l), 0));
   return {
     salary: sum((l) => l.salary),
@@ -166,6 +181,7 @@ function totalsOf(lines: { salary: number; bonus: number; allowance: number; gro
     allowance: sum((l) => l.allowance),
     gross: sum((l) => l.gross),
     advanceRecovery: sum((l) => l.advanceRecovery),
+    fineRecovery: sum((l) => l.fineRecovery),
     net: sum((l) => l.net),
   };
 }
@@ -197,7 +213,11 @@ function toView(run: IPayrollRun): PayrollRunView {
 }
 
 async function toDetail(run: IPayrollRun): Promise<PayrollRunDetail> {
-  const balances = await advanceBalanceByEmployee(run.lines.map((l) => l.userId));
+  const ids = run.lines.map((l) => l.userId);
+  const [balances, fineBalances] = await Promise.all([
+    advanceBalanceByEmployee(ids),
+    fineBalanceByEmployee(ids),
+  ]);
   return {
     ...toView(run),
     lines: run.lines.map((l) => ({
@@ -209,8 +229,15 @@ async function toDetail(run: IPayrollRun): Promise<PayrollRunDetail> {
       allowance: round2(l.allowance),
       gross: round2(l.gross),
       advanceRecovery: round2(l.advanceRecovery),
+      fineRecovery: round2(l.fineRecovery ?? 0),
       net: round2(l.net),
       advanceBalance: balances.get(String(l.userId)) ?? 0,
+      /**
+       * What is still owed EXCLUDING this run's own deduction while it is a draft — the balance
+       * counts posted runs only. The screen adds the line back when it caps an edit, so a draft
+       * already recovering the whole balance does not read as "nothing left to recover".
+       */
+      fineBalance: fineBalances.get(String(l.userId)) ?? 0,
     })),
   };
 }
@@ -259,12 +286,21 @@ export async function createRun(period: string, actorId?: string): Promise<Payro
       .lean()
       .exec();
 
+    // Fines are pre-filled in full, unlike advances, which start at zero and are typed in.
+    // An advance is repaid on terms somebody agreed; a fine is simply owed, and a deduction
+    // nobody remembers to type is a fine that is never collected — which is the state this
+    // whole step exists to end. The amount is still editable before posting.
+    const fineBalances = await fineBalanceByEmployee(users.map((u) => u._id));
+
     const lines = users
       .map((u) => {
         const salary = round2(u.perks?.salary ?? 0);
         const bonus = round2(u.perks?.bonus ?? 0);
         const allowance = round2(u.perks?.allowance ?? 0);
         const gross = round2(salary + bonus + allowance);
+        // Capped at the gross: a deduction bigger than the pay would hand the business a
+        // negative payslip. The rest stays owed and comes off a later month.
+        const fineRecovery = Math.min(round2(fineBalances.get(String(u._id)) ?? 0), gross);
         return {
           userId: u._id,
           name: u.fullName?.trim() || u.username,
@@ -274,7 +310,8 @@ export async function createRun(period: string, actorId?: string): Promise<Payro
           allowance,
           gross,
           advanceRecovery: 0,
-          net: gross,
+          fineRecovery,
+          net: round2(gross - fineRecovery),
         };
       })
       .filter((l) => l.gross > MONEY_EPSILON)
@@ -326,7 +363,11 @@ export async function updateRun(
 
   if (input.lines) {
     const byId = new Map(run.lines.map((l) => [String(l.userId), l]));
-    const balances = await advanceBalanceByEmployee([...byId.values()].map((l) => l.userId));
+    const ids = [...byId.values()].map((l) => l.userId);
+    const [balances, fineBalances] = await Promise.all([
+      advanceBalanceByEmployee(ids),
+      fineBalanceByEmployee(ids),
+    ]);
 
     for (const patch of input.lines) {
       const line = byId.get(patch.userId);
@@ -336,8 +377,15 @@ export async function updateRun(
       if (patch.bonus !== undefined) line.bonus = round2(patch.bonus);
       if (patch.allowance !== undefined) line.allowance = round2(patch.allowance);
       if (patch.advanceRecovery !== undefined) line.advanceRecovery = round2(patch.advanceRecovery);
+      if (patch.fineRecovery !== undefined) line.fineRecovery = round2(patch.fineRecovery);
 
-      if (line.salary < 0 || line.bonus < 0 || line.allowance < 0 || line.advanceRecovery < 0) {
+      if (
+        line.salary < 0
+        || line.bonus < 0
+        || line.allowance < 0
+        || line.advanceRecovery < 0
+        || line.fineRecovery < 0
+      ) {
         throw badRequest(`${line.name}: pay and recovery cannot be negative.`);
       }
 
@@ -351,14 +399,27 @@ export async function updateRun(
             + 'the business owing them money it never lent.',
         );
       }
-      if (line.advanceRecovery - line.gross > MONEY_EPSILON) {
+      const owedInFines = fineBalances.get(String(line.userId)) ?? 0;
+      if (line.fineRecovery - owedInFines > MONEY_EPSILON) {
         throw badRequest(
-          `${line.name} is paid ${line.gross.toFixed(2)} this month, and this run takes back `
-            + `${line.advanceRecovery.toFixed(2)}. Recover the rest from a later month.`,
+          `${line.name} owes ${owedInFines.toFixed(2)} in late-start fines, and this run takes `
+            + `off ${line.fineRecovery.toFixed(2)}. Deducting more than was ever charged would `
+            + 'be taking money for nothing.',
         );
       }
 
-      line.net = round2(line.gross - line.advanceRecovery);
+      // Checked together, not one at a time: two deductions that each fit inside the pay can
+      // still add up to more than it, and a negative payslip is money the business would be
+      // claiming from someone who worked all month.
+      const deductions = round2(line.advanceRecovery + line.fineRecovery);
+      if (deductions - line.gross > MONEY_EPSILON) {
+        throw badRequest(
+          `${line.name} is paid ${line.gross.toFixed(2)} this month, and this run takes back `
+            + `${deductions.toFixed(2)}. Recover the rest from a later month.`,
+        );
+      }
+
+      line.net = round2(line.gross - deductions);
     }
 
     run.lines = [...byId.values()] as typeof run.lines;
@@ -411,7 +472,12 @@ export async function deleteRun(id: string, actorId?: string): Promise<{ message
  *     Dr  Salaries & Wages              the salary half
  *     Dr  Staff Allowances & Bonus      the rest of the pay
  *         Cr  Advances to Staff         what is being taken back, per employee
+ *         Cr  Staff Fines Recovered     late-start fines coming off this month’s pay
  *         Cr  Salaries & Wages Payable  what is left to hand over
+ *
+ * The fine is income the moment it is recovered, and not before: a fine that is raised and then
+ * waived never reaches the books at all. Crediting the wage expense instead would understate
+ * what staff cost and hide the fines entirely.
  *
  * Dated the last day of the month it is for, not the day it was posted, so wages land in the month
  * that earned them.
@@ -435,7 +501,11 @@ export async function postRun(id: string, actorId?: string): Promise<PayrollRunD
 
     // Advances may have been recovered elsewhere, or the advance itself cancelled, since the draft
     // was prepared. Checked again here rather than trusted from then.
-    const balances = await advanceBalanceByEmployee(run.lines.map((l) => l.userId));
+    const ids = run.lines.map((l) => l.userId);
+    const [balances, fineBalances] = await Promise.all([
+      advanceBalanceByEmployee(ids),
+      fineBalanceByEmployee(ids),
+    ]);
     for (const line of run.lines) {
       const owed = balances.get(String(line.userId)) ?? 0;
       if (line.advanceRecovery - owed > MONEY_EPSILON) {
@@ -444,15 +514,28 @@ export async function postRun(id: string, actorId?: string): Promise<PayrollRunD
             + `back ${line.advanceRecovery.toFixed(2)}. Correct the run before posting it.`,
         );
       }
+
+      // A fine can be waived, or recovered by another run, between the draft and this moment.
+      const owedInFines = fineBalances.get(String(line.userId)) ?? 0;
+      if ((line.fineRecovery ?? 0) - owedInFines > MONEY_EPSILON) {
+        throw badRequest(
+          `${line.name} now owes only ${owedInFines.toFixed(2)} in late-start fines, but this `
+            + `run still takes off ${(line.fineRecovery ?? 0).toFixed(2)}. Correct the run `
+            + 'before posting it.',
+        );
+      }
     }
 
     const allowances = round2(run.totals.bonus + run.totals.allowance);
-    const [salaryExpense, staffAllowances, salaryPayable, staffAdvances] = await Promise.all([
-      ledgerIdForRole('salaryExpense'),
-      allowances > 0 ? ledgerIdForRole('staffAllowances') : Promise.resolve(''),
-      ledgerIdForRole('salaryPayable'),
-      run.totals.advanceRecovery > 0 ? ledgerIdForRole('staffAdvances') : Promise.resolve(''),
-    ]);
+    const fineTotal = round2(run.totals.fineRecovery ?? 0);
+    const [salaryExpense, staffAllowances, salaryPayable, staffAdvances, staffFines] =
+      await Promise.all([
+        ledgerIdForRole('salaryExpense'),
+        allowances > 0 ? ledgerIdForRole('staffAllowances') : Promise.resolve(''),
+        ledgerIdForRole('salaryPayable'),
+        run.totals.advanceRecovery > 0 ? ledgerIdForRole('staffAdvances') : Promise.resolve(''),
+        fineTotal > 0 ? ledgerIdForRole('staffFines') : Promise.resolve(''),
+      ]);
 
     const lines: {
       ledgerId: string;
@@ -475,6 +558,16 @@ export async function postRun(id: string, actorId?: string): Promise<PayrollRunD
         credit: line.advanceRecovery,
         lineNarration: `${line.name} — advance recovered`,
         subledgerRef: { type: 'employee', id: String(line.userId) },
+      });
+    }
+    if (fineTotal > 0) {
+      // One line for the month, not one per rider: a fine is not a subledger balance to be
+      // tracked in the accounts. What each rider owes lives in the fines themselves, and the
+      // admin reads it there.
+      lines.push({
+        ledgerId: staffFines,
+        credit: fineTotal,
+        lineNarration: 'Late-start fines recovered',
       });
     }
     lines.push({ ledgerId: salaryPayable, credit: run.totals.net, lineNarration: 'Net pay owed' });
@@ -507,6 +600,7 @@ export async function postRun(id: string, actorId?: string): Promise<PayrollRunD
         period: run.period,
         gross: run.totals.gross,
         recovered: run.totals.advanceRecovery,
+        finesRecovered: run.totals.fineRecovery,
         net: run.totals.net,
       },
     });

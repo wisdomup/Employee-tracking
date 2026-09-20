@@ -23,6 +23,8 @@ import { openPeriod } from './period.service';
 import { periodKeyFor } from './posting.service';
 import { runControlReconciliation } from './control-reconciliation.service';
 import * as payroll from './payroll.service';
+import { RiderFineModel } from '../../models/rider-fine.model';
+import * as freeze from '../account-freeze/account-freeze.service';
 
 let passed = 0;
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -348,6 +350,167 @@ async function main(): Promise<void> {
 
   await test('there is no switch for payroll — posting the month is the decision', async () => {
     assert.equal((POSTING_EVENT_KEYS as readonly string[]).includes('payroll'), false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Late-start fines, recovered from pay
+  // -------------------------------------------------------------------------
+
+  /** Charges a late-start fine, the way the freeze rule does. */
+  async function charge(employeeId: Types.ObjectId, amount: number, day: string) {
+    return RiderFineModel.create({
+      employeeId,
+      type: 'late_start_freeze',
+      fineDate: new Date(`${day}T00:00:00.000Z`),
+      amount,
+      reason: 'Late start — no shop check-in by 12:30 PM.',
+      status: 'outstanding',
+      source: 'sweep',
+      issuedAt: new Date(`${day}T08:00:00.000Z`),
+    });
+  }
+
+  const rider = await staff('Imran Shah', { salary: 40000 });
+  let septemberId = '';
+
+  for (const month of ['2025-09', '2025-10']) {
+    try {
+      await openPeriod(month, ACTOR);
+    } catch {
+      // Already open.
+    }
+  }
+
+  await test('a fine is pre-filled as a deduction, unlike an advance', async () => {
+    await charge(rider._id as Types.ObjectId, 200, '2025-09-02');
+    await charge(rider._id as Types.ObjectId, 300, '2025-09-09');
+
+    const run = await payroll.createRun('2025-09', ACTOR);
+    septemberId = run.id;
+    const line = lineFor(run, 'Imran Shah');
+
+    // A fine is simply owed, unlike an advance repaid on agreed terms — and a deduction nobody
+    // remembers to type is a fine that is never collected.
+    assert.equal(line.fineRecovery, 500);
+    assert.equal(line.fineBalance, 500);
+    assert.equal(line.net, 39500);
+    assert.equal(run.totals.fineRecovery, 500);
+  });
+
+  await test('a waived fine is never deducted', async () => {
+    const other = await staff('Junaid Butt', { salary: 25000 });
+    const waived = await charge(other._id as Types.ObjectId, 200, '2025-09-03');
+    await RiderFineModel.updateOne({ _id: waived._id }, { $set: { status: 'waived' } }).exec();
+
+    const balances = await freeze.fineBalanceByEmployee([other._id as Types.ObjectId]);
+    assert.equal(balances.get(String(other._id)) ?? 0, 0);
+  });
+
+  await test('a run cannot take off more in fines than was charged', async () => {
+    await rejectsWith(
+      payroll.updateRun(
+        septemberId,
+        { lines: [{ userId: String(rider._id), fineRecovery: 900 }] },
+        ACTOR,
+      ),
+      /owes 500\.00 in late-start fines/,
+    );
+  });
+
+  await test('the two deductions are checked together against the pay, not one at a time', async () => {
+    // 40,000 of pay, a 39,800 advance recovery and a 500 fine: each fits on its own, the pair
+    // does not, and a negative payslip is money claimed off somebody who worked all month.
+    const draft = await payroll.createAdvance(
+      {
+        userId: String(rider._id),
+        advanceDate: new Date('2025-09-04T08:00:00Z'),
+        amount: 39800,
+        method: 'cash',
+        paidFromLedgerId: cash,
+      },
+      ACTOR,
+    );
+    await payroll.postAdvance(draft.id, ACTOR);
+
+    await rejectsWith(
+      payroll.updateRun(
+        septemberId,
+        { lines: [{ userId: String(rider._id), advanceRecovery: 39800, fineRecovery: 500 }] },
+        ACTOR,
+      ),
+      /takes back 40300\.00/,
+    );
+  });
+
+  await test('posting the month books the fines as income, not as a smaller wage bill', async () => {
+    const beforeWages = await balance('6110');
+    const beforeFines = await balance('4220');
+    const before = await payroll.getRun(septemberId);
+
+    const posted = await payroll.postRun(septemberId, ACTOR);
+
+    assert.equal(posted.status, 'posted');
+    assert.equal(posted.totals.fineRecovery, 500);
+    // The wage bill is the FULL cost of employing people; the fine is income beside it, so
+    // netting it into 6110 would understate two figures to shorten one entry.
+    assert.equal(await balance('6110'), beforeWages + before.totals.salary);
+    assert.equal(await balance('4220'), beforeFines + 500);
+    // And the fine is not handed over with the wages.
+    assert.equal(posted.totals.net, posted.totals.gross - posted.totals.advanceRecovery - 500);
+  });
+
+  await test('a recovered fine stops being owed, and says it was recovered', async () => {
+    const status = await freeze.getFreezeStatus(String(rider._id));
+
+    assert.equal(status.outstandingFines, 0, 'the rider is still being told they owe it');
+    assert.equal(status.finesRecovered, 500);
+    // The charges themselves stay on the record — both fines are still readable.
+    assert.equal(status.outstandingFineCount, 2);
+  });
+
+  await test('the same fine cannot be taken off a second month', async () => {
+    const october = await payroll.createRun('2025-10', ACTOR);
+    assert.equal(lineFor(october, 'Imran Shah').fineRecovery, 0);
+    await payroll.deleteRun(october.id, ACTOR);
+  });
+
+  await test('a fine already deducted from pay cannot be waived', async () => {
+    const fine = await RiderFineModel.findOne({
+      employeeId: rider._id,
+      status: 'outstanding',
+    }).lean().exec();
+
+    // The money has left the payslip and nothing on the freeze screen can hand it back; the
+    // admin is told to refund it as a bonus instead of being given a button that half works.
+    await rejectsWith(
+      freeze.waiveFine(String(fine!._id), ACTOR),
+      /already been deducted from their pay/,
+    );
+  });
+
+  await test('cancelling the month puts the fines back on the rider', async () => {
+    await payroll.cancelRun(septemberId, 'Wrong month', ACTOR);
+
+    const balances = await freeze.fineBalanceByEmployee([rider._id as Types.ObjectId]);
+    // Nothing was written back: what is owed is derived from posted runs, and there are none.
+    assert.equal(balances.get(String(rider._id)), 500);
+    assert.equal(await balance('4220'), 0);
+  });
+
+  await test('and the fine can be waived again once the recovery is released', async () => {
+    const fine = await RiderFineModel.findOne({
+      employeeId: rider._id,
+      status: 'outstanding',
+      amount: 200,
+    }).lean().exec();
+
+    const waived = await freeze.waiveFine(String(fine!._id), ACTOR);
+    assert.equal(waived.status, 'waived');
+
+    // The activity log is fire-and-forget, and this is the last write of the suite: without a
+    // beat to let it land, it reaches a connection main() has already closed and prints a
+    // failure after the results.
+    await new Promise((resolve) => { setTimeout(resolve, 100); });
   });
 }
 

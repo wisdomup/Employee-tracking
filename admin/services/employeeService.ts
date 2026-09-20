@@ -43,6 +43,8 @@ export interface Employee {
   isFrozen?: boolean;
   frozenAt?: string;
   frozenReason?: string;
+  /** This rider's own late-start fine. Absent means they follow the company default. */
+  freezeFineAmount?: number;
   createdAt: string;
   updatedAt: string;
 }

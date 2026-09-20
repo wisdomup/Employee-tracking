@@ -1,7 +1,7 @@
 # Rider Late-Start Freeze
 
 Riders must reach their first shop by **12:30 PM**. Miss it and the account is frozen
-until an admin lifts it.
+until an admin lifts it, and a **Rs. 200 fine** is raised for that day.
 
 > Scope note: applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`).
 > The sibling `tracking-backend` project is legacy and must not be modified.
@@ -128,6 +128,7 @@ there is one flag per rider per day rather than one per run.
 | `frozenBy` | **absent** when the system froze them; set when an admin did it by hand |
 | `unfrozenAt` / `unfrozenBy` | cleared again on the next freeze |
 | `freezePardonedFor` | UTC midnight of the day an admin lifted a freeze — the pardon. See 3a. |
+| `freezeFineAmount` | this rider's own late-start fine; **absent** means the company default, `0` means no fine |
 
 **`isFrozen` is deliberately separate from `isActive`.** `isActive` is the admin's
 permanent on/off switch for an account; this is an automatic, admin-clearable discipline
@@ -226,6 +227,124 @@ so the pardon date is testable, matching `sweepLateStarters(now)` and
   today and will be frozen again if late tomorrow. `sweepLateStarters` reports
   `skippedPardoned`.
 
+## 3b. The fine
+
+Every freeze also raises a **fine** for that day — **Rs. 200** by default. The rider is
+told the amount in the same refusal that blocks their check-in; the admin is told in a
+banner on every screen.
+
+### Where it lives
+
+One document per offence in `RiderFine` (`backend/src/models/rider-fine.model.ts`), not a
+running total on the user. A total answers "how much" and nothing else — the first dispute
+("I was on leave on the 9th, why am I fined for it?") is unanswerable from one.
+
+`{ employeeId, type, fineDate }` is **uniquely indexed**, and `fineDate` is UTC midnight,
+the same day boundary the freeze and the flag use. Both freeze paths raise the fine and the
+manual sweep button can be pressed repeatedly: a rider is fined **once** for one day's
+offence however many times the rule looks at them.
+
+**It is deliberately not an accounting document.** No journal entry is written. A fine is a
+disciplinary record, not money that moved, and posting an unpaid, frequently waived figure
+into the trial balance would leave somebody reconciling it. Recovery from pay is a payroll deduction and is posted there, once, when it actually happens —
+see "Recovering it from pay" below.
+
+### The amount
+
+Most specific wins:
+
+| | |
+| --- | --- |
+| `user.freezeFineAmount` | this rider's own amount, set by an admin |
+| `RIDER_FREEZE_FINE_AMOUNT` | the company default for everyone else |
+| `200` | the built-in default |
+
+`freezeFineAmount` has **no schema default**, on purpose: absent must keep meaning "follow
+the company default", or a later change to the default would reach nobody. **`0` is a real
+value** — frozen, not fined — which is why absent and zero cannot be collapsed into one
+state, and why no `Rs. 0` row is written for such a rider.
+
+Amounts are whole rupees, non-negative, capped at 100,000. The cap is a typo guard, not a
+business rule: `20000` typed for `200.00` is an easy slip and a fine two orders of
+magnitude out is worse than a refused edit. A malformed `RIDER_FREEZE_FINE_AMOUNT` falls
+back to 200 with a warning rather than stopping the app — unlike the deadline, where a
+wrong value freezes the wrong people.
+
+### Changing it for one rider
+
+`PATCH /api/account-freeze/:id/fine-amount` does **two** things, and the admin prompt says
+so: it sets the rider's amount for future late starts **and** re-prices a fine already
+raised today. An admin standing on the Frozen Accounts screen is looking at today's fine —
+changing only the future one leaves the number in front of them untouched, which is not
+what "change his fine" means to anybody. The first amount survives as
+`originalAmount`, with `amountChangedBy`/`amountChangedAt`.
+
+A **waived** fine is never re-priced: re-pricing something an admin deliberately cancelled
+would quietly un-forgive it.
+
+### Waiving, freezing and unfreezing are three separate decisions
+
+| Action | Effect on the freeze | Effect on the fine |
+| --- | --- | --- |
+| Unfreeze | lifted, pardoned for today | **untouched** — still outstanding |
+| Recover on payroll | untouched | collected — it stops being owed, and becomes income |
+| Waive | **untouched** — still frozen | cancelled, row kept with `waivedBy`/`waiveNote` |
+| Set amount to 0 | still frozen next time | no fine raised at all |
+
+A waived fine keeps its row and its amount. Deleting it would make the admin's decision
+invisible the moment it is questioned.
+
+### Recovering it from pay
+
+A fine is collected through **payroll**, as a deduction on the month's run
+(`modules/finance/payroll.service.ts`).
+
+Pre-filled in full, unlike an advance recovery, which starts at zero and is typed in. An advance
+is repaid on terms somebody agreed; a fine is simply owed, and a deduction nobody remembers to
+type is a fine that is never collected — which was the state before this existed. The amount is
+still editable on the draft, and capped at the month's gross pay: the rest stays owed and comes
+off a later month.
+
+Posting the run books it:
+
+```
+    Dr  Salaries & Wages              the salary half
+    Dr  Staff Allowances & Bonus      the rest of the pay
+        Cr  Advances to Staff         what is being taken back, per employee
+        Cr  4220 Staff Fines Recovered   fines coming off this month's pay
+        Cr  Salaries & Wages Payable  what is left to hand over
+```
+
+**Income, not a smaller wage bill.** Crediting `Salaries & Wages` instead would understate what
+staff cost the business and hide the fines completely — two figures wrong to make one entry
+shorter. The fine becomes income at the moment it is recovered and not before, so a fine that is
+raised and then waived never reaches the books at all.
+
+One line for the month, not one per rider: a fine is not a subledger balance. What each rider owes
+lives in the fines themselves.
+
+### What a rider still owes is derived, never stored
+
+```
+balance = fines raised and not waived  −  what posted payroll runs have already recovered
+```
+
+No `recovered` flag exists on a fine, and nothing is written back to one when it is collected.
+That is the same rule bills and advances follow here, for the same reason: a stored figure has to
+be corrected on every path, and the first path anybody forgets leaves it wrong with nothing to
+check it against. Two consequences fall out for free:
+
+- **Cancelling a payroll run releases its fines.** The recovery stops existing, so the balance
+  goes back up with no second write and nothing pointing at a month that was reversed.
+- **A draft recovers nothing.** Only posted runs count, so a draft sitting unposted never tells a
+  rider they no longer owe money that is still on their next payslip.
+
+### Waiving after recovery
+
+Refused. The money has already left the payslip and nothing on the Frozen Accounts screen can hand
+it back, so the admin is told to refund it as a bonus on the next run rather than given a button
+that half works. Cancel the run first and the waive works again.
+
 ## 4. API
 
 | Method | Path | Who |
@@ -234,6 +353,10 @@ so the pardon date is testable, matching `sweepLateStarters(now)` and
 | `GET` | `/api/account-freeze` | admin — the unfreeze queue |
 | `POST` | `/api/account-freeze/sweep` | admin — re-run the sweep after an outage; a no-op before the deadline |
 | `PATCH` | `/api/account-freeze/:id/unfreeze` | **admin only** — body `{ note? }`, kept in the activity log |
+| `GET` | `/api/account-freeze/fines/overview` | admin — the counters behind the admin banner |
+| `GET` | `/api/account-freeze/:id/fines` | admin — one rider's fine history, newest first |
+| `PATCH` | `/api/account-freeze/:id/fine-amount` | admin — body `{ amount }`; `null` restores the default, `0` means no fine |
+| `PATCH` | `/api/account-freeze/fines/:fineId/waive` | admin — body `{ note? }`; cancels a fine, leaves the freeze |
 
 `/me` is deliberately outside `blockFrozenWrites` and open to every role: a frozen rider
 must always be able to read why they are frozen.
@@ -245,7 +368,7 @@ must always be able to read why they are frozen.
 **Rider** — `FrozenAccountBanner` renders above the page content on **every** screen (in
 `Layout`), because the freeze applies everywhere; putting it only on Visits would leave a
 rider who lands on Orders staring at unexplained 403s. It shows the reason, when they were
-frozen, and a **Contact admin** WhatsApp button — the same number the login page offers.
+frozen, and a **Contact admin** WhatsApp button — the same number the login page offers. It also shows the fine raised for today and, once they are unfrozen, what is still outstanding — a fine a rider skim-reads past is a fine they dispute at payroll.
 
 The banner re-fetches `/account-freeze/me` on mount rather than trusting the stored user,
 because a rider is typically frozen *during* a session they are already signed into, so
@@ -256,6 +379,21 @@ the banner does not flicker in for someone already frozen at sign-in.
 unfreeze queue: who is frozen, when, why, and whether it was the system or an admin.
 Unfreeze prompts for an optional note. A **Run late-start check now** button re-runs the
 sweep manually.
+
+`FreezeFinesAdminBanner` renders on **every** admin screen (for `account-freeze:view`
+holders only, and only when something is frozen or fined today): how many accounts are
+frozen, what today's fines come to, and what is outstanding overall, with a link to the
+queue. Without it an admin learns about a freeze only by opening Frozen Accounts — the one
+screen nobody opens on a day they do not already suspect a problem.
+
+The payroll run screen (`/finance/payroll/[id]`) carries a **Fines back** column beside
+**Advance back**, pre-filled and editable while the run is a draft, with what each person still
+owes shown under their name.
+
+The queue itself carries **Today's fine**, **Fine per late start** (marked *custom* when it
+was set for that rider) and **Outstanding**, plus **Change fine** and **Cancel fine**
+buttons for holders of `account-freeze:change` — the same permission the unfreeze route
+enforces server-side.
 
 `/employees` shows a blue **Frozen** chip next to the Active badge — the freeze is separate
 from `isActive`, so showing only Active there would hide why they cannot work.
@@ -270,6 +408,7 @@ from `isActive`, so showing only Active there would hide why they cannot work.
 RIDER_FIRST_VISIT_DEADLINE=12:30           # HH:MM, 24-hour
 RIDER_FREEZE_TIMEZONE=Asia/Karachi         # PKT; falls back to REPORT_TIMEZONE
 RIDER_FREEZE_ENABLED=false                 # master switch — BOTH the guard and the sweep
+RIDER_FREEZE_FINE_AMOUNT=200               # rupees per late start; a per-rider amount wins
 LATE_START_CRON_ENABLED=false              # the no-show sweep only
 LATE_START_CRON_SCHEDULE=35 12 * * 0,1,2,3,4,6
 ```
@@ -305,9 +444,12 @@ everybody at 00:00. `parseTimeOfDay` rejects `noon`, `1230`, `12:30pm`, `24:00`,
 | `delivery_man` / `employee` / warehouse roles, arbitrarily late | Never frozen. Rule is `order_taker` only. |
 | Admin checks in on the rider's behalf after 12:30 | Allowed — the acting role is tested. The rider is still caught on their own next attempt. |
 | Server down over the deadline | The check-in guard still freezes them when they try to start. `POST /sweep` re-runs the no-show half. |
-| Sweep runs twice | One flag, original `frozenAt` preserved. |
+| Sweep runs twice | One flag, **one fine**, original `frozenAt` preserved. |
+| Rider's amount set to 0 | Frozen, **not fined** — no `Rs. 0` row is written. |
+| Admin changes the amount while the rider is frozen | Today's outstanding fine is re-priced too; `originalAmount` keeps what it was raised at. |
+| Admin changes the amount after waiving today's fine | The waived fine is left alone; only future late starts use the new amount. |
 | Rider frozen mid-session | Next write returns 403; the banner appears on the next page load. No forced logout. |
-| Admin unfreezes | Effective on the rider's very next request — no re-login needed, and they are NOT re-frozen for the rest of that day. |
+| Admin unfreezes | Effective on the rider's very next request — no re-login needed, and they are NOT re-frozen for the rest of that day. The fine stays outstanding; waiving it is a separate action. |
 | Pardoned rider checks in at 4pm | Allowed. The pardon covers the whole day. |
 | Rider judged earlier today, by any route | Never re-judged today, whatever happened to the freeze afterwards. |
 | Admin re-runs the sweep after unfreezing | The rider stays unfrozen (`skippedPardoned`). |
@@ -321,8 +463,9 @@ everybody at 00:00. `parseTimeOfDay` rejects `noon`, `1230`, `12:30pm`, `24:00`,
 ## 8. Tests
 
 ```bash
-npm run test:freeze        # 32 unit tests — deadline maths, timezone, holiday, formatting
-npm run test:freeze:flow   # 45 integration tests against in-memory MongoDB
+npm run test:freeze        # 46 unit tests — deadline maths, timezone, holiday, formatting, fine amounts
+npm run test:freeze:flow   # 62 integration tests against in-memory MongoDB
+npm run test:finance:payroll  # 30 checks — includes recovering fines from pay
 ```
 
 Note `visits.flow.test.ts` sets `RIDER_FREEZE_ENABLED=false`. It drives check-in at the
@@ -341,3 +484,10 @@ no-shows, skips starters/empty days/trashed/deactivated riders, and is idempoten
 unfreeze clears the lock, records the actor, refuses non-frozen accounts and 404s unknown
 ones; a re-freeze clears the stale unfreeze stamps; passwords never leave `findFrozenUsers`;
 and the write block lets GET through while refusing every write with a 403.
+
+The fine suite proves: a freeze raises one Rs. 200 outstanding fine and names it in the
+refusal, the flag and the stored reason; a repeated sweep never charges twice; a rider's
+own amount is used instead of the default and `0` freezes without fining; setting an amount
+re-prices today's fine but never a waived one; waiving keeps the row and leaves the freeze;
+unfreezing leaves the fine; outstanding totals add up across days; and the admin queue and
+banner report the same rupees the fines hold.

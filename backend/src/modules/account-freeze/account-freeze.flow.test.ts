@@ -18,6 +18,7 @@ import { VisitModel } from '../../models/visit.model';
 import { DealerModel } from '../../models/dealer.model';
 import { ApprovalModel } from '../../models/approval.model';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
+import { RiderFineModel } from '../../models/rider-fine.model';
 import { blockFrozenWrites } from '../../middleware/frozen.middleware';
 import * as freezeService from './account-freeze.service';
 import { FREEZE_TIMEZONE, configuredDeadline } from './account-freeze.rules';
@@ -859,6 +860,300 @@ async function main(): Promise<void> {
   await test('an unfrozen user writes normally', async () => {
     const { error } = runMiddleware({ isFrozen: false }, 'POST');
     assert.equal(error, undefined);
+  });
+
+  // -------------------------------------------------------------------------
+  console.log('\nThe late-start fine');
+  // -------------------------------------------------------------------------
+  const ADMIN_ID = new Types.ObjectId().toString();
+
+  /** Today's fine row for a rider, whatever its status. */
+  async function fineFor(employeeId: Types.ObjectId, day: Date = AFTER_DEADLINE) {
+    return RiderFineModel.findOne({ employeeId, fineDate: utcMidnight(day) }).lean().exec();
+  }
+
+  await test('a freeze at check-in raises a Rs. 200 fine and says so in the refusal', async () => {
+    const rider = await makeRider();
+    const visit = await assignVisit(rider);
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+      visitId: visit._id as Types.ObjectId,
+    });
+
+    // The rider is told the amount in the same breath as the refusal — this message is the
+    // only thing some riders will ever read about the fine.
+    assert.match(reason!, /Rs\. 200/);
+
+    const fine = await fineFor(rider);
+    assert.ok(fine, 'expected a fine to be raised');
+    assert.equal(fine!.amount, 200);
+    assert.equal(fine!.status, 'outstanding');
+    assert.equal(fine!.source, 'check_in_guard');
+    assert.equal(fine!.originalAmount, 200);
+    // And it is on the user's stored reason too, so the write-block message carries it.
+    assert.match((await reload(rider))!.frozenReason!, /Rs\. 200/);
+  });
+
+  await test('the flag the admin reads names the fine', async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    const flag = await PerformanceFlagModel.findOne({ employeeId: rider }).lean();
+    assert.match(flag!.message, /Rs\. 200 fine/);
+    assert.equal((flag!.meta as { fineAmount?: number })?.fineAmount, 200);
+  });
+
+  await test('a no-show caught by the sweep is fined the same way', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+
+    const summary = await freezeService.sweepLateStarters(AFTER_DEADLINE);
+    assert.ok(summary.fined >= 1);
+    assert.ok(summary.finesTotal >= 200);
+
+    const fine = await fineFor(rider);
+    assert.equal(fine!.amount, 200);
+    assert.equal(fine!.source, 'sweep');
+  });
+
+  await test('one offence, one fine — a re-run of the sweep does not charge twice', async () => {
+    const rider = await makeRider();
+    await assignVisit(rider);
+
+    // The "Run late-start check now" button is easy to press twice.
+    await freezeService.sweepLateStarters(AFTER_DEADLINE);
+    await freezeService.sweepLateStarters(AFTER_DEADLINE);
+    await freezeService.issueLateStartFine({
+      employeeId: rider,
+      day: AFTER_DEADLINE,
+      arrivedAt: null,
+      source: 'sweep',
+    });
+
+    const fines = await RiderFineModel.find({ employeeId: rider }).lean();
+    assert.equal(fines.length, 1);
+  });
+
+  await test("a rider's own amount is charged instead of the company default", async () => {
+    const rider = await makeRider('order_taker', { freezeFineAmount: 500 });
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    assert.match(reason!, /Rs\. 500/);
+    assert.equal((await fineFor(rider))!.amount, 500);
+  });
+
+  await test('an amount of 0 freezes the rider without fining them', async () => {
+    const rider = await makeRider('order_taker', { freezeFineAmount: 0 });
+
+    const reason = await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    assert.equal((await reload(rider))?.isFrozen, true);
+    // No money mentioned, and no misleading Rs. 0 row in their history.
+    assert.doesNotMatch(reason!, /Rs\./);
+    assert.equal(await fineFor(rider), null);
+  });
+
+  await test("setting a rider's amount re-prices the fine already raised today", async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    const result = await freezeService.setRiderFineAmount(rider.toString(), 350, ADMIN_ID, AFTER_DEADLINE);
+
+    assert.equal(result.fineAmount, 350);
+    assert.equal(result.hasCustomFineAmount, true);
+    // The admin is looking AT this freeze when they change the number; leaving today's fine
+    // at 200 is not what anybody means by "change his fine".
+    assert.equal(result.todayFineUpdated, true);
+
+    const fine = await fineFor(rider);
+    assert.equal(fine!.amount, 350);
+    // …and what it was first raised at is still on the record.
+    assert.equal(fine!.originalAmount, 200);
+    assert.equal(String(fine!.amountChangedBy), ADMIN_ID);
+  });
+
+  await test('clearing the amount hands the rider back to the company default', async () => {
+    const rider = await makeRider('order_taker', { freezeFineAmount: 500 });
+
+    const result = await freezeService.setRiderFineAmount(rider.toString(), null, ADMIN_ID, AFTER_DEADLINE);
+
+    assert.equal(result.fineAmount, 200);
+    assert.equal(result.hasCustomFineAmount, false);
+    // Absent, not 200: a later change to the company default must still reach this rider.
+    assert.equal((await reload(rider))?.freezeFineAmount, undefined);
+  });
+
+  await test('a nonsense amount is refused rather than rounded or clamped', async () => {
+    const rider = await makeRider();
+    await rejectsWith(freezeService.setRiderFineAmount(rider.toString(), -100, ADMIN_ID), /negative/);
+    await rejectsWith(freezeService.setRiderFineAmount(rider.toString(), 99.5, ADMIN_ID), /whole number/);
+    await rejectsWith(freezeService.setRiderFineAmount('not-an-id', 100, ADMIN_ID), /Invalid user id/);
+  });
+
+  await test('waiving a fine keeps the row and leaves the freeze alone', async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+    const raised = await fineFor(rider);
+
+    await freezeService.waiveFine(String(raised!._id), ADMIN_ID, 'Bike broke down');
+
+    const after = await fineFor(rider);
+    assert.equal(after!.status, 'waived');
+    assert.equal(after!.amount, 200, 'the amount stays on the record');
+    assert.equal(after!.waiveNote, 'Bike broke down');
+    // Waiving is not unfreezing — two separate judgements, two separate buttons.
+    assert.equal((await reload(rider))?.isFrozen, true);
+
+    await rejectsWith(
+      freezeService.waiveFine(String(raised!._id), ADMIN_ID),
+      /already been waived/,
+    );
+  });
+
+  await test('re-pricing never un-forgives a waived fine', async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+    const raised = await fineFor(rider);
+    await freezeService.waiveFine(String(raised!._id), ADMIN_ID);
+
+    const result = await freezeService.setRiderFineAmount(rider.toString(), 800, ADMIN_ID, AFTER_DEADLINE);
+
+    assert.equal(result.todayFineUpdated, false);
+    const after = await fineFor(rider);
+    assert.equal(after!.status, 'waived');
+    assert.equal(after!.amount, 200);
+  });
+
+  await test('an unfreeze does not cancel the fine', async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    await freezeService.unfreezeUser(rider.toString(), ADMIN_ID, undefined, AFTER_DEADLINE);
+
+    // Letting a rider work again is not the same as forgiving the offence; the admin has a
+    // separate waive for that.
+    assert.equal((await fineFor(rider))!.status, 'outstanding');
+  });
+
+  await test("getFreezeStatus tells the rider the amount and what they still owe", async () => {
+    const rider = await makeRider();
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    const status = await freezeService.getFreezeStatus(rider.toString(), AFTER_DEADLINE);
+
+    assert.equal(status.fineAmount, 200);
+    assert.equal(status.todayFine?.amount, 200);
+    assert.equal(status.todayFine?.status, 'outstanding');
+    assert.equal(status.outstandingFines, 200);
+    assert.equal(status.outstandingFineCount, 1);
+  });
+
+  await test('a rider who has never been fined sees the amount, not a total', async () => {
+    const rider = await makeRider();
+
+    const status = await freezeService.getFreezeStatus(rider.toString(), AFTER_DEADLINE);
+
+    // Shown on a clear day too: a penalty nobody knows about deters nothing.
+    assert.equal(status.fineAmount, 200);
+    assert.equal(status.todayFine, null);
+    assert.equal(status.outstandingFines, 0);
+  });
+
+  await test("outstanding adds up across days, so yesterday's fine is not forgotten", async () => {
+    const rider = await makeRider();
+    const yesterday = localTimeOn(TEST_DAY.day - 1, deadline.hour + 1, deadline.minute);
+
+    await freezeService.issueLateStartFine({
+      employeeId: rider,
+      day: yesterday,
+      arrivedAt: null,
+      source: 'sweep',
+    });
+    await freezeService.issueLateStartFine({
+      employeeId: rider,
+      day: AFTER_DEADLINE,
+      arrivedAt: null,
+      source: 'sweep',
+    });
+
+    const status = await freezeService.getFreezeStatus(rider.toString(), AFTER_DEADLINE);
+    assert.equal(status.outstandingFineCount, 2);
+    assert.equal(status.outstandingFines, 400);
+
+    const history = await freezeService.listRiderFines(rider.toString());
+    assert.equal(history.length, 2);
+    // Newest first — the disputed fine is the one they are looking for.
+    assert.ok(history[0].fineDate.getTime() > history[1].fineDate.getTime());
+  });
+
+  await test('the admin queue carries the money beside each frozen rider', async () => {
+    const rider = await makeRider('order_taker', { freezeFineAmount: 300 });
+    await freezeService.enforceFirstCheckInDeadline({
+      employeeId: rider,
+      role: 'order_taker',
+      now: AFTER_DEADLINE,
+    });
+
+    const rows = await freezeService.findFrozenUsers(AFTER_DEADLINE);
+    const row = rows.find((r) => String(r._id) === String(rider));
+
+    assert.ok(row, 'the frozen rider should be in the queue');
+    assert.equal(row!.fineAmount, 300);
+    assert.equal(row!.hasCustomFineAmount, true);
+    assert.equal(row!.todayFine?.amount, 300);
+    assert.equal(row!.outstandingFines, 300);
+  });
+
+  await test('the admin banner counts the freezes and the rupees behind them', async () => {
+    const overview = await freezeService.getFineOverview(AFTER_DEADLINE);
+
+    assert.equal(overview.defaultFineAmount, 200);
+    assert.ok(overview.frozenCount > 0);
+    assert.ok(overview.finedToday > 0);
+    // Whatever earlier tests raised, the total must be the sum of what is outstanding today,
+    // never a count dressed up as money.
+    const expected = await RiderFineModel.aggregate<{ total: number }>([
+      { $match: { fineDate: utcMidnight(AFTER_DEADLINE), status: 'outstanding' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    assert.equal(overview.finesTodayTotal, expected[0]?.total ?? 0);
+    assert.ok(overview.outstandingTotal >= overview.finesTodayTotal);
   });
 
   // eslint-disable-next-line no-console

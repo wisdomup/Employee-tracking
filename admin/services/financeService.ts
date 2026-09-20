@@ -1442,9 +1442,12 @@ export interface PayrollLine {
   allowance: number;
   gross: number;
   advanceRecovery: number;
+  fineRecovery: number;
   net: number;
   /** What they still owe in advances — the cap on what this month can take back. */
   advanceBalance: number;
+  /** What they still owe in late-start fines — the cap on what this month can take off. */
+  fineBalance: number;
 }
 
 export interface PayrollPayment {
@@ -1469,6 +1472,7 @@ export interface PayrollRun {
     allowance: number;
     gross: number;
     advanceRecovery: number;
+    fineRecovery: number;
     net: number;
   };
   paidAmount: number;
@@ -1490,6 +1494,7 @@ export interface PayrollLineInput {
   bonus?: number;
   allowance?: number;
   advanceRecovery?: number;
+  fineRecovery?: number;
 }
 
 export interface StaffAdvance {

@@ -168,6 +168,28 @@ Important:
 - Pushing only a tag does **not** push your new commits to `origin/main`.
 - Always push `main` first, then push the deploy tag.
 
+### Manual Hostinger Deployment
+
+From Hostinger's terminal, run one command to update both the backend and admin application:
+
+```bash
+bash /var/www/Employee-tracking/deploy.sh
+```
+
+The script fetches `origin/main`, discards uncommitted server changes, installs locked dependencies, builds both apps, restarts their PM2 processes, and saves PM2. To use a different server directory, pass it as the first argument:
+
+```bash
+bash /path/to/deploy.sh /path/to/Employee-tracking
+```
+
+After committing and pushing this script, fetch it on the server once before using the command above:
+
+```bash
+cd /var/www/Employee-tracking
+git fetch origin "+refs/heads/main:refs/remotes/origin/main"
+git reset --hard refs/remotes/origin/main
+```
+
 ### Tag Convention
 
 | Tag pattern | Deploys |

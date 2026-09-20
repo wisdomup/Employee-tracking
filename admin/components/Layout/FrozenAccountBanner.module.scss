@@ -96,3 +96,15 @@
     padding: 0.875rem 1rem;
   }
 }
+
+/* The fine, given its own weight inside the frozen banner — it is the part a rider is most
+   likely to skim past and most likely to dispute later. */
+.fine {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: #fee2e2;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #991b1b;
+}

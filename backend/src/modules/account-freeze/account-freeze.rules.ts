@@ -30,6 +30,23 @@ export const FREEZE_TIMEZONE = process.env.RIDER_FREEZE_TIMEZONE?.trim() || REPO
 /** Default wall-clock deadline for the first check-in of the day, `HH:MM` 24-hour. */
 export const DEFAULT_FIRST_VISIT_DEADLINE = '12:30';
 
+/**
+ * The company-wide late-start fine, in rupees. A rider who is frozen for starting late is also
+ * fined this, once for that day.
+ *
+ * Overridable two ways, most specific first:
+ *  1. `user.freezeFineAmount` — this one rider's amount, set by an admin.
+ *  2. `RIDER_FREEZE_FINE_AMOUNT` — the company default, for everyone with no override.
+ */
+export const DEFAULT_FREEZE_FINE_AMOUNT = 200;
+
+/**
+ * Upper bound on any fine. Not a business rule — a typo guard. `20000` meant as `200.00` is an
+ * easy slip in a prompt box, and a fine two orders of magnitude out is far more damaging than a
+ * refused edit.
+ */
+export const MAX_FREEZE_FINE_AMOUNT = 100000;
+
 /** A wall-clock time of day, as hours and minutes. */
 export interface TimeOfDay {
   hour: number;
@@ -73,6 +90,66 @@ export function configuredDeadline(): TimeOfDay {
   return parseTimeOfDay(
     process.env.RIDER_FIRST_VISIT_DEADLINE?.trim() || DEFAULT_FIRST_VISIT_DEADLINE,
   );
+}
+
+/**
+ * Validates an admin-supplied fine amount.
+ *
+ * @throws when it is not a whole, non-negative number within the cap. Rejected loudly rather
+ * than coerced: a silently rounded or clamped fine is money the admin did not agree to.
+ */
+export function parseFineAmount(value: unknown): number {
+  const amount = typeof value === 'string' ? Number(value.trim()) : value;
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+    throw new Error('Fine amount must be a number');
+  }
+  if (!Number.isInteger(amount)) {
+    throw new Error('Fine amount must be a whole number of rupees');
+  }
+  if (amount < 0) {
+    throw new Error('Fine amount cannot be negative');
+  }
+  if (amount > MAX_FREEZE_FINE_AMOUNT) {
+    throw new Error(`Fine amount cannot exceed ${MAX_FREEZE_FINE_AMOUNT}`);
+  }
+  return amount;
+}
+
+/**
+ * The company default fine, from `RIDER_FREEZE_FINE_AMOUNT` or the 200 default.
+ *
+ * A bad env value falls back to the default with a warning instead of throwing. Unlike the
+ * deadline — where a wrong value freezes the wrong people — a wrong fine that refused to boot
+ * would take the whole tracking app down over a disciplinary number.
+ */
+export function configuredFineAmount(): number {
+  const raw = process.env.RIDER_FREEZE_FINE_AMOUNT?.trim();
+  if (!raw) return DEFAULT_FREEZE_FINE_AMOUNT;
+  try {
+    return parseFineAmount(raw);
+  } catch {
+    console.warn(
+      `[account-freeze] Ignoring invalid RIDER_FREEZE_FINE_AMOUNT="${raw}" — ` +
+        `using ${DEFAULT_FREEZE_FINE_AMOUNT}`,
+    );
+    return DEFAULT_FREEZE_FINE_AMOUNT;
+  }
+}
+
+/**
+ * The fine THIS rider gets: their own amount when an admin has set one, the company default
+ * otherwise. `0` is honoured — see `user.freezeFineAmount`.
+ */
+export function resolveFineAmount(override: number | null | undefined): number {
+  if (typeof override === 'number' && Number.isFinite(override) && override >= 0) {
+    return override;
+  }
+  return configuredFineAmount();
+}
+
+/** `200` → `Rs. 200`. The one place the fine is formatted, so rider and admin read the same. */
+export function formatFine(amount: number): string {
+  return `Rs. ${Math.round(amount).toLocaleString('en-PK')}`;
 }
 
 /** Minutes since local midnight — the single scale every comparison here works on. */
@@ -185,19 +262,55 @@ export function lateStartReason(
         'Your account is frozen — please contact the admin to have it unfrozen.';
 }
 
+/**
+ * The sentence appended to the freeze message when a fine was raised with it.
+ *
+ * Kept separate from `lateStartReason` rather than folded into it because the fine is
+ * per-rider and can be zero: a rider whose amount is set to 0 is frozen and told exactly the
+ * same thing as before, with no mention of money.
+ */
+export function fineNotice(amount: number): string {
+  return `A ${formatFine(amount)} late-start fine has also been added to your account.`;
+}
+
+/** Freeze message plus the fine sentence, or the plain message when nothing was charged. */
+export function withFineNotice(reason: string, amount: number): string {
+  return amount > 0 ? `${reason} ${fineNotice(amount)}` : reason;
+}
+
+/**
+ * What the fine itself records — the offence, not the freeze. Read back months later in the
+ * rider's fine history, where "your account is frozen" would be stale and confusing.
+ */
+export function lateStartFineReason(
+  arrivedAt: Date | null,
+  deadline: TimeOfDay = configuredDeadline(),
+  timeZone: string = FREEZE_TIMEZONE,
+): string {
+  const by = formatDeadline(deadline);
+  return arrivedAt
+    ? `Late start — first shop check-in at ${formatWallClock(arrivedAt, timeZone)}, after the ${by} deadline.`
+    : `Late start — no shop check-in by ${by}.`;
+}
+
 /** The admin-facing one-liner on the performance flag. */
 export function lateStartFlagMessage(
   arrivedAt: Date | null,
   assignedVisits: number,
   deadline: TimeOfDay = configuredDeadline(),
   timeZone: string = FREEZE_TIMEZONE,
+  /** Rupees fined alongside the freeze. `0` means none, and is then not mentioned at all. */
+  fineAmount = 0,
 ): string {
   const by = formatDeadline(deadline);
+  // The flag is the admin's audit line for the day, so it carries the money too — otherwise
+  // the only record of what the rider was charged lives on a separate screen.
+  const fine = fineAmount > 0 ? ` ${formatFine(fineAmount)} fine.` : '';
   if (arrivedAt) {
-    return `First shop check-in at ${formatWallClock(arrivedAt, timeZone)}, past the ${by} deadline. Account frozen.`;
+    return `First shop check-in at ${formatWallClock(arrivedAt, timeZone)}, past the ${by} deadline. Account frozen.${fine}`;
   }
   // Riders are freezable with no assigned visits at all, so the count is only worth
   // mentioning when there actually was route work to miss.
   const scope = assignedVisits > 0 ? ` with ${assignedVisits} visit(s) assigned` : '';
-  return `No shop check-in by ${by}${scope}. Account frozen.`;
+  return `No shop check-in by ${by}${scope}. Account frozen.${fine}`;
 }

@@ -33,7 +33,16 @@ export interface IPayrollLine {
   gross: number;
   /** Taken off this month's pay against what they already owe the business. */
   advanceRecovery: number;
-  /** gross − advanceRecovery — what they actually receive. */
+  /**
+   * Late-start fines taken off this month’s pay.
+   *
+   * A plain amount, like `advanceRecovery`, and for the same reason: which individual fines it
+   * settles is not recorded. What a rider still owes is DERIVED — fines raised and not waived,
+   * less what posted runs have already recovered — so cancelling a run releases its recovery
+   * with no second write, and no stored "recovered" flag can drift from the books.
+   */
+  fineRecovery: number;
+  /** gross − advanceRecovery − fineRecovery — what they actually receive. */
   net: number;
 }
 
@@ -61,6 +70,7 @@ export interface IPayrollRun extends Document {
     allowance: number;
     gross: number;
     advanceRecovery: number;
+    fineRecovery: number;
     net: number;
   };
 
@@ -95,6 +105,9 @@ const payrollLineSchema = new Schema<IPayrollLine>(
     allowance: { type: Number, default: 0, min: 0 },
     gross: { type: Number, default: 0, min: 0 },
     advanceRecovery: { type: Number, default: 0, min: 0 },
+    // Defaulted, not required: runs posted before fines existed read as zero rather than
+    // invalidating every historical payroll document the moment this field arrived.
+    fineRecovery: { type: Number, default: 0, min: 0 },
     net: { type: Number, default: 0, min: 0 },
   },
   { _id: false },
@@ -124,6 +137,7 @@ const payrollRunSchema = new Schema<IPayrollRun>(
       allowance: { type: Number, default: 0 },
       gross: { type: Number, default: 0 },
       advanceRecovery: { type: Number, default: 0 },
+      fineRecovery: { type: Number, default: 0 },
       net: { type: Number, default: 0 },
     },
     status: { type: String, enum: ['draft', 'posted', 'cancelled'], default: 'draft' },

@@ -22,6 +22,15 @@ import {
   minutesSinceMidnight,
   parseTimeOfDay,
   wallClockInZone,
+  DEFAULT_FREEZE_FINE_AMOUNT,
+  MAX_FREEZE_FINE_AMOUNT,
+  configuredFineAmount,
+  fineNotice,
+  formatFine,
+  lateStartFineReason,
+  parseFineAmount,
+  resolveFineAmount,
+  withFineNotice,
 } from './account-freeze.rules';
 
 let passed = 0;
@@ -233,6 +242,109 @@ test('lateStartFlagMessage: an empty day does not claim "0 visit(s) assigned"', 
 // ---------------------------------------------------------------------------
 test('FREEZE_ELIGIBLE_ROLES: order takers only', () => {
   assert.deepEqual([...FREEZE_ELIGIBLE_ROLES], ['order_taker']);
+});
+
+// ---------------------------------------------------------------------------
+// The late-start fine
+// ---------------------------------------------------------------------------
+test('DEFAULT_FREEZE_FINE_AMOUNT is the agreed 200', () => {
+  assert.equal(DEFAULT_FREEZE_FINE_AMOUNT, 200);
+});
+
+test('parseFineAmount: accepts whole rupees, including zero', () => {
+  assert.equal(parseFineAmount(200), 200);
+  assert.equal(parseFineAmount('350'), 350);
+  // Zero is a real setting — frozen, not fined — and must not be rejected as "empty".
+  assert.equal(parseFineAmount(0), 0);
+});
+
+test('parseFineAmount: rejects negatives, fractions and nonsense', () => {
+  assert.throws(() => parseFineAmount(-50), /negative/);
+  assert.throws(() => parseFineAmount(199.5), /whole number/);
+  assert.throws(() => parseFineAmount('abc'), /number/);
+  assert.throws(() => parseFineAmount(null), /number/);
+});
+
+test('parseFineAmount: refuses an amount past the typo cap', () => {
+  // `20000` typed for `200.00` is the slip this guards; a fine 100x out is worse than a
+  // refused edit.
+  assert.throws(() => parseFineAmount(MAX_FREEZE_FINE_AMOUNT + 1), /exceed/);
+  assert.equal(parseFineAmount(MAX_FREEZE_FINE_AMOUNT), MAX_FREEZE_FINE_AMOUNT);
+});
+
+test('configuredFineAmount: env overrides the default', () => {
+  const previous = process.env.RIDER_FREEZE_FINE_AMOUNT;
+  try {
+    process.env.RIDER_FREEZE_FINE_AMOUNT = '500';
+    assert.equal(configuredFineAmount(), 500);
+    delete process.env.RIDER_FREEZE_FINE_AMOUNT;
+    assert.equal(configuredFineAmount(), DEFAULT_FREEZE_FINE_AMOUNT);
+  } finally {
+    if (previous === undefined) delete process.env.RIDER_FREEZE_FINE_AMOUNT;
+    else process.env.RIDER_FREEZE_FINE_AMOUNT = previous;
+  }
+});
+
+test('configuredFineAmount: a bad env value falls back instead of crashing the app', () => {
+  const previous = process.env.RIDER_FREEZE_FINE_AMOUNT;
+  try {
+    process.env.RIDER_FREEZE_FINE_AMOUNT = 'two hundred';
+    assert.equal(configuredFineAmount(), DEFAULT_FREEZE_FINE_AMOUNT);
+  } finally {
+    if (previous === undefined) delete process.env.RIDER_FREEZE_FINE_AMOUNT;
+    else process.env.RIDER_FREEZE_FINE_AMOUNT = previous;
+  }
+});
+
+test('resolveFineAmount: a rider override wins, absent falls back to the default', () => {
+  assert.equal(resolveFineAmount(500), 500);
+  assert.equal(resolveFineAmount(undefined), DEFAULT_FREEZE_FINE_AMOUNT);
+  assert.equal(resolveFineAmount(null), DEFAULT_FREEZE_FINE_AMOUNT);
+});
+
+test('resolveFineAmount: an override of 0 is honoured, not read as "unset"', () => {
+  // The whole reason `freezeFineAmount` has no schema default: 0 must mean "do not fine
+  // this rider", and collapsing it into absent would silently charge them 200.
+  assert.equal(resolveFineAmount(0), 0);
+});
+
+test('formatFine: rupees with separators, no decimals', () => {
+  assert.equal(formatFine(200), 'Rs. 200');
+  assert.equal(formatFine(1500), 'Rs. 1,500');
+});
+
+test('withFineNotice: the fine is named in the freeze message', () => {
+  const message = withFineNotice('Your account is frozen.', 200);
+  assert.match(message, /Your account is frozen\./);
+  assert.match(message, /Rs\. 200/);
+  assert.equal(message.includes(fineNotice(200)), true);
+});
+
+test('withFineNotice: a zero fine says nothing about money', () => {
+  assert.equal(withFineNotice('Your account is frozen.', 0), 'Your account is frozen.');
+});
+
+test('the freeze message with a fine still fits the stored 500-character reason', () => {
+  // `user.frozenReason` is capped at 500 by the schema; a message Mongoose silently
+  // refuses would leave the rider with no explanation at all.
+  const message = withFineNotice(lateStartReason(karachiInstant(13, 35)), MAX_FREEZE_FINE_AMOUNT);
+  assert.ok(message.length <= 500, `freeze reason is ${message.length} characters`);
+});
+
+test('lateStartFineReason: records the offence, not the lockout', () => {
+  const late = lateStartFineReason(karachiInstant(13, 35), DEADLINE, KARACHI);
+  assert.match(late, /1:35 PM/);
+  assert.match(late, /12:30 PM/);
+  // Read months later in a fine history, "your account is frozen" would be stale.
+  assert.doesNotMatch(late, /frozen/i);
+
+  const noShow = lateStartFineReason(null, DEADLINE, KARACHI);
+  assert.match(noShow, /no shop check-in by 12:30 PM/i);
+});
+
+test('lateStartFlagMessage: carries the fine for the admin, and omits it at zero', () => {
+  assert.match(lateStartFlagMessage(null, 3, DEADLINE, KARACHI, 200), /Rs\. 200 fine\./);
+  assert.doesNotMatch(lateStartFlagMessage(null, 3, DEADLINE, KARACHI, 0), /fine/i);
 });
 
 // eslint-disable-next-line no-console

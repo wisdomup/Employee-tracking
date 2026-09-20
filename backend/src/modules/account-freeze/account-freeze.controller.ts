@@ -41,3 +41,61 @@ export async function runSweep(_req: Request, res: Response, next: NextFunction)
     next(err);
   }
 }
+
+/** The admin banner's numbers: who is frozen, what today's freezes cost, what is still owed. */
+export async function fineOverview(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await service.getFineOverview());
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** One rider's fine history — the answer to a disputed fine. */
+export async function riderFines(req: Request, res: Response, next: NextFunction) {
+  try {
+    const limit = Number(req.query.limit);
+    res.json(await service.listRiderFines(req.params.id, Number.isFinite(limit) ? limit : 50));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Sets this rider's own late-start fine, or clears it back to the company default.
+ *
+ * `amount: null` (or an empty body) clears the override. `0` is accepted and means "freeze
+ * this rider but do not fine them" — a real setting, not a missing one, which is why it
+ * cannot be treated as absent here.
+ */
+export async function setFineAmount(req: Request, res: Response, next: NextFunction) {
+  try {
+    const raw = req.body?.amount;
+    const amount = raw === null || raw === undefined || raw === '' ? null : raw;
+    const result = await service.setRiderFineAmount(
+      req.params.id,
+      amount as number | null,
+      req.user!.userId,
+    );
+    res.json({
+      message:
+        amount === null
+          ? 'Fine amount reset to the company default'
+          : 'Fine amount updated',
+      ...result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Cancels a fine without touching the freeze — the two are separate decisions. */
+export async function waiveFine(req: Request, res: Response, next: NextFunction) {
+  try {
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
+    const fine = await service.waiveFine(req.params.fineId, req.user!.userId, note || undefined);
+    res.json({ message: 'Fine waived', fine });
+  } catch (err) {
+    next(err);
+  }
+}

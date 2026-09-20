@@ -135,6 +135,8 @@ const LEDGERS: LedgerSeed[] = [
   { code: '4130', name: 'Sales Discounts', group: '4000', role: 'salesDiscounts',
     note: 'Contra income. Recovers a figure the product currently records and then discards.' },
   { code: '4210', name: 'Freight & Service Income', group: '4000' },
+  { code: '4220', name: 'Staff Fines Recovered', group: '4000', role: 'staffFines',
+    note: 'Late-start fines taken off pay. Posted only when a payroll run recovers one.' },
   { code: '4900', name: 'Other Income', group: '4000' },
 
   // ---- Cost of sales ------------------------------------------------------
@@ -290,4 +292,90 @@ export async function seedFinanceChart(): Promise<ChartSeedResult> {
   }
 
   return result;
+}
+
+export interface RoleLedgerRepair {
+  /** Roles whose account did not exist at all and was created now. */
+  created: string[];
+  /** Roles whose account was already there under the seeded code, and is now mapped. */
+  adopted: string[];
+  /** Roles still without an account — reported so the warning names them. */
+  unresolved: string[];
+}
+
+/**
+ * Give every engine role an account, on a database whose chart already exists.
+ *
+ * `seedFinanceChart` only runs on an empty chart, deliberately: it matches by CODE, and an
+ * accountant is allowed to re-code a role's account, so running it again on a live chart would
+ * create a duplicate and repoint the role at an empty copy, stranding the history on the old one.
+ *
+ * That leaves one gap. A role added to `LEDGER_ROLE_KEYS` by a later release has no account on
+ * any database installed before it, and the first posting that needs it fails in production —
+ * which is exactly what `staffFines` would have done to every payroll run recovering a fine.
+ *
+ * So this repairs ONLY what is genuinely missing:
+ *  - a role already mapped to a ledger that still exists is left completely alone, whatever it
+ *    has since been renamed or re-coded to;
+ *  - an unmapped role whose seeded code already exists adopts that account rather than creating
+ *    a second one under a suffixed code;
+ *  - otherwise the account is created from the seed list.
+ *
+ * A role whose group is missing is reported rather than invented: groups carry the account type
+ * every statement is built from, and guessing one produces a Balance Sheet that does not balance.
+ */
+export async function ensureRoleLedgers(): Promise<RoleLedgerRepair> {
+  const repair: RoleLedgerRepair = { created: [], adopted: [], unresolved: [] };
+
+  let settings = await FinanceSettingsModel.findOne({ key: 'singleton' }).exec();
+  if (!settings) settings = new FinanceSettingsModel({ key: 'singleton' });
+
+  let changed = false;
+
+  for (const l of LEDGERS) {
+    if (!l.role) continue;
+
+    const mappedId = settings.ledgerMap.get(l.role);
+    if (mappedId) {
+      const stillThere = await LedgerModel.exists({ _id: mappedId });
+      // Mapped and present: the accountant's own naming and coding stands.
+      if (stillThere) continue;
+    }
+
+    const existing = await LedgerModel.findOne({ code: l.code }).select('_id').lean().exec();
+    if (existing) {
+      settings.ledgerMap.set(l.role, existing._id);
+      repair.adopted.push(l.role);
+      changed = true;
+      continue;
+    }
+
+    const group = await AccountGroupModel.findOne({ code: l.group }).select('_id').lean().exec();
+    if (!group) {
+      repair.unresolved.push(l.role);
+      continue;
+    }
+
+    const created = await LedgerModel.create({
+      code: l.code,
+      name: l.name,
+      groupId: group._id,
+      description: l.note,
+      openingBalance: { amount: 0, asOf: null },
+      cachedBalance: 0,
+      cachedDebitTotal: 0,
+      cachedCreditTotal: 0,
+      isControl: Boolean(l.control),
+      subledgerType: l.control ?? null,
+      isCashEquivalent: Boolean(l.cash),
+      isSystem: true,
+      isActive: true,
+    });
+    settings.ledgerMap.set(l.role, created._id);
+    repair.created.push(l.role);
+    changed = true;
+  }
+
+  if (changed) await settings.save();
+  return repair;
 }

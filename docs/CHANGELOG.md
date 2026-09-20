@@ -8,6 +8,74 @@ Applies to the **`Employee-tracking`** repo only (`admin/` + `backend/`). The si
 
 ---
 
+## 2026-09-21 — Late-start fines are recovered from pay
+
+### Added
+- **A fine is now collected.** Until this, a fine was raised and sat `outstanding` forever with no
+  path to the money. A payroll run carries a **Fines back** deduction per person, pre-filled in
+  full — unlike an advance recovery, which starts at zero: an advance is repaid on agreed terms, a
+  fine is simply owed, and a deduction nobody remembers to type is one never collected.
+- **Posting books it as income**, `Cr 4220 Staff Fines Recovered`, alongside the existing advance
+  and net-pay credits. Crediting the wage expense instead would understate what staff cost and
+  hide the fines entirely. Nothing posts until a fine is recovered, so a fine raised and then
+  waived never touches the books.
+- **New engine role `staffFines`**, and with it `ensureRoleLedgers()` in the chart seed. The seed
+  itself only runs on an empty chart (it matches by code, and an accountant may re-code a role's
+  account), which left a role added by a later release with no account on every existing database —
+  the first payroll run recovering a fine would have failed in production. Bootstrap now gives a
+  missing role an account, and leaves every already-mapped role completely alone.
+- **What a rider owes is derived**: fines raised and not waived, less what posted runs recovered.
+  No `recovered` flag, nothing written back to a fine. Cancelling a run therefore releases its
+  fines with no second write, and a draft recovers nothing.
+
+### Changed
+- The rider's banner says the fine will come off their pay; the admin banner reports what has been
+  recovered so far. Both outstanding figures are now net of recovery, so a rider whose fine came
+  off last month is no longer told they still owe it.
+- Deductions are checked **together** against the month's pay. An advance recovery and a fine that
+  each fit on their own can still add up to more than somebody earned, and a negative payslip is
+  money claimed off a person who worked all month.
+- **Waiving a fine that has already been deducted is refused**, naming the reason: nothing on that
+  screen can hand the money back, so it is refunded as a bonus on the next run instead. Cancel the
+  run and the waive works again.
+- Tests: `test:finance:payroll` is now 30 checks.
+
+See [rider-late-start-freeze.md](rider-late-start-freeze.md) §3b.
+
+---
+
+## 2026-09-20 — Late-start fine, with a per-rider amount
+
+### Added
+- **A freeze now also raises a fine — Rs. 200 by default.** Both paths that freeze a rider
+  (the check-in guard and the daily sweep) raise it, and the rider is told the amount in the
+  same refusal that blocks their check-in. One fine per rider per day, enforced by a unique
+  index on `{ employeeId, type, fineDate }`, so a re-run of the sweep cannot charge twice.
+- **New `RiderFine` collection**, one document per offence rather than a running total on
+  the user: a total cannot answer which day, why, or whether an admin already forgave it.
+  Deliberately **not** an accounting document — no journal entry is written for a
+  disciplinary charge that is frequently waived and is not money that has moved.
+- **Banners on both sides.** The rider's existing frozen banner now states the fine and what
+  is outstanding; a new admin banner on every screen reports how many accounts are frozen,
+  what today's fines come to and what is outstanding overall, with a link to the queue.
+  Previously an admin learned about a freeze only by opening Frozen Accounts.
+- **The admin can set a different amount for one rider**, up or down, from Frozen Accounts
+  (`PATCH /api/account-freeze/:id/fine-amount`). The same edit sets their amount for future
+  late starts *and* re-prices the fine raised today — an admin looking at today's freeze
+  means that one. `0` freezes without fining; clearing it restores the company default.
+  `user.freezeFineAmount` has no schema default so a change to the default still reaches
+  everyone who was never singled out.
+- **Waiving a fine** (`PATCH /api/account-freeze/fines/:fineId/waive`) cancels the money and
+  leaves the freeze alone — two separate judgements. The row survives, so a fine raised and
+  forgiven stays on the record.
+- `RIDER_FREEZE_FINE_AMOUNT` sets the company default. A malformed value falls back to 200
+  with a warning rather than taking the app down over a disciplinary number.
+- Tests: `test:freeze` is now 46 unit tests, `test:freeze:flow` 62 integration tests.
+
+See [rider-late-start-freeze.md](rider-late-start-freeze.md) §3b.
+
+---
+
 ## 2026-08-25 — Fix: a rider is judged once a day, not once per visit
 
 ### Fixed

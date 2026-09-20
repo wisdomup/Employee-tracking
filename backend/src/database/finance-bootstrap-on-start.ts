@@ -1,5 +1,5 @@
 import { LedgerModel } from '../models/ledger.model';
-import { seedFinanceChart } from './seeds/finance-chart.seed';
+import { ensureRoleLedgers, seedFinanceChart } from './seeds/finance-chart.seed';
 import { verifyLedgerMap } from '../modules/finance/chart.service';
 import { seedFinanceCounters } from '../modules/finance/finance-counters';
 import { completeInterruptedPostings } from '../modules/finance/posting.service';
@@ -49,6 +49,27 @@ export async function runFinanceBootstrapOnStart(): Promise<void> {
           + `${result.groupsCreated.length} groups, ${result.ledgersCreated.length} ledgers, `
           + `${result.rolesMapped} engine roles mapped`,
       );
+    } else {
+      // An existing chart, so the seed above is deliberately skipped — it matches by code, and an
+      // accountant may have re-coded a role's account since. What still has to happen is giving
+      // an account to any role a LATER RELEASE added: without this, the first posting that needs
+      // it fails in production, which is what a recovered staff fine would have done on every
+      // database installed before that role existed.
+      const repair = await ensureRoleLedgers();
+      if (repair.created.length > 0 || repair.adopted.length > 0) {
+        console.log(
+          '[finance-bootstrap] Engine roles with no account: '
+            + `created ${repair.created.join(', ') || 'none'}; `
+            + `adopted ${repair.adopted.join(', ') || 'none'}`,
+        );
+      }
+      if (repair.unresolved.length > 0) {
+        console.warn(
+          '[finance-bootstrap] No account could be made for engine role(s): '
+            + `${repair.unresolved.join(', ')} — the group they belong in is missing from the `
+            + 'chart. Create the account by hand and map the role in Finance settings.',
+        );
+      }
     }
 
     // Expense categories: seeded only on a database that has none, so a category an accountant

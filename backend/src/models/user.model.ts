@@ -97,6 +97,17 @@ export interface IUser extends Document {
    * late again is frozen again — the pardon forgives a day, it does not exempt the rider.
    */
   freezePardonedFor?: Date;
+  /**
+   * This rider's own late-start fine, overriding the company default (200).
+   *
+   * Absent means "use the default", which is the point: a blanket change to the default must
+   * reach every rider who was never singled out, so storing 200 on everybody at creation time
+   * would silently freeze the default in place for the whole workforce.
+   *
+   * `0` is a real, deliberate value — the rider is still frozen for starting late, but not
+   * fined. That is why absent and zero cannot be collapsed into one state.
+   */
+  freezeFineAmount?: number;
   isTrashed?: boolean;
   trashedAt?: Date;
   trashedBy?: Types.ObjectId;
@@ -153,6 +164,8 @@ const userSchema = new Schema<IUser>(
     unfrozenAt: { type: Date },
     unfrozenBy: { type: Schema.Types.ObjectId, ref: 'User' },
     freezePardonedFor: { type: Date },
+    // No `default`: absent must keep meaning "follow the company default". See the interface.
+    freezeFineAmount: { type: Number, min: 0 },
     isTrashed: { type: Boolean, default: false, index: true },
     trashedAt: { type: Date },
     trashedBy: { type: Schema.Types.ObjectId, ref: 'User' },

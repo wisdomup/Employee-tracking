@@ -25,6 +25,7 @@ export const updateRunSchema = Joi.object({
         bonus: Joi.number().min(0).optional(),
         allowance: Joi.number().min(0).optional(),
         advanceRecovery: Joi.number().min(0).optional(),
+        fineRecovery: Joi.number().min(0).optional(),
       }),
     )
     .optional(),

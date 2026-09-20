@@ -18,6 +18,8 @@ import { UserModel, type IUser } from '../../models/user.model';
 import { VisitModel } from '../../models/visit.model';
 import { ApprovalModel } from '../../models/approval.model';
 import { PerformanceFlagModel } from '../../models/performance-flag.model';
+import { RiderFineModel, type FineSource } from '../../models/rider-fine.model';
+import { PayrollRunModel } from '../../models/payroll-run.model';
 import { badRequest, notFound } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import {
@@ -28,10 +30,15 @@ import {
   isFreezeRuleEnabled,
   isNonWorkingDay,
   isPastDeadline,
+  lateStartFineReason,
   lateStartFlagMessage,
   lateStartReason,
   minuteOfDayInZone,
   minutesSinceMidnight,
+  configuredFineAmount,
+  parseFineAmount,
+  resolveFineAmount,
+  withFineNotice,
 } from './account-freeze.rules';
 
 /**
@@ -174,6 +181,8 @@ async function raiseLateStartFlag(params: {
   arrivedAt: Date | null;
   assignedVisits: number;
   visitId?: Types.ObjectId;
+  /** Rupees charged with the freeze, so the admin's flag row carries the money too. */
+  fineAmount?: number;
 }): Promise<void> {
   const deadline = configuredDeadline();
   const { start: flagDate } = utcDayRange(params.day);
@@ -182,7 +191,13 @@ async function raiseLateStartFlag(params: {
     { employeeId: params.employeeId, type: 'late_start', flagDate },
     {
       $set: {
-        message: lateStartFlagMessage(params.arrivedAt, params.assignedVisits, deadline),
+        message: lateStartFlagMessage(
+          params.arrivedAt,
+          params.assignedVisits,
+          deadline,
+          FREEZE_TIMEZONE,
+          params.fineAmount ?? 0,
+        ),
         // Both sides are minutes since local midnight, so `value` vs `threshold` reads as
         // "arrived at minute 812, allowed until minute 750" in the admin table.
         ...(params.arrivedAt
@@ -197,11 +212,142 @@ async function raiseLateStartFlag(params: {
           assignedVisits: params.assignedVisits,
           arrivedAt: params.arrivedAt,
           neverArrived: params.arrivedAt === null,
+          fineAmount: params.fineAmount ?? 0,
         },
       },
     },
     { upsert: true, setDefaultsOnInsert: true },
   ).exec();
+}
+
+/**
+ * Rupees already taken off pay for fines, per employee.
+ *
+ * Read from POSTED payroll runs, never from a flag on the fine. A cancelled run therefore
+ * releases its recovery the moment it is cancelled, with nothing to write back and nothing left
+ * pointing at a month that no longer exists — the same rule bills and advances follow here.
+ *
+ * Drafts are excluded on purpose: a draft recovery has taken nothing off anybody yet, and
+ * counting it would tell a rider they no longer owe money that is still on their next payslip.
+ */
+export async function fineRecoveredByEmployee(
+  employeeIds: Types.ObjectId[],
+): Promise<Map<string, number>> {
+  if (employeeIds.length === 0) return new Map();
+
+  const rows = await PayrollRunModel.aggregate<{ _id: Types.ObjectId; total: number }>([
+    { $match: { status: 'posted', 'lines.userId': { $in: employeeIds } } },
+    { $unwind: '$lines' },
+    { $match: { 'lines.userId': { $in: employeeIds } } },
+    { $group: { _id: '$lines.userId', total: { $sum: '$lines.fineRecovery' } } },
+  ]).exec();
+
+  return new Map(rows.map((row) => [String(row._id), row.total ?? 0]));
+}
+
+/** Fines raised and not waived, per employee — what has been charged, before any recovery. */
+async function fineChargedByEmployee(
+  employeeIds: Types.ObjectId[],
+): Promise<Map<string, { total: number; count: number }>> {
+  if (employeeIds.length === 0) return new Map();
+
+  const rows = await RiderFineModel.aggregate<{ _id: Types.ObjectId; total: number; count: number }>([
+    { $match: { employeeId: { $in: employeeIds }, status: 'outstanding' } },
+    { $group: { _id: '$employeeId', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+  ]).exec();
+
+  return new Map(rows.map((row) => [String(row._id), { total: row.total, count: row.count }]));
+}
+
+/**
+ * What each rider still owes in fines: raised, less waived, less recovered from pay.
+ *
+ * The single figure everything reads — the rider's banner, the admin queue, and the cap payroll
+ * applies to a deduction. Nothing stores it, so it cannot disagree with the fines or the runs it
+ * is made of.
+ */
+export async function fineBalanceByEmployee(
+  employeeIds: Types.ObjectId[],
+): Promise<Map<string, number>> {
+  const [charged, recovered] = await Promise.all([
+    fineChargedByEmployee(employeeIds),
+    fineRecoveredByEmployee(employeeIds),
+  ]);
+
+  const balances = new Map<string, number>();
+  for (const id of employeeIds) {
+    const key = String(id);
+    const owed = (charged.get(key)?.total ?? 0) - (recovered.get(key) ?? 0);
+    // Never negative. A rider whose recovery exceeds what is now charged (a fine waived after it
+    // was deducted) is owed a refund, which is a payroll correction, not a negative fine balance.
+    balances.set(key, Math.max(0, owed));
+  }
+  return balances;
+}
+
+/** This rider's own fine amount, or the company default when an admin has not set one. */
+async function fineAmountFor(employeeId: Types.ObjectId): Promise<number> {
+  const user = await UserModel.findById(employeeId).select('freezeFineAmount').lean().exec();
+  return resolveFineAmount(user?.freezeFineAmount);
+}
+
+/**
+ * Raises the late-start fine for a rider's day, and returns what they were charged.
+ *
+ * Returns `0` — writing nothing — when the amount resolves to zero, so "this rider is not
+ * fined" leaves no misleading Rs. 0 row in their history.
+ *
+ * Idempotent on `{ employeeId, type, fineDate }`: the guard and the sweep both call it for the
+ * same offence, and the manual sweep button can be pressed any number of times. `$setOnInsert`
+ * for everything that describes the offence means a repeat call cannot re-price a fine an admin
+ * has already adjusted, or resurrect one they have waived.
+ */
+export async function issueLateStartFine(params: {
+  employeeId: Types.ObjectId;
+  day: Date;
+  arrivedAt: Date | null;
+  source: FineSource;
+  /** Pre-resolved amount, when the caller already looked it up. */
+  amount?: number;
+}): Promise<number> {
+  const amount = params.amount ?? (await fineAmountFor(params.employeeId));
+  if (amount <= 0) return 0;
+
+  const { start: fineDate } = utcDayRange(params.day);
+  const reason = lateStartFineReason(params.arrivedAt);
+
+  const result = await RiderFineModel.updateOne(
+    { employeeId: params.employeeId, type: 'late_start_freeze', fineDate },
+    {
+      $setOnInsert: {
+        employeeId: params.employeeId,
+        type: 'late_start_freeze',
+        fineDate,
+        amount,
+        originalAmount: amount,
+        reason,
+        status: 'outstanding',
+        source: params.source,
+        issuedAt: new Date(),
+      },
+    },
+    { upsert: true, setDefaultsOnInsert: true },
+  ).exec();
+
+  // `upsertedCount` is 1 only on the call that actually inserted — the one in a repeated sweep
+  // that really charged the rider. Logging every call would fill the activity feed with fines
+  // that were never raised.
+  const inserted = (result.upsertedCount ?? 0) > 0;
+  if (inserted) {
+    logActivityAsync({
+      module: 'employee',
+      entityId: String(params.employeeId),
+      action: 'flagged',
+      meta: { source: 'late_start_fine', amount, reason, automatic: params.source !== 'manual' },
+    });
+  }
+
+  return amount;
 }
 
 /**
@@ -289,24 +435,290 @@ export async function unfreezeUser(
   return user;
 }
 
-/** Everyone currently frozen, newest freeze first — the admin's queue. */
-export async function findFrozenUsers() {
-  return UserModel.find({ isFrozen: true, isTrashed: { $ne: true } })
+/**
+ * Everyone currently frozen, newest freeze first — the admin's queue.
+ *
+ * Each row carries the fine raised with today's freeze and the rider's total outstanding, so
+ * the admin can see the money without opening a second screen: the fine and the freeze are one
+ * event to everybody except the database.
+ */
+export async function findFrozenUsers(now: Date = new Date()) {
+  const users = await UserModel.find({ isFrozen: true, isTrashed: { $ne: true } })
     .select('-password')
     .populate('frozenBy', 'username fullName')
     .sort({ frozenAt: -1 })
+    .lean()
     .exec();
+
+  if (users.length === 0) return [];
+
+  const ids = users.map((u) => u._id);
+  const { start: today } = utcDayRange(now);
+
+  // Aggregates for the whole page rather than queries per row — this list is short today, but
+  // it is the screen that grows on exactly the days it is being watched.
+  const [todayFines, counts, balances, recovered] = await Promise.all([
+    RiderFineModel.find({ employeeId: { $in: ids }, fineDate: today }).lean().exec(),
+    RiderFineModel.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { employeeId: { $in: ids }, status: 'outstanding' } },
+      { $group: { _id: '$employeeId', count: { $sum: 1 } } },
+    ]),
+    fineBalanceByEmployee(ids),
+    fineRecoveredByEmployee(ids),
+  ]);
+
+  const fineByUser = new Map(todayFines.map((f) => [String(f.employeeId), f]));
+  const countByUser = new Map(counts.map((row) => [String(row._id), row.count]));
+
+  return users.map((user) => {
+    const fine = fineByUser.get(String(user._id));
+    const key = String(user._id);
+    return {
+      ...user,
+      /** What this rider is fined per late start — their own amount, or the company default. */
+      fineAmount: resolveFineAmount(user.freezeFineAmount),
+      /** True when that amount is this rider's own, not the company default. */
+      hasCustomFineAmount: typeof user.freezeFineAmount === 'number',
+      /** Today's fine, if one was raised. `null` on a day nothing was charged. */
+      todayFine: fine
+        ? {
+            _id: String(fine._id),
+            amount: fine.amount,
+            status: fine.status,
+            reason: fine.reason,
+            issuedAt: fine.issuedAt,
+          }
+        : null,
+      /** Still owed — raised, less waived, less anything payroll has already taken off pay. */
+      outstandingFines: balances.get(key) ?? 0,
+      outstandingFineCount: countByUser.get(key) ?? 0,
+      /** Already deducted from pay. Shown so a cleared rider does not look like an unfined one. */
+      finesRecovered: recovered.get(key) ?? 0,
+    };
+  });
+}
+
+/** Every fine raised for a rider, newest first — the answer to "why am I fined for the 9th?". */
+export async function listRiderFines(userId: string, limit = 50) {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw badRequest('Invalid user id');
+  }
+  return RiderFineModel.find({ employeeId: userId })
+    .populate('waivedBy', 'username fullName')
+    .populate('amountChangedBy', 'username fullName')
+    .sort({ fineDate: -1 })
+    .limit(Math.min(Math.max(limit, 1), 200))
+    .lean()
+    .exec();
+}
+
+/**
+ * The numbers behind the admin's banner: who is frozen right now, and what today's freezes
+ * cost. Deliberately one call — the banner renders on every admin screen, so it must not be
+ * three round trips.
+ */
+export async function getFineOverview(now: Date = new Date()) {
+  const { start: today } = utcDayRange(now);
+
+  const [frozenCount, todayRows, chargedRows, recoveredRows] = await Promise.all([
+    UserModel.countDocuments({ isFrozen: true, isTrashed: { $ne: true } }),
+    RiderFineModel.aggregate<{ _id: null; total: number; count: number }>([
+      { $match: { fineDate: today, type: 'late_start_freeze', status: 'outstanding' } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    RiderFineModel.aggregate<{ _id: null; total: number; count: number }>([
+      { $match: { status: 'outstanding' } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    // Company-wide, so it is summed across posted runs rather than per employee.
+    PayrollRunModel.aggregate<{ _id: null; total: number }>([
+      { $match: { status: 'posted' } },
+      { $unwind: '$lines' },
+      { $group: { _id: null, total: { $sum: '$lines.fineRecovery' } } },
+    ]),
+  ]);
+
+  const charged = chargedRows[0]?.total ?? 0;
+  const recovered = recoveredRows[0]?.total ?? 0;
+
+  return {
+    frozenCount,
+    finedToday: todayRows[0]?.count ?? 0,
+    finesTodayTotal: todayRows[0]?.total ?? 0,
+    outstandingCount: chargedRows[0]?.count ?? 0,
+    /** Raised and not waived, less what payroll has already taken off pay. */
+    outstandingTotal: Math.max(0, charged - recovered),
+    /** Recovered through payroll — the figure that answers "are these fines ever collected?". */
+    recoveredTotal: recovered,
+    /** The company default, so the admin banner can say what the next late start will cost. */
+    defaultFineAmount: configuredFineAmount(),
+  };
+}
+
+/**
+ * Sets (or clears) one rider's own fine amount, and re-prices a fine already raised today.
+ *
+ * Both halves matter. Without the override the change is a company-wide env edit; without the
+ * re-pricing an admin who looks at a frozen rider, decides 200 is wrong for them and types 500
+ * has changed nothing about the fine actually in front of them — which is not what anybody
+ * means by "change his fine".
+ *
+ * `amount: null` clears the override and hands the rider back to the company default. `0` is a
+ * real amount: frozen, not fined. A fine already waived is left alone — re-pricing something an
+ * admin deliberately cancelled would quietly un-forgive it.
+ */
+export async function setRiderFineAmount(
+  userId: string,
+  amount: number | null,
+  actorId: string,
+  now: Date = new Date(),
+): Promise<{ fineAmount: number; hasCustomFineAmount: boolean; todayFineUpdated: boolean }> {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw badRequest('Invalid user id');
+  }
+
+  let parsed: number | null = null;
+  if (amount !== null) {
+    try {
+      parsed = parseFineAmount(amount);
+    } catch (err) {
+      throw badRequest((err as Error).message);
+    }
+  }
+
+  const user = await UserModel.findOne({ _id: userId, isTrashed: { $ne: true } })
+    .select('freezeFineAmount role')
+    .exec();
+  if (!user) {
+    throw notFound('User not found');
+  }
+
+  const previous = user.freezeFineAmount;
+  if (parsed === null) {
+    user.set('freezeFineAmount', undefined);
+  } else {
+    user.freezeFineAmount = parsed;
+  }
+  await user.save();
+
+  const effective = resolveFineAmount(parsed);
+
+  // Today's fine, if there is an unwaived one, follows the new amount.
+  const { start: today } = utcDayRange(now);
+  const repriced = await RiderFineModel.updateOne(
+    {
+      employeeId: user._id,
+      type: 'late_start_freeze',
+      fineDate: today,
+      status: 'outstanding',
+      amount: { $ne: effective },
+    },
+    {
+      $set: {
+        amount: effective,
+        amountChangedAt: new Date(),
+        amountChangedBy: new Types.ObjectId(actorId),
+      },
+    },
+  ).exec();
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(user._id),
+    action: 'updated',
+    changes: { freezeFineAmount: { from: previous ?? null, to: parsed } },
+    meta: {
+      source: 'late_start_fine_amount',
+      effectiveAmount: effective,
+      todayFineUpdated: (repriced.modifiedCount ?? 0) > 0,
+    },
+  });
+
+  return {
+    fineAmount: effective,
+    hasCustomFineAmount: parsed !== null,
+    todayFineUpdated: (repriced.modifiedCount ?? 0) > 0,
+  };
+}
+
+/**
+ * Cancels a fine. The row stays — a fine raised and forgiven is part of the rider's record,
+ * and deleting it would make the admin's decision invisible the moment it is questioned.
+ *
+ * Waiving does NOT unfreeze: the two are separate judgements, and an admin who thinks the
+ * lockout was wrong as well has the unfreeze button for that.
+ */
+export async function waiveFine(fineId: string, actorId: string, note?: string) {
+  if (!Types.ObjectId.isValid(fineId)) {
+    throw badRequest('Invalid fine id');
+  }
+
+  const fine = await RiderFineModel.findById(fineId).exec();
+  if (!fine) {
+    throw notFound('Fine not found');
+  }
+  if (fine.status === 'waived') {
+    throw badRequest('This fine has already been waived');
+  }
+
+  // Money already off the payslip cannot be un-charged here. Waiving it would leave the rider's
+  // balance reading zero while payroll had deducted more than was ever charged, and nothing on
+  // this screen can hand the money back. That is a payroll correction — a bonus line on the next
+  // run — so the admin is told exactly that instead of being given a button that half works.
+  const [charged, recovered] = await Promise.all([
+    RiderFineModel.aggregate<{ _id: null; total: number }>([
+      { $match: { employeeId: fine.employeeId, status: 'outstanding' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]).exec(),
+    fineRecoveredByEmployee([fine.employeeId]),
+  ]);
+  const chargedTotal = charged[0]?.total ?? 0;
+  const recoveredTotal = recovered.get(String(fine.employeeId)) ?? 0;
+  if (chargedTotal - fine.amount < recoveredTotal) {
+    throw badRequest(
+      'This fine has already been deducted from their pay, so it cannot be cancelled here. '
+        + 'Refund it as a bonus on the next payroll run instead.',
+    );
+  }
+
+  fine.status = 'waived';
+  fine.waivedAt = new Date();
+  fine.waivedBy = new Types.ObjectId(actorId);
+  if (note) fine.waiveNote = note;
+  await fine.save();
+
+  logActivityAsync({
+    employeeId: actorId,
+    module: 'employee',
+    entityId: String(fine.employeeId),
+    action: 'updated',
+    meta: { source: 'late_start_fine_waived', amount: fine.amount, ...(note ? { note } : {}) },
+  });
+
+  return fine;
 }
 
 /** The freeze state the rider's own app reads, to render the banner. */
 export async function getFreezeStatus(userId: string, now: Date = new Date()) {
   const user = await UserModel.findOne({ _id: userId, isTrashed: { $ne: true } })
-    .select('isFrozen frozenAt frozenReason freezePardonedFor role')
+    .select('isFrozen frozenAt frozenReason freezePardonedFor role freezeFineAmount')
     .lean()
     .exec();
   if (!user) {
     throw notFound('User not found');
   }
+
+  const { start: today } = utcDayRange(now);
+  const [todayFine, outstanding, balances, recovered] = await Promise.all([
+    RiderFineModel.findOne({ employeeId: user._id, fineDate: today }).lean().exec(),
+    RiderFineModel.aggregate<{ _id: null; count: number }>([
+      { $match: { employeeId: user._id, status: 'outstanding' } },
+      { $group: { _id: null, count: { $sum: 1 } } },
+    ]),
+    fineBalanceByEmployee([user._id]),
+    fineRecoveredByEmployee([user._id]),
+  ]);
 
   return {
     isFrozen: user.isFrozen === true,
@@ -321,6 +733,29 @@ export async function getFreezeStatus(userId: string, now: Date = new Date()) {
      * whether the lock is about to come back.
      */
     pardonedToday: isPardonedOn(user.freezePardonedFor, now),
+    /**
+     * What a late start costs THIS rider, shown even on a clear day: a penalty nobody knows
+     * about deters nothing, and the banner is the only place riders are told.
+     */
+    fineAmount: resolveFineAmount(user.freezeFineAmount),
+    /** Today's fine, if one was raised — the amount the rider is being told about right now. */
+    todayFine: todayFine
+      ? {
+          amount: todayFine.amount,
+          status: todayFine.status,
+          reason: todayFine.reason,
+          issuedAt: todayFine.issuedAt,
+        }
+      : null,
+    /**
+     * Still owed: today's fine included, anything an admin waived excluded, and anything a
+     * posted payroll run already took off pay excluded. A rider whose fine came off last
+     * month's wages must not still be told they owe it.
+     */
+    outstandingFines: balances.get(String(user._id)) ?? 0,
+    outstandingFineCount: outstanding[0]?.count ?? 0,
+    /** Already deducted from pay — the other half of the story the rider is owed. */
+    finesRecovered: recovered.get(String(user._id)) ?? 0,
   };
 }
 
@@ -366,7 +801,17 @@ export async function enforceFirstCheckInDeadline(params: {
   // Reported on the flag for context only; it no longer gates the freeze.
   const assignedVisits = await countAssignedVisits(params.employeeId, params.now);
 
-  const reason = lateStartReason(params.now);
+  // Charged BEFORE the reason is built, so the rider is told the amount in the same breath as
+  // the refusal. Finding out about the money on a later screen is how a fine turns into a
+  // dispute — and this refusal message is the only thing some riders will ever read.
+  const fineAmount = await issueLateStartFine({
+    employeeId: params.employeeId,
+    day: params.now,
+    arrivedAt: params.now,
+    source: 'check_in_guard',
+  });
+
+  const reason = withFineNotice(lateStartReason(params.now), fineAmount);
   await freezeUser(params.employeeId, reason);
   await raiseLateStartFlag({
     employeeId: params.employeeId,
@@ -374,6 +819,7 @@ export async function enforceFirstCheckInDeadline(params: {
     arrivedAt: params.now,
     assignedVisits,
     visitId: params.visitId,
+    fineAmount,
   });
 
   return reason;
@@ -395,6 +841,9 @@ export async function enforceFirstCheckInDeadline(params: {
 export async function sweepLateStarters(now: Date = new Date()): Promise<{
   evaluated: number;
   frozen: number;
+  /** How many of the frozen riders were also fined, and the rupees raised in this run. */
+  fined: number;
+  finesTotal: number;
   frozenWithNoAssignedVisits: number;
   skippedAlreadyStarted: number;
   skippedAlreadyFrozen: number;
@@ -405,6 +854,8 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
   const summary = {
     evaluated: 0,
     frozen: 0,
+    fined: 0,
+    finesTotal: 0,
     frozenWithNoAssignedVisits: 0,
     skippedAlreadyStarted: 0,
     skippedAlreadyFrozen: 0,
@@ -432,7 +883,7 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
     isActive: true,
     isTrashed: { $ne: true },
   })
-    .select('_id isFrozen freezePardonedFor')
+    .select('_id isFrozen freezePardonedFor freezeFineAmount')
     .lean()
     .exec();
 
@@ -477,14 +928,29 @@ export async function sweepLateStarters(now: Date = new Date()): Promise<{
       summary.frozenWithNoAssignedVisits += 1;
     }
 
-    await freezeUser(rider._id, lateStartReason(null));
+    // `freezeFineAmount` is already on the loaded document, so the no-show path costs no extra
+    // query per rider — this loop runs over every rider in the company.
+    const fineAmount = await issueLateStartFine({
+      employeeId: rider._id,
+      day: now,
+      arrivedAt: null,
+      source: 'sweep',
+      amount: resolveFineAmount(rider.freezeFineAmount),
+    });
+
+    await freezeUser(rider._id, withFineNotice(lateStartReason(null), fineAmount));
     await raiseLateStartFlag({
       employeeId: rider._id,
       day: now,
       arrivedAt: null,
       assignedVisits,
+      fineAmount,
     });
     summary.frozen += 1;
+    if (fineAmount > 0) {
+      summary.fined += 1;
+      summary.finesTotal += fineAmount;
+    }
   }
 
   return summary;
