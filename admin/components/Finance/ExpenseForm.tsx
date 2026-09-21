@@ -10,6 +10,7 @@ import {
 import { Warehouse } from '../../services/warehouseService';
 import { ImageUpload } from '../UI/ImageUpload';
 import { money } from './BillForm';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from '../../styles/FormPage.module.scss';
 import finance from '../../styles/Finance.module.scss';
 
@@ -134,7 +135,10 @@ const ExpenseForm: React.FC<Props> = ({
 
   const category = categories.find((c) => c.id === values.categoryId);
   const totals = expenseTotals(values);
-  const waits = approvalPreview(category, totals.total);
+  // The admin's expenses post on submit — the server approves them in their name.
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || (user?.roles ?? []).includes('admin');
+  const waits = isAdmin ? null : approvalPreview(category, totals.total);
   const isCheque = values.method === 'cheque';
 
   return (

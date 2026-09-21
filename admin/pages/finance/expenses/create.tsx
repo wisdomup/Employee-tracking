@@ -11,6 +11,7 @@ import ExpenseForm, {
   expenseTotals,
 } from '../../../components/Finance/ExpenseForm';
 import { money } from '../../../components/Finance/BillForm';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   expenseCategoryService,
   expenseService,
@@ -51,7 +52,10 @@ const CreateExpensePage: React.FC = () => {
 
   const totals = expenseTotals(values);
   const category = categories.find((c) => c.id === values.categoryId);
-  const waits = approvalPreview(category, totals.total);
+  // The admin's expenses post on submit — the server approves them in their name.
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || (user?.roles ?? []).includes('admin');
+  const waits = isAdmin ? null : approvalPreview(category, totals.total);
 
   const validate = (): boolean => {
     if (!values.categoryId) return !!toast.error('Choose what kind of spending this is');

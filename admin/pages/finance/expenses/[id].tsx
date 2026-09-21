@@ -131,6 +131,8 @@ const ExpensePage: React.FC = () => {
   }
 
   const editable = expense.status === 'draft' || expense.status === 'rejected';
+  // An admin's submit posts straight away, so nothing about approval applies to what they submit.
+  const needsApproval = isAdmin ? null : expense.approvalNeeded;
   const unsaved = JSON.stringify(expenseToPayload(values))
     !== JSON.stringify(expenseToPayload(expenseToForm(expense)));
 
@@ -164,8 +166,8 @@ const ExpensePage: React.FC = () => {
       toast.error('Save your changes first — an expense is submitted exactly as it was last saved');
       return;
     }
-    const message = expense.approvalNeeded
-      ? `Submit for approval?\n\n${expense.approvalNeeded}\n\n${isAdmin ? 'You can approve it yourself next.' : 'Nothing reaches the accounts until a second person approves it.'}`
+    const message = needsApproval
+      ? `Submit for approval?\n\n${needsApproval}\n\nNothing reaches the accounts until a second person approves it.`
       : `Submit and post?\n\n${expense.categoryName}: ${expense.description}\n`
         + `Paid out: ${money(expense.totalAmount)}\n`
         + `${PAYMENT_METHOD_LABELS[expense.method]} from ${expense.paidFromName}\n\n`
@@ -261,8 +263,8 @@ const ExpensePage: React.FC = () => {
         {expense.status === 'draft' && (
           <div className={`${finance.banner} ${finance.bannerInfo}`}>
             <span className={finance.bannerTitle}>Not submitted yet</span>
-            {expense.approvalNeeded
-              ? `${expense.approvalNeeded} Submitting will send it for approval.`
+            {needsApproval
+              ? `${needsApproval} Submitting will send it for approval.`
               : 'Submitting will post it straight away.'}
           </div>
         )}
@@ -345,7 +347,7 @@ const ExpensePage: React.FC = () => {
                   disabled={busy || unsaved}
                   title={unsaved ? 'Save your changes before submitting' : undefined}
                 >
-                  {expense.approvalNeeded ? 'Submit for Approval' : 'Submit & Post'} · {money(expense.totalAmount)}
+                  {needsApproval ? 'Submit for Approval' : 'Submit & Post'} · {money(expense.totalAmount)}
                 </button>
               )}
             </div>

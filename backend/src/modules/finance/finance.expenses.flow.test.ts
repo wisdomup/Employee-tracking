@@ -511,6 +511,46 @@ async function main(): Promise<void> {
     const approved = await expenses.approveExpense(draft.id, SUBMITTER, { isAdmin: true });
     assert.equal(approved.status, 'posted');
     assert.equal(approved.approvedBy, SUBMITTER, 'the approval is still recorded against the admin');
+  });
+
+  await test("an admin's expense that needs approval posts the moment they submit it", async () => {
+    const draft = await expenses.createExpense(
+      {
+        categoryId: await categoryId('Rent'),
+        expenseDate: now,
+        description: 'Office rent, submitted by the admin',
+        amount: 1500,
+        method: 'bank_transfer',
+        paidFromLedgerId: bank,
+        transferReference: 'IBFT-ADMIN-2',
+        attachments: receipt,
+      },
+      SUBMITTER,
+    );
+    const before = await balance('6130');
+
+    const posted = await expenses.submitExpense(draft.id, SUBMITTER, { isAdmin: true });
+    assert.equal(posted.status, 'posted', 'the admin was sent to the approval queue');
+    assert.equal(posted.approvedBy, SUBMITTER, 'it posted without saying who approved it');
+    assert.equal(await balance('6130'), before + 1500);
+  });
+
+  await test('everybody else still waits for approval on the same category', async () => {
+    const draft = await expenses.createExpense(
+      {
+        categoryId: await categoryId('Rent'),
+        expenseDate: now,
+        description: 'Office rent, submitted by the accountant',
+        amount: 1500,
+        method: 'bank_transfer',
+        paidFromLedgerId: bank,
+        transferReference: 'IBFT-ACCT',
+        attachments: receipt,
+      },
+      SUBMITTER,
+    );
+    const submitted = await expenses.submitExpense(draft.id, SUBMITTER);
+    assert.equal(submitted.status, 'pending_approval');
   });}
 
 main()

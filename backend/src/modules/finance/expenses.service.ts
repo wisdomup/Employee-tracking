@@ -1039,8 +1039,16 @@ async function postHoldingLock(
  *
  * Which of the two happens is decided here and only here, against the category as it is at this
  * moment. The person submitting does not choose.
+ *
+ * Except the admin: they may approve their own expenses anyway, so queueing one only to approve it
+ * a click later is ceremony. An admin's expense that needs approval posts on submit, stamped as
+ * approved by them — the record still shows it was approved, and by whom.
  */
-export async function submitExpense(id: string, actorId?: string): Promise<ExpenseView> {
+export async function submitExpense(
+  id: string,
+  actorId?: string,
+  options: { isAdmin?: boolean } = {},
+): Promise<ExpenseView> {
   if (!Types.ObjectId.isValid(id)) throw notFound('Expense not found');
 
   return withFinanceLocks([`expense:${id}`], async () => {
@@ -1068,6 +1076,12 @@ export async function submitExpense(id: string, actorId?: string): Promise<Expen
     });
 
     const reason = approvalReason(prepared.category, prepared.fields.totalAmount);
+    if (reason && options.isAdmin && actorId) {
+      return postHoldingLock(expense, prepared, actorId, {
+        submittedBy: actorId,
+        approvedBy: actorId,
+      });
+    }
     if (reason) {
       applyFields(expense, prepared.fields);
       expense.status = 'pending_approval';

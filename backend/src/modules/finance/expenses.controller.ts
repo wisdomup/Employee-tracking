@@ -102,7 +102,11 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 
 export async function submit(req: Request, res: Response, next: NextFunction) {
   try {
-    res.json(await expenses.submitExpense(req.params.id, req.user!.userId));
+    res.json(
+      await expenses.submitExpense(req.params.id, req.user!.userId, {
+        isAdmin: req.user!.roles.includes(ROLES.ADMIN),
+      }),
+    );
   } catch (err) {
     next(err);
   }
