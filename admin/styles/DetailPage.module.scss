@@ -1,5 +1,7 @@
+/* Full width: a table should use the screen it is given. A 1400px cap left a band of empty
+ * space beside every list on a wide monitor while the table itself scrolled sideways. */
 .container {
-  max-width: 1200px;
+  width: 100%;
 }
 
 .header {

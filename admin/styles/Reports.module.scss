@@ -1,5 +1,7 @@
+/* Full width: a table should use the screen it is given. A 1400px cap left a band of empty
+ * space beside every list on a wide monitor while the table itself scrolled sideways. */
 .page {
-  max-width: 1400px;
+  width: 100%;
   color: var(--admin-primary);
 }
 

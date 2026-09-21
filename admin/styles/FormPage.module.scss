@@ -1,5 +1,17 @@
+/*
+ * A plain form keeps a reading width: a name field stretched across a wide monitor is harder to
+ * fill, not easier. A form that holds a table — order and return line items, stock-in, transfer,
+ * damage, counts, the finance vouchers — is really a table with fields around it, and at 800px
+ * the order line items (920px of columns) scrolled sideways inside their own card. Those go full
+ * width. `:has()` picks them out without a flag on each of the ~28 pages.
+ */
 .container {
   max-width: 800px;
+}
+
+.container:has(table, [role="table"]) {
+  max-width: none;
+  width: 100%;
 }
 
 .header {
