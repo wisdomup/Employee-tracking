@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -6,6 +6,7 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
 import Table from '../../components/UI/Table';
+import AnalyticsExportButton from '../../components/UI/AnalyticsExportButton';
 import SearchableSelect from '../../components/UI/SearchableSelect';
 import TargetModal from '../../components/Analytics/TargetModal';
 import AchievementBar from '../../components/Analytics/AchievementBar';
@@ -23,6 +24,8 @@ import {
   recentPeriodMonths,
 } from '../../services/analyticsService';
 import { toast } from 'react-toastify';
+import type { AnalyticsExportPayload } from '../../utils/analyticsExport';
+import type { TableExportColumn } from '../../utils/tableExport';
 import styles from '../../styles/Reports.module.scss';
 
 const LineTrendChart = dynamic(() => import('../../components/UI/LineTrendChart'), { ssr: false });
@@ -69,26 +72,46 @@ const AnalyticsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [targetFor, setTargetFor] = useState<PerformanceRow | null>(null);
   /**
-   * The full team roster, fetched unfiltered. Kept separate from `report.rows` because
-   * selecting one employee shrinks rows to a single entry — deriving the dropdown from
-   * rows would then drop everyone else and strand the user on that one person.
+   * The full team roster for the dropdown, tagged with the month it was fetched for.
+   * Kept separate from `report.rows` because selecting one employee shrinks rows to a
+   * single entry — deriving the dropdown from rows would then drop everyone else and
+   * strand the user on that one person.
    */
-  const [roster, setRoster] = useState<PerformanceRow[]>([]);
+  const [roster, setRoster] = useState<{ periodMonth: string; rows: PerformanceRow[] } | null>(
+    null,
+  );
+  /** Discards responses from a superseded request when filters change mid-flight. */
+  const requestSeq = useRef(0);
+  /** Bumped after a target is saved, to pull the chart's target line back in sync. */
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(async () => {
+    const seq = (requestSeq.current += 1);
     setLoading(true);
     try {
-      const [performance, trendData] = await Promise.all([
-        analyticsService.getPerformance({ periodMonth, employeeId: employeeId || undefined }),
-        analyticsService.getTrend({ employeeId: employeeId || undefined, months: 6 }),
-      ]);
-      setReport(performance);
-      setTrend(trendData);
+      const applyReport = (data: PerformanceReport) => {
+        setReport(data);
+        // An unfiltered report already IS the roster, so reuse it rather than paying for
+        // the same expensive query a second time just to fill the dropdown.
+        if (!employeeId) setRoster({ periodMonth, rows: data.rows });
+      };
+
+      // A cached copy renders straight away; `applyReport` runs again only if the
+      // background refresh comes back with different numbers.
+      const performance = await analyticsService.getPerformance(
+        { periodMonth, employeeId: employeeId || undefined },
+        (fresh) => {
+          if (seq === requestSeq.current) applyReport(fresh);
+        },
+      );
+      if (seq !== requestSeq.current) return;
+      applyReport(performance);
     } catch {
+      if (seq !== requestSeq.current) return;
       toast.error('Failed to load analytics');
       setReport(null);
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }, [periodMonth, employeeId]);
 
@@ -111,19 +134,52 @@ const AnalyticsPage: React.FC = () => {
     return `?${params.toString()}`;
   }, [periodMonth, employeeId]);
 
-  // Roster depends only on the month, never on the selected employee.
+  /**
+   * The trend is always the last 6 months counted from today, so it does not depend on
+   * the selected period — refetching it on every month change was pure waste. Fetched
+   * outside `load` so the KPIs and table paint without waiting on the charts.
+   */
   useEffect(() => {
-    if (isSelfOnly) return;
+    let cancelled = false;
+    setTrend(null);
+    analyticsService
+      .getTrend({ employeeId: employeeId || undefined, months: 6 }, (fresh) => {
+        if (!cancelled) setTrend(fresh);
+      })
+      .then((t) => {
+        if (!cancelled) setTrend(t);
+      })
+      .catch(() => {
+        if (!cancelled) setTrend(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [employeeId, refreshKey]);
+
+  /**
+   * Only needed while an employee filter is narrowing `report.rows`, and only once per
+   * month — `load` fills the roster itself whenever the report is unfiltered.
+   */
+  useEffect(() => {
+    if (isSelfOnly || !employeeId) return;
+    if (roster?.periodMonth === periodMonth) return;
+    let cancelled = false;
     analyticsService
       .getPerformance({ periodMonth })
-      .then((r) => setRoster(r.rows))
-      .catch(() => setRoster([]));
-  }, [periodMonth, isSelfOnly]);
+      .then((r) => {
+        if (!cancelled) setRoster({ periodMonth, rows: r.rows });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [periodMonth, employeeId, isSelfOnly, roster?.periodMonth]);
 
   const employeeOptions = useMemo(
     () => [
       { value: '', label: 'All team members' },
-      ...roster.map((r) => ({
+      ...(roster?.rows ?? []).map((r) => ({
         value: r.employeeId,
         label: employeeDisplayLabel(r) || r.username,
       })),
@@ -314,6 +370,7 @@ const AnalyticsPage: React.FC = () => {
       {
         key: '_actions',
         title: 'Actions',
+        omitFromExport: true,
         render: (_: unknown, row: PerformanceRow) => (
           <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
             <button
@@ -363,6 +420,112 @@ const AnalyticsPage: React.FC = () => {
     };
   }, [trend]);
 
+  /**
+   * Built on click so the PDF picks up the charts as they are currently drawn. Mirrors what
+   * the page shows: KPI cards, both trends, then the per-employee breakdown.
+   */
+  const buildExportPayload = useCallback((): AnalyticsExportPayload => {
+    const k = report?.kpis;
+    return {
+      filename: `performance-${periodMonth}${employeeId ? `-${employeeId}` : ''}`,
+      title: isSelfOnly ? 'My Performance' : 'Team Performance',
+      subtitle: `${formatPeriodMonth(periodMonth)} · ${k?.monthElapsedPercent ?? 0}% of the month elapsed${
+        k?.headcount ? ` · ${k.headcount} ${isSelfOnly ? 'person' : 'team member(s)'}` : ''
+      }`,
+      kpis: k
+        ? [
+            { label: 'Sales (Delivered)', value: money(k.salesAmount) },
+            { label: 'Target', value: k.targetSalesAmount ? money(k.targetSalesAmount) : '—' },
+            {
+              label: 'Achievement',
+              value: k.salesAchievementPercent == null ? '—' : `${k.salesAchievementPercent}%`,
+            },
+            { label: 'Booked (Open Orders)', value: money(k.bookedAmount) },
+            { label: 'Orders', value: k.orderCount },
+            {
+              label: 'Visits Completed',
+              value: k.visitsCompleted,
+              hint: `/ ${k.visitsAssigned}`,
+            },
+            { label: 'Overstays (>30 min)', value: k.overstayCount },
+            { label: 'New Clients', value: k.newClients },
+            {
+              label: 'Visit Completion',
+              value: `${k.visitCompletionRate}%`,
+              hint: `/ ${k.visitThresholdPercent}% pass`,
+            },
+            { label: 'Visits Skipped', value: k.visitsSkipped },
+            { label: 'Extra Visits', value: k.extraVisitsCompleted },
+            { label: 'Total Visits Done', value: k.totalVisitsCompleted },
+            { label: 'Open Flags', value: k.flagsOpen },
+            { label: 'Days Present', value: k.daysPresent, hint: `· ${k.hoursWorked}h` },
+            { label: 'Collected', value: money(k.collectedTotal) },
+            { label: 'Outstanding', value: money(k.outstandingTotal) },
+            { label: 'Collection Rate', value: `${k.collectionRatePercent}%` },
+            {
+              label: 'Returns',
+              value: money(k.returnAmount),
+              hint: `(${k.returnRatePercent}%)`,
+            },
+            { label: 'Avg Order Value', value: money(k.avgOrderValue) },
+            { label: 'Strike Rate', value: `${k.strikeRatePercent}%` },
+            {
+              label: 'Tasks Done',
+              value: k.tasksCompleted,
+              hint: `/ ${k.tasksAssigned} (${k.taskCompletionRate}%)`,
+            },
+            ...(isSelfOnly
+              ? []
+              : [
+                  {
+                    label: 'Achieved Target',
+                    value: k.ridersAchieved,
+                    hint: `/ ${k.headcount}`,
+                  },
+                  { label: 'Behind Pace', value: k.ridersBehind },
+                  {
+                    label: `Below ${k.visitThresholdPercent}% Visits`,
+                    value: k.ridersBelowVisitThreshold,
+                  },
+                ]),
+          ]
+        : [],
+      charts: [
+        ...(trendChart
+          ? [
+              {
+                title: 'Sales vs Target (last 6 months)',
+                elementId: 'analytics-sales-trend-chart',
+                labelHeader: 'Month',
+                ...trendChart,
+              },
+            ]
+          : []),
+        ...(activityChart
+          ? [
+              {
+                title: 'Activity (last 6 months)',
+                elementId: 'analytics-activity-trend-chart',
+                labelHeader: 'Month',
+                ...activityChart,
+              },
+            ]
+          : []),
+      ],
+      tables: report?.rows.length
+        ? [
+            {
+              title: isSelfOnly
+                ? 'My Numbers'
+                : `Breakdown by Employee (${report.rows.length})`,
+              columns: columns as TableExportColumn[],
+              rows: report.rows,
+            },
+          ]
+        : [],
+    };
+  }, [activityChart, columns, employeeId, isSelfOnly, periodMonth, report, trendChart]);
+
   if (loading) {
     return (
       <Layout>
@@ -385,7 +548,13 @@ const AnalyticsPage: React.FC = () => {
     <Layout>
       <div className={styles.page}>
         <div className={styles.header}>
-          <h1>{isSelfOnly ? 'My Performance' : 'Team Performance'}</h1>
+          <div className={styles.headerRow}>
+            <h1>{isSelfOnly ? 'My Performance' : 'Team Performance'}</h1>
+            <AnalyticsExportButton
+              buildPayload={buildExportPayload}
+              ariaLabel="Export performance report"
+            />
+          </div>
         </div>
 
         <div className={styles.filters}>
@@ -588,7 +757,7 @@ const AnalyticsPage: React.FC = () => {
 
         <div className={styles.section}>
           <h2>Sales vs Target (last 6 months)</h2>
-          <div className={styles.trendChartWrap}>
+          <div className={styles.trendChartWrap} id="analytics-sales-trend-chart">
             {trendChart ? (
               <LineTrendChart labels={trendChart.labels} datasets={trendChart.datasets} />
             ) : (
@@ -599,7 +768,7 @@ const AnalyticsPage: React.FC = () => {
 
         <div className={styles.section}>
           <h2>Activity (last 6 months)</h2>
-          <div className={styles.trendChartWrap}>
+          <div className={styles.trendChartWrap} id="analytics-activity-trend-chart">
             {activityChart ? (
               <LineTrendChart labels={activityChart.labels} datasets={activityChart.datasets} />
             ) : (
@@ -635,7 +804,13 @@ const AnalyticsPage: React.FC = () => {
           onClose={() => setTargetFor(null)}
           onSaved={() => {
             setTargetFor(null);
+            // The saved target changes achievement everywhere, so every cached report is
+            // now wrong — drop them all rather than render a stale copy first.
+            analyticsService.invalidate();
             load();
+            // The chart's target line is served by the trend endpoint, which `load` no
+            // longer refetches, so nudge it explicitly.
+            setRefreshKey((k) => k + 1);
           }}
         />
       )}

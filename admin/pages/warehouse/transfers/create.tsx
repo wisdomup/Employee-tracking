@@ -192,6 +192,8 @@ function CreateTransferPage() {
             availableByProduct={fromWarehouseId ? availability : undefined}
             availableLabel="Sellable at source"
             disabled={loading || !fromWarehouseId}
+            exportFileName="stock-transfer-draft-lines"
+            exportPdfTitle="Stock Transfer — draft line items"
           />
 
           {excess && (

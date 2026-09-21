@@ -156,12 +156,14 @@ export interface VisitOrderSummary {
  * distinguishes "no order taken" (renders "No Order") from "order worth Rs. 0", and a
  * zero-filled default would erase that difference.
  */
-async function withOrderSummaries<T extends { _id: Types.ObjectId; toObject: () => Record<string, unknown> }>(
+/** Accepts hydrated documents or `.lean()` rows — the list query returns the latter. */
+async function withOrderSummaries<T extends { _id: Types.ObjectId; toObject?: () => Record<string, unknown> }>(
   visits: T[],
 ): Promise<Record<string, unknown>[]> {
   const summaries = await findOrderSummariesByVisit(visits.map((v) => v._id));
   return visits.map((visit) => {
-    const plain = visit.toObject();
+    const plain: Record<string, unknown> =
+      typeof visit.toObject === 'function' ? visit.toObject() : { ...(visit as Record<string, unknown>) };
     const summary = summaries.get(String(visit._id));
     if (summary) plain.orderSummary = summary;
     return plain;
@@ -219,11 +221,21 @@ export async function findAll(filters?: {
   }
 
   const visits = await VisitModel.find(query)
-    .populate('dealerId')
-    .populate('employeeId', '-password')
-    .populate('routeId')
-    .populate('createdBy', '-password')
+    // The list, calendar and day views never read gallery photos or notes, and those arrays
+    // dominated the response. `completionImages` stays: the dashboard map pop-ups show them.
+    // Anything that needs the rest (the detail and edit pages) loads a single visit through
+    // `findById`, which stays unprojected.
+    .select('-galleryImages -visitNotes')
+    // Only the fields these views actually render. The full documents were being joined in for
+    // every row: the whole dealer record (address, contact), the whole route, and two whole
+    // user records.
+    .populate('dealerId', 'name shopName latitude longitude')
+    .populate('employeeId', 'username userID fullName')
+    .populate('routeId', 'name')
+    .populate('createdBy', 'username userID fullName role')
     .sort({ createdAt: -1 })
+    // Plain objects: serialised straight to JSON, never used as documents.
+    .lean()
     .exec();
 
   return withOrderSummaries(visits);

@@ -5,6 +5,7 @@ import { ROLES } from '../../constants/global';
 import { notFound, badRequest, forbidden } from '../../utils/app-error';
 import { logActivityAsync } from '../activity-logs/activity-logs.service';
 import { isValidPeriodMonth } from '../analytics/analytics.rules';
+import { invalidateAnalyticsCache } from '../analytics/analytics.cache';
 
 /**
  * Whether `actor` is allowed to set targets for `employeeId`.
@@ -66,6 +67,10 @@ export async function upsertTarget(
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
   ).exec();
 
+  // A target edit changes achievement, status and the team roll-up for everyone who can
+  // see this employee, including in months already closed and therefore cached long.
+  invalidateAnalyticsCache();
+
   logActivityAsync({
     employeeId: actorId,
     module: 'employee',
@@ -113,6 +118,8 @@ export async function deleteTarget(id: string, actorId: string, actorRole: strin
 
   await assertCanManageTargetFor(String(target.employeeId), actorId, actorRole);
   await TargetModel.findByIdAndDelete(id).exec();
+
+  invalidateAnalyticsCache();
 
   logActivityAsync({
     employeeId: actorId,

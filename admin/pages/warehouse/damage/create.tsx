@@ -254,6 +254,8 @@ function CreateDamagePage() {
             availableByProduct={warehouseId ? availability : undefined}
             availableLabel="Sellable here"
             disabled={loading || !warehouseId}
+            exportFileName="damage-claim-draft-lines"
+            exportPdfTitle="Damage / Claim — draft line items"
           />
 
           {excess && (

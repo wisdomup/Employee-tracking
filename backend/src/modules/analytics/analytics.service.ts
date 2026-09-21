@@ -20,11 +20,28 @@ import {
   monthElapsedFraction,
   safeRate,
 } from './analytics.rules';
+import { cacheKey, ttlForPeriod, getCached, setCached } from './analytics.cache';
 
 /** Order statuses that count as realised revenue. */
 export const DELIVERED_STATUSES = ['delivered'];
 /** Order statuses that are committed but not yet delivered. */
 export const BOOKED_STATUSES = ['pending', 'approved', 'packed', 'dispatched'];
+
+/**
+ * Match stage that buckets a visit on the day it was scheduled (`visitDate`), falling
+ * back to `createdAt` for visits started outside the route cron.
+ *
+ * Written as an `$or` over raw fields rather than `$addFields` + `$match` on a computed
+ * `$ifNull` date. A match on a computed field runs after the index has already been left
+ * behind, so the old pipeline had to read every visit an employee had ever made before
+ * narrowing to the period. `visitDate: null` matches missing documents as well as
+ * explicit nulls — exactly what `$ifNull` falls back on — so the result set is unchanged.
+ */
+function visitPeriodMatch(range: { $gte: Date; $lte: Date }) {
+  return {
+    $or: [{ visitDate: range }, { visitDate: null, createdAt: range }],
+  };
+}
 
 export interface PerformanceFilters {
   /** `YYYY-MM`; defaults to the current month. */
@@ -181,11 +198,11 @@ export async function resolvePerformanceScope(
 /**
  * Per-employee performance for one month, with targets and achievement.
  *
- * Everything is bucketed on `createdAt` for orders (consistent with the existing
- * dashboard reports) and on `completedAt` for visits, since a visit only counts once
- * the rider has actually checked out.
+ * Cached by `getPerformance` — this is the uncached computation. Everything is bucketed
+ * on `createdAt` for orders (consistent with the existing dashboard reports) and on
+ * `visitDate` (falling back to `createdAt`) for visits.
  */
-export async function getPerformance(
+async function computePerformance(
   filters: PerformanceFilters,
   viewerId: string,
   viewerRole: string,
@@ -204,69 +221,95 @@ export async function getPerformance(
   const dateRange = { $gte: start, $lte: end };
 
   const [
-    salesByEmployee,
-    bookedByEmployee,
+    ordersByEmployee,
     visitsByEmployee,
     newClientsByEmployee,
     attendanceByEmployee,
     returnsByEmployee,
     tasksByEmployee,
-    collectionByEmployee,
     flagsByEmployee,
     targets,
     managers,
   ] = await Promise.all([
-    // Delivered revenue + order count per employee
+    // Everything order-derived in a single pass: delivered revenue, booked value and
+    // collection health used to be three separate aggregations over the same documents.
+    // Delivered and booked are both subsets of "not cancelled", so one scan with
+    // conditional sums produces identical numbers for a third of the database work.
     OrderModel.aggregate([
       {
         $match: {
           createdBy: { $in: employeeIds },
           isTrashed: { $ne: true },
-          status: { $in: DELIVERED_STATUSES },
+          status: { $nin: ['cancelled'] },
           createdAt: dateRange,
         },
       },
       {
         $group: {
           _id: '$createdBy',
-          salesAmount: { $sum: { $ifNull: ['$grandTotal', 0] } },
-          orderCount: { $sum: 1 },
+          salesAmount: {
+            $sum: {
+              $cond: [
+                { $in: [{ $ifNull: ['$status', ''] }, DELIVERED_STATUSES] },
+                { $ifNull: ['$grandTotal', 0] },
+                0,
+              ],
+            },
+          },
+          orderCount: {
+            $sum: { $cond: [{ $in: [{ $ifNull: ['$status', ''] }, DELIVERED_STATUSES] }, 1, 0] },
+          },
+          bookedAmount: {
+            $sum: {
+              $cond: [
+                { $in: [{ $ifNull: ['$status', ''] }, BOOKED_STATUSES] },
+                { $ifNull: ['$grandTotal', 0] },
+                0,
+              ],
+            },
+          },
+          // Collection health: what was invoiced vs actually paid, and the payment mix.
+          invoicedTotal: { $sum: { $ifNull: ['$grandTotal', 0] } },
+          collectedTotal: { $sum: { $ifNull: ['$paidAmount', 0] } },
+          // Order-level discount plus the per-line discounts stored on each product row.
+          discountTotal: {
+            $sum: {
+              $add: [
+                { $ifNull: ['$discount', 0] },
+                { $sum: { $ifNull: ['$products.discount', []] } },
+              ],
+            },
+          },
+          creditOrders: { $sum: { $cond: [{ $eq: ['$paymentType', 'credit'] }, 1, 0] } },
+          distinctDealers: { $addToSet: '$dealerId' },
         },
       },
-    ]),
-
-    // Booked-but-not-delivered value per employee
-    OrderModel.aggregate([
       {
-        $match: {
-          createdBy: { $in: employeeIds },
-          isTrashed: { $ne: true },
-          status: { $in: BOOKED_STATUSES },
-          createdAt: dateRange,
-        },
-      },
-      {
-        $group: {
-          _id: '$createdBy',
-          bookedAmount: { $sum: { $ifNull: ['$grandTotal', 0] } },
-          bookedCount: { $sum: 1 },
+        $project: {
+          salesAmount: 1,
+          orderCount: 1,
+          bookedAmount: 1,
+          invoicedTotal: 1,
+          collectedTotal: 1,
+          discountTotal: 1,
+          creditOrders: 1,
+          shopsOrderedFrom: { $size: '$distinctDealers' },
         },
       },
     ]),
 
     // Visit productivity: completed count, assigned count, avg time at store, overstays.
     // Bucketed on the scheduled day (visitDate), falling back to createdAt for visits
-    // made outside the cron. Using `$or` on visitDate/completedAt would double-count a
-    // visit scheduled in one month and completed in the next.
+    // made outside the cron. Bucketing on completedAt instead would double-count a visit
+    // scheduled in one month and completed in the next.
     VisitModel.aggregate([
       {
         $match: {
           employeeId: { $in: employeeIds },
           isTrashed: { $ne: true },
+          ...visitPeriodMatch(dateRange),
         },
       },
-      { $addFields: { effectiveDate: { $ifNull: ['$visitDate', '$createdAt'] } } },
-      { $match: { effectiveDate: dateRange } },
       {
         $group: {
           _id: '$employeeId',
@@ -411,46 +454,6 @@ export async function getPerformance(
       },
     ]),
 
-    // Collection health: what was invoiced vs actually paid, and the payment mix.
-    OrderModel.aggregate([
-      {
-        $match: {
-          createdBy: { $in: employeeIds },
-          isTrashed: { $ne: true },
-          status: { $nin: ['cancelled'] },
-          createdAt: dateRange,
-        },
-      },
-      {
-        $group: {
-          _id: '$createdBy',
-          invoicedTotal: { $sum: { $ifNull: ['$grandTotal', 0] } },
-          collectedTotal: { $sum: { $ifNull: ['$paidAmount', 0] } },
-          // Order-level discount plus the per-line discounts stored on each product row.
-          discountTotal: {
-            $sum: {
-              $add: [
-                { $ifNull: ['$discount', 0] },
-                { $sum: { $ifNull: ['$products.discount', []] } },
-              ],
-            },
-          },
-          creditOrders: { $sum: { $cond: [{ $eq: ['$paymentType', 'credit'] }, 1, 0] } },
-          cancelledOrders: { $sum: 0 },
-          distinctDealers: { $addToSet: '$dealerId' },
-        },
-      },
-      {
-        $project: {
-          invoicedTotal: 1,
-          collectedTotal: 1,
-          discountTotal: 1,
-          creditOrders: 1,
-          shopsOrderedFrom: { $size: '$distinctDealers' },
-        },
-      },
-    ]),
-
     // Open admin flags in the period (overstay + low completion).
     PerformanceFlagModel.aggregate([
       { $match: { employeeId: { $in: employeeIds }, flagDate: dateRange } },
@@ -479,14 +482,12 @@ export async function getPerformance(
   const byId = <T extends { _id: unknown }>(rows: T[]) =>
     new Map(rows.map((r) => [String(r._id), r]));
 
-  const salesMap = byId(salesByEmployee);
-  const bookedMap = byId(bookedByEmployee);
+  const ordersMap = byId(ordersByEmployee);
   const visitsMap = byId(visitsByEmployee);
   const clientsMap = byId(newClientsByEmployee);
   const attendanceMap = byId(attendanceByEmployee);
   const returnsMap = byId(returnsByEmployee);
   const tasksMap = byId(tasksByEmployee);
-  const collectionMap = byId(collectionByEmployee);
   const flagsMap = byId(flagsByEmployee);
   const targetMap = new Map(targets.map((t) => [String(t.employeeId), t]));
   const managerMap = new Map(managers.map((m) => [String(m._id), m]));
@@ -495,8 +496,18 @@ export async function getPerformance(
 
   const rows: PerformanceRow[] = employees.map((employee) => {
     const id = String(employee._id);
-    const sales = salesMap.get(id) as { salesAmount?: number; orderCount?: number } | undefined;
-    const booked = bookedMap.get(id) as { bookedAmount?: number } | undefined;
+    const orders = ordersMap.get(id) as
+      | {
+          salesAmount?: number;
+          orderCount?: number;
+          bookedAmount?: number;
+          invoicedTotal?: number;
+          collectedTotal?: number;
+          discountTotal?: number;
+          creditOrders?: number;
+          shopsOrderedFrom?: number;
+        }
+      | undefined;
     const visits = visitsMap.get(id) as
       | {
           visitsAssigned?: number;
@@ -519,30 +530,21 @@ export async function getPerformance(
     const tasks = tasksMap.get(id) as
       | { tasksAssigned?: number; tasksCompleted?: number }
       | undefined;
-    const collection = collectionMap.get(id) as
-      | {
-          invoicedTotal?: number;
-          collectedTotal?: number;
-          discountTotal?: number;
-          creditOrders?: number;
-          shopsOrderedFrom?: number;
-        }
-      | undefined;
     const flags = flagsMap.get(id) as
       | { flagsTotal?: number; flagsOpen?: number; lowCompletionFlags?: number }
       | undefined;
     const target = targetMap.get(id);
     const manager = employee.managerId ? managerMap.get(String(employee.managerId)) : undefined;
 
-    const salesAmount = sales?.salesAmount ?? 0;
-    const orderCount = sales?.orderCount ?? 0;
+    const salesAmount = orders?.salesAmount ?? 0;
+    const orderCount = orders?.orderCount ?? 0;
     const visitsCompleted = visits?.visitsCompleted ?? 0;
     const visitsAssigned = visits?.visitsAssigned ?? 0;
     const timedVisits = visits?.timedVisits ?? 0;
     const daysPresent = attendance?.daysPresent ?? 0;
     const hoursWorked = Math.round(((attendance?.totalMinutesWorked ?? 0) / 60) * 10) / 10;
-    const invoicedTotal = collection?.invoicedTotal ?? 0;
-    const collectedTotal = collection?.collectedTotal ?? 0;
+    const invoicedTotal = orders?.invoicedTotal ?? 0;
+    const collectedTotal = orders?.collectedTotal ?? 0;
     const visitRate = safeRate(visitsCompleted, visitsAssigned);
 
     return {
@@ -555,7 +557,7 @@ export async function getPerformance(
       managerName: manager?.fullName || manager?.username,
 
       salesAmount,
-      bookedAmount: booked?.bookedAmount ?? 0,
+      bookedAmount: orders?.bookedAmount ?? 0,
       orderCount,
       visitsCompleted,
       visitsAssigned,
@@ -596,9 +598,9 @@ export async function getPerformance(
       collectedTotal,
       outstandingTotal: Math.max(0, invoicedTotal - collectedTotal),
       collectionRatePercent: safeRate(collectedTotal, invoicedTotal),
-      discountTotal: collection?.discountTotal ?? 0,
-      creditOrders: collection?.creditOrders ?? 0,
-      shopsOrderedFrom: collection?.shopsOrderedFrom ?? 0,
+      discountTotal: orders?.discountTotal ?? 0,
+      creditOrders: orders?.creditOrders ?? 0,
+      shopsOrderedFrom: orders?.shopsOrderedFrom ?? 0,
 
       // Efficiency ratios
       avgOrderValue: orderCount ? Math.round((salesAmount / orderCount) * 100) / 100 : 0,
@@ -716,6 +718,34 @@ export async function getPerformance(
 }
 
 /**
+ * Per-employee performance for one month, served from a short-lived cache.
+ *
+ * The report fans out across ten collections and the admin UI asks for the same month
+ * repeatedly, so a closed month is held for an hour and the current one for a minute.
+ * Writing a target clears the cache, which is the only thing that can change a closed
+ * month's numbers.
+ */
+export async function getPerformance(
+  filters: PerformanceFilters,
+  viewerId: string,
+  viewerRole: string,
+) {
+  const periodMonth =
+    filters.periodMonth && isValidPeriodMonth(filters.periodMonth)
+      ? filters.periodMonth
+      : toPeriodMonth(new Date());
+
+  // Keyed on the viewer as well as the filters — see the SECURITY note in analytics.cache.
+  const key = cacheKey('performance', viewerId, viewerRole, [periodMonth, filters.employeeId]);
+  const cached = getCached<Awaited<ReturnType<typeof computePerformance>>>(key);
+  if (cached) return cached;
+
+  const report = await computePerformance(filters, viewerId, viewerRole);
+  setCached(key, report, ttlForPeriod(periodMonth));
+  return report;
+}
+
+/**
  * Zeroed report with EXACTLY the same key set as a populated one, so the frontend never
  * has to guard against undefined KPIs when a scope resolves to nobody.
  */
@@ -770,8 +800,10 @@ function emptyReport(periodMonth: string, start: Date, end: Date) {
 /**
  * Month-by-month trend for one employee (or the caller's whole scope), for charts.
  * `months` counts back from and includes the current month.
+ *
+ * Cached by `getTrend` — this is the uncached computation.
  */
-export async function getTrend(
+async function computeTrend(
   filters: { employeeId?: string; months?: number },
   viewerId: string,
   viewerRole: string,
@@ -804,6 +836,15 @@ export async function getTrend(
 
   const period = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
 
+  // Dense series of the months being plotted, so chart labels line up even for months
+  // with no activity — and so the target lookup can be bounded to just these months.
+  const trendMonths: string[] = [];
+  const cursor = new Date(start);
+  for (let i = 0; i < monthCount; i += 1) {
+    trendMonths.push(toPeriodMonth(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
   const [salesTrend, visitTrend, targetRows] = await Promise.all([
     OrderModel.aggregate([
       {
@@ -824,40 +865,36 @@ export async function getTrend(
       { $sort: { _id: 1 } },
     ]),
 
-    // Same effectiveDate bucketing as getPerformance, so the trend reconciles with the
-    // monthly report instead of disagreeing at month boundaries.
+    // Same visitDate/createdAt bucketing as getPerformance, so the trend reconciles with
+    // the monthly report instead of disagreeing at month boundaries.
     VisitModel.aggregate([
       {
         $match: {
           employeeId: { $in: employeeIds },
           isTrashed: { $ne: true },
           status: 'completed',
+          ...visitPeriodMatch({ $gte: start, $lte: end }),
         },
       },
-      { $addFields: { effectiveDate: { $ifNull: ['$visitDate', '$createdAt'] } } },
-      { $match: { effectiveDate: { $gte: start, $lte: end } } },
       {
         $group: {
-          _id: { $dateToString: { format: '%Y-%m', date: '$effectiveDate' } },
+          _id: {
+            $dateToString: { format: '%Y-%m', date: { $ifNull: ['$visitDate', '$createdAt'] } },
+          },
           visitsCompleted: { $sum: 1 },
         },
       },
       { $sort: { _id: 1 } },
     ]),
 
+    // Only the months actually plotted — the unbounded match read every target ever set.
     TargetModel.aggregate([
-      { $match: { employeeId: { $in: employeeIds } } },
+      { $match: { employeeId: { $in: employeeIds }, periodMonth: { $in: trendMonths } } },
       { $group: { _id: '$periodMonth', targetSalesAmount: { $sum: { $ifNull: ['$salesAmount', 0] } } } },
     ]),
   ]);
 
-  // Emit a dense series so chart labels line up even for months with no activity.
-  const months: string[] = [];
-  const cursor = new Date(start);
-  for (let i = 0; i < monthCount; i += 1) {
-    months.push(toPeriodMonth(cursor));
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-  }
+  const months = trendMonths;
 
   const salesMap = new Map(salesTrend.map((r) => [r._id as string, r]));
   const visitMap = new Map(visitTrend.map((r) => [r._id as string, r]));
@@ -870,4 +907,25 @@ export async function getTrend(
     visits: months.map((m) => visitMap.get(m)?.visitsCompleted ?? 0),
     targets: months.map((m) => targetMap.get(m)?.targetSalesAmount ?? 0),
   };
+}
+
+/**
+ * Month-by-month trend, served from a short-lived cache.
+ *
+ * The window always ends at the current month, so this is always "live" data and gets
+ * the short TTL — no period argument to derive a longer one from.
+ */
+export async function getTrend(
+  filters: { employeeId?: string; months?: number },
+  viewerId: string,
+  viewerRole: string,
+) {
+  const monthCount = Math.min(Math.max(filters.months ?? 6, 1), 24);
+  const key = cacheKey('trend', viewerId, viewerRole, [filters.employeeId, monthCount]);
+  const cached = getCached<Awaited<ReturnType<typeof computeTrend>>>(key);
+  if (cached) return cached;
+
+  const trend = await computeTrend(filters, viewerId, viewerRole);
+  setCached(key, trend, ttlForPeriod(undefined));
+  return trend;
 }

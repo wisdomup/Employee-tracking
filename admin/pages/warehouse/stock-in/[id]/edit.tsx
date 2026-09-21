@@ -260,6 +260,8 @@ function EditStockInPage() {
             showLastPurchaseRate
             defaultRateFor={(p) => p.lastPurchaseRate ?? p.purchasePrice ?? 0}
             disabled={saving}
+            exportFileName={`stock-in-${id ?? 'receipt'}-lines`}
+            exportPdfTitle="Stock In — corrected line items"
           />
 
           <div className={styles.formGroup}>

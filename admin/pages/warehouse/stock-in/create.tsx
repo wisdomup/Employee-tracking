@@ -402,6 +402,8 @@ function CreateStockInPage() {
                 Paste from Excel
               </button>
             }
+            exportFileName="stock-in-draft-lines"
+            exportPdfTitle="Stock In — draft line items"
           />
 
           <div className={styles.formGroup}>

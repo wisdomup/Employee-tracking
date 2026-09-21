@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -8,6 +8,7 @@ import Loader from '../../components/UI/Loader';
 import DatePickerFilter from '../../components/UI/DatePickerFilter';
 import SearchableSelect from '../../components/UI/SearchableSelect';
 import Table from '../../components/UI/Table';
+import AnalyticsExportButton from '../../components/UI/AnalyticsExportButton';
 import {
   dashboardService,
   DashboardReportRow,
@@ -17,6 +18,8 @@ import {
 } from '../../services/dashboardService';
 import styles from '../../styles/Reports.module.scss';
 import { buildTrendDataFromReports } from '../../utils/dashboardReportsTrend';
+import type { AnalyticsExportPayload } from '../../utils/analyticsExport';
+import type { TableExportColumn } from '../../utils/tableExport';
 
 const LineTrendChart = dynamic(() => import('../../components/UI/LineTrendChart'), {
   ssr: false,
@@ -133,6 +136,93 @@ const ReportsPage: React.FC = () => {
     [viewBy],
   );
 
+  // Shared by the on-screen charts and the exported chart sections, so both stay in step.
+  const qtyDatasets = useMemo(
+    () => [
+      { label: 'Sold Qty', values: trendData.qtySeries.sold },
+      { label: 'Returned Qty', values: trendData.qtySeries.returned, borderColor: '#16a34a' },
+      { label: 'Damaged Qty', values: trendData.qtySeries.damaged, borderColor: '#dc2626' },
+    ],
+    [trendData],
+  );
+
+  const amountDatasets = useMemo(
+    () => [
+      { label: 'Earned', values: trendData.amountSeries.earned },
+      { label: 'Paid Back', values: trendData.amountSeries.paidBack, borderColor: '#dc2626' },
+      { label: 'Booked', values: trendData.amountSeries.booked, borderColor: '#7c3aed' },
+      { label: 'Net', values: trendData.amountSeries.net, borderColor: '#16a34a' },
+    ],
+    [trendData],
+  );
+
+  const rangeLabel = useMemo(() => {
+    const range =
+      startDate || endDate ? `${startDate || 'start'} to ${endDate || 'today'}` : 'All dates';
+    return `${range} · by ${groupBy} · ${viewBy === 'item' ? 'item-wise' : 'category-wise'}`;
+  }, [endDate, groupBy, startDate, viewBy]);
+
+  const buildExportPayload = useCallback((): AnalyticsExportPayload => {
+    const k = reports?.kpis;
+    const scope = viewBy === 'item' ? 'Item-wise' : 'Category-wise';
+    return {
+      filename: `reports-${groupBy}-${viewBy}${startDate ? `-${startDate}` : ''}${endDate ? `-to-${endDate}` : ''}`,
+      title: 'Reports',
+      subtitle: rangeLabel,
+      kpis: k
+        ? [
+            { label: 'Current Stock', value: k.totalCurrentStock },
+            { label: 'Stock Hold', value: k.totalHoldStock },
+            { label: 'Returned Qty', value: k.totalReturnedQty },
+            { label: 'Damaged Qty', value: k.totalDamagedQty },
+            { label: 'Sold Qty', value: k.totalSoldQty },
+            { label: 'Earned (Delivered Sales)', value: k.salesInRange.toFixed(2) },
+            { label: 'Paid Back (Returns)', value: k.totalReturnPayout.toFixed(2) },
+            { label: 'Net After Returns', value: k.netAfterReturns.toFixed(2) },
+            { label: 'Booked Sales (Open Orders)', value: k.bookedSalesInRange.toFixed(2) },
+          ]
+        : [],
+      charts: [
+        {
+          title: 'Quantity Trend (Sold / Returned / Damaged)',
+          elementId: 'reports-quantity-trend-chart',
+          labels: trendData.labels,
+          datasets: qtyDatasets,
+        },
+        {
+          title: 'Amount Trend (Earned / Paid Back / Booked / Net)',
+          elementId: 'reports-amount-trend-chart',
+          labels: trendData.labels,
+          datasets: amountDatasets,
+        },
+      ],
+      tables: [
+        {
+          title: `Stock Report (${scope})`,
+          columns: stockColumns as TableExportColumn[],
+          rows: reports?.stockReport ?? [],
+        },
+        {
+          title: `Sales Report (${scope})`,
+          columns: salesColumns as TableExportColumn[],
+          rows: reports?.salesReport ?? [],
+        },
+      ],
+    };
+  }, [
+    amountDatasets,
+    endDate,
+    groupBy,
+    qtyDatasets,
+    rangeLabel,
+    reports,
+    salesColumns,
+    startDate,
+    stockColumns,
+    trendData,
+    viewBy,
+  ]);
+
   if (loading) {
     return (
       <Layout>
@@ -163,6 +253,10 @@ const ReportsPage: React.FC = () => {
             <Link href="/collection/report" className={styles.kpiCardLink}>
               Collection Report →
             </Link>
+            <AnalyticsExportButton
+              buildPayload={buildExportPayload}
+              ariaLabel="Export reports"
+            />
           </div>
         </div>
 
@@ -211,14 +305,10 @@ const ReportsPage: React.FC = () => {
 
         <div className={styles.section}>
           <h2>Quantity Trend (Sold / Returned / Damaged)</h2>
-          <div className={styles.trendChartWrap}>
+          <div className={styles.trendChartWrap} id="reports-quantity-trend-chart">
             <LineTrendChart
               labels={trendData.labels}
-              datasets={[
-                { label: 'Sold Qty', values: trendData.qtySeries.sold },
-                { label: 'Returned Qty', values: trendData.qtySeries.returned, borderColor: '#16a34a' },
-                { label: 'Damaged Qty', values: trendData.qtySeries.damaged, borderColor: '#dc2626' },
-              ]}
+              datasets={qtyDatasets}
               height={400}
               emptyText="No quantity trend data in selected range"
             />
@@ -227,15 +317,10 @@ const ReportsPage: React.FC = () => {
 
         <div className={styles.section}>
           <h2>Amount Trend (Earned / Paid Back / Booked / Net)</h2>
-          <div className={styles.trendChartWrap}>
+          <div className={styles.trendChartWrap} id="reports-amount-trend-chart">
             <LineTrendChart
               labels={trendData.labels}
-              datasets={[
-                { label: 'Earned', values: trendData.amountSeries.earned },
-                { label: 'Paid Back', values: trendData.amountSeries.paidBack, borderColor: '#dc2626' },
-                { label: 'Booked', values: trendData.amountSeries.booked, borderColor: '#7c3aed' },
-                { label: 'Net', values: trendData.amountSeries.net, borderColor: '#16a34a' },
-              ]}
+              datasets={amountDatasets}
               height={400}
               emptyText="No amount trend data in selected range"
             />
@@ -255,7 +340,7 @@ const ReportsPage: React.FC = () => {
               showGrandTotal
               noDataText="No stock rows found"
               exportFileName={`stock-report-${viewBy}`}
-              exportPdfTitle={`Stock Report (${viewBy === 'item' ? 'Item-wise' : 'Category-wise'})`}
+              exportPdfTitle={`Stock Report (${viewBy === 'item' ? 'Item-wise' : 'Category-wise'}) — ${rangeLabel}`}
             />
           </div>
         </div>
@@ -273,7 +358,7 @@ const ReportsPage: React.FC = () => {
               showGrandTotal
               noDataText="No sales rows found"
               exportFileName={`sales-report-${viewBy}`}
-              exportPdfTitle={`Sales Report (${viewBy === 'item' ? 'Item-wise' : 'Category-wise'})`}
+              exportPdfTitle={`Sales Report (${viewBy === 'item' ? 'Item-wise' : 'Category-wise'}) — ${rangeLabel}`}
             />
           </div>
         </div>

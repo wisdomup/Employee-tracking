@@ -8,6 +8,7 @@ import {
   clearResolvedAccess,
   setResolvedAccess,
 } from '../utils/permissions';
+import { clearAnalyticsCache } from '../services/analyticsService';
 
 interface AuthContextType {
   user: User | null;
@@ -90,6 +91,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     authService.logout();
     clearResolvedAccess();
     setAccess(null);
+    // The analytics cache holds this user's scope-filtered reports. Dropping it here stops
+    // the next person to sign in on this browser from being shown the previous user's
+    // team data while their own request is still in flight.
+    clearAnalyticsCache();
     setUser(null);
     router.push('/login');
   };

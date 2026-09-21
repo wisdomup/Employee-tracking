@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import ProductCombobox from '../UI/ProductCombobox';
+import DataExportButton from '../UI/DataExportButton';
 import { Product } from '../../services/productService';
 import { buildProductIndex, ProductIndex } from '../../utils/productSearch';
 import { formatRsExact } from '../../utils/formatCurrency';
@@ -64,6 +65,10 @@ export interface StockLineItemsEditorProps {
   headerActions?: React.ReactNode;
   /** Briefly highlighted after the quick-add bar merges into an existing line. */
   flashLineId?: string | null;
+  /** Base download name for the line-items export. Omit to hide the export control. */
+  exportFileName?: string;
+  /** Title line at the top of the exported PDF. */
+  exportPdfTitle?: string;
 }
 
 /**
@@ -341,6 +346,8 @@ const StockLineItemsEditor: React.FC<StockLineItemsEditorProps> = ({
   disabled = false,
   headerActions,
   flashLineId = null,
+  exportFileName,
+  exportPdfTitle,
 }) => {
   const fallbackIndex = useMemo(() => buildProductIndex(products), [products]);
   const index = productIndex ?? fallbackIndex;
@@ -495,6 +502,18 @@ const StockLineItemsEditor: React.FC<StockLineItemsEditorProps> = ({
           Products * <span style={{ fontWeight: 400, color: '#6b7280' }}>({value.length})</span>
         </label>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {exportFileName && (
+            // A draft's rows are what the person at the screen just typed, so the control is
+            // not gated on the export permission here — see `adminOnly` on DataExportButton.
+            <DataExportButton
+              columns={exportColumns}
+              rows={exportRows}
+              fileName={exportFileName}
+              pdfTitle={exportPdfTitle}
+              grandTotalRow={exportTotalRow}
+              adminOnly={false}
+            />
+          )}
           {headerActions}
           <button
             type="button"
