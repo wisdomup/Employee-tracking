@@ -199,8 +199,17 @@ const voucherSchema = new Schema<IVoucher>(
 // No `isTrashed`. An unposted voucher is deleted outright; a posted one is cancelled, which
 // reverses it and leaves both documents standing — the rule every finance document follows.
 
-/** One number per category, so CPV-0007 and BPV-0007 can both exist. */
-voucherSchema.index({ category: 1, voucherNo: 1 }, { unique: true, sparse: true });
+/**
+ * One number per category, so CPV-0007 and BPV-0007 can both exist.
+ *
+ * Partial, not sparse. A sparse COMPOUND index still indexes any document that has one of its
+ * fields, and every voucher has a category — so two unnumbered drafts of the same kind collided
+ * on `voucherNo: null` and the second could not be raised.
+ */
+voucherSchema.index(
+  { category: 1, voucherNo: 1 },
+  { unique: true, partialFilterExpression: { voucherNo: { $type: 'number' } } },
+);
 voucherSchema.index({ status: 1, voucherDate: -1 });
 voucherSchema.index({ category: 1, voucherDate: -1 });
 /** The approver's queue. */

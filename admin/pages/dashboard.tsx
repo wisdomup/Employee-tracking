@@ -22,6 +22,7 @@ import {
   Users,
 } from '@phosphor-icons/react';
 import Layout from '../components/Layout/Layout';
+import FreezeFinesAdminBanner from '../components/Layout/FreezeFinesAdminBanner';
 import ProtectedRoute from '../components/Auth/ProtectedRoute';
 import Loader from '../components/UI/Loader';
 import MapView, { type MapPinIcon } from '../components/Map/MapView';
@@ -1147,6 +1148,7 @@ const Dashboard: React.FC = () => {
       <Layout>
         <div className={styles.dashboard}>
           <h1 className={styles.title}>Welcome, {user?.username}!</h1>
+          <FreezeFinesAdminBanner />
           <p style={{ color: 'var(--text-secondary, #666)', marginBottom: '2rem' }}>
             Here is a quick overview of your workspace.
           </p>
@@ -1219,6 +1221,11 @@ const Dashboard: React.FC = () => {
     <Layout>
       <div className={styles.dashboard}>
         <h1 className={styles.title}>Dashboard</h1>
+        {/* Dashboard only, not every page: it is a heads-up for the person running the day,
+            and on every screen it became wallpaper nobody read. Frozen Accounts carries its own
+            figures, and the rider's own banner still shows everywhere — they are blocked
+            everywhere. */}
+        <FreezeFinesAdminBanner />
 
         <div className={styles.statsGrid}>
           <Link href="/employees" className={styles.statCard}>

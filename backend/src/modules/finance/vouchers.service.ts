@@ -876,8 +876,16 @@ function voucherToInput(voucher: IVoucher): VoucherInput {
  * Refused to whoever raised it. An approval the maker can give themselves is not a second pair of
  * eyes; it is the same pair looking twice — and a voucher is the one document in this module that
  * can be pointed at almost any account.
+ *
+ * The admin is the exception. They hold every control in the system and there is nobody above them
+ * to ask, so refusing them only makes them log in as someone else. Their approval is still recorded
+ * against their own name.
  */
-export async function approveVoucher(id: string, actorId: string): Promise<VoucherDetail> {
+export async function approveVoucher(
+  id: string,
+  actorId: string,
+  options: { isAdmin?: boolean } = {},
+): Promise<VoucherDetail> {
   if (!Types.ObjectId.isValid(id)) throw notFound('Voucher not found');
 
   return withFinanceLocks([`voucher:${id}`], async () => {
@@ -891,7 +899,7 @@ export async function approveVoucher(id: string, actorId: string): Promise<Vouch
     }
 
     const raisedBy = voucher.submittedBy ?? voucher.createdBy;
-    if (raisedBy && String(raisedBy) === actorId) {
+    if (raisedBy && String(raisedBy) === actorId && !options.isAdmin) {
       throw badRequest(
         'You raised this voucher, so somebody else has to approve it. A second person looking at '
           + 'it is the whole point of it waiting.',

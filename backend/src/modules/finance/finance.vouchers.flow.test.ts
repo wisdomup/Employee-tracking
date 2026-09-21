@@ -580,6 +580,26 @@ async function main(): Promise<void> {
     await rejectsWith(vouchers.approveVoucher(workflowId, MAKER), /somebody else has to approve it/);
   });
 
+  await test('the admin may approve and post their own voucher', async () => {
+    const draft = await vouchers.createVoucher({
+      category: 'CRV',
+      voucherDate: DATE,
+      narration: 'Raised and approved by the admin',
+      cashBankLedgerId: cash,
+      counterLedgerId: otherIncome,
+      amount: 300,
+    }, MAKER);
+    await vouchers.submitVoucher(draft.id, MAKER);
+
+    const approved = await vouchers.approveVoucher(draft.id, MAKER, { isAdmin: true });
+    assert.equal(approved.status, 'approved');
+    assert.equal(approved.approvedBy, MAKER, 'the approval is still recorded against the admin');
+
+    // Left unposted so the balances the later checks expect are untouched.
+    await vouchers.rejectVoucher(draft.id, 'Only here to prove the approval', MAKER);
+    await vouchers.deleteVoucher(draft.id, MAKER);
+  });
+
   await test('sending it back says why, and the maker can then correct it', async () => {
     const sentBack = await vouchers.rejectVoucher(
       workflowId,

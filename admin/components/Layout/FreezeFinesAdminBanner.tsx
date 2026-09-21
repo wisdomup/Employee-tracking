@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Snowflake } from '@phosphor-icons/react';
+import { Snowflake, X } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { can } from '../../utils/permissions';
 import { accountFreezeService, FineOverview } from '../../services/accountFreezeService';
@@ -16,13 +16,42 @@ import styles from './FreezeFinesAdminBanner.module.scss';
  * day they do not already suspect a problem. A freeze is somebody unable to work — it should
  * find the admin, not wait to be found.
  *
- * Rendered on every screen for the same reason the rider's banner is, and only for people who
- * can actually act on it: the link leads to the unfreeze queue, so an admin who cannot open
- * that page is shown nothing.
+ * Rendered on the dashboard only, and only for people who can act on it. On every screen it
+ * became wallpaper: frozen accounts stay frozen until somebody lifts them, so it never went
+ * away and nobody read it.
+ *
+ * Dismissible. Closing it hides it until something CHANGES — another rider frozen, another
+ * fine raised, or a new day — so dismissing it never hides a fresh freeze.
  */
+
+const DISMISS_KEY = 'freeze-fines-banner-dismissed';
+
+/** What the banner is currently saying. A different value means there is news to show. */
+function signatureOf(overview: FineOverview): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `${today}|${overview.frozenCount}|${overview.finedToday}`;
+}
+
+/** Browser storage can be blocked (private window, cleared site data); never let that throw. */
+function readDismissed(): string | null {
+  try {
+    return window.localStorage.getItem(DISMISS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeDismissed(value: string): void {
+  try {
+    window.localStorage.setItem(DISMISS_KEY, value);
+  } catch {
+    // Storage unavailable: the banner simply comes back on the next visit.
+  }
+}
 const FreezeFinesAdminBanner: React.FC = () => {
   const { isAuthenticated, accessLoading } = useAuth();
   const [overview, setOverview] = useState<FineOverview | null>(null);
+  const [dismissed, setDismissed] = useState<string | null>(null);
 
   useEffect(() => {
     // Waiting on `accessLoading` matters: permissions arrive after the first paint, so
@@ -34,7 +63,9 @@ const FreezeFinesAdminBanner: React.FC = () => {
     accountFreezeService
       .getFineOverview()
       .then((next) => {
-        if (!cancelled) setOverview(next);
+        if (cancelled) return;
+        setOverview(next);
+        setDismissed(readDismissed());
       })
       // A failed count must never blank the page; the queue screen is still there.
       .catch(() => undefined);
@@ -46,6 +77,13 @@ const FreezeFinesAdminBanner: React.FC = () => {
 
   // Nothing frozen and nothing charged today is the normal state — no banner for it.
   if (!overview || (overview.frozenCount === 0 && overview.finedToday === 0)) return null;
+  if (dismissed === signatureOf(overview)) return null;
+
+  const dismiss = () => {
+    const signature = signatureOf(overview);
+    writeDismissed(signature);
+    setDismissed(signature);
+  };
 
   return (
     <div className={styles.banner} role="status">
@@ -86,6 +124,9 @@ const FreezeFinesAdminBanner: React.FC = () => {
           Open Frozen Accounts
         </Link>
       </div>
+      <button type="button" className={styles.close} onClick={dismiss} aria-label="Dismiss">
+        <X size={18} weight="bold" aria-hidden />
+      </button>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import { LedgerModel } from '../models/ledger.model';
+import { VoucherModel } from '../models/voucher.model';
 import { ensureRoleLedgers, seedFinanceChart } from './seeds/finance-chart.seed';
 import { verifyLedgerMap } from '../modules/finance/chart.service';
 import { seedFinanceCounters } from '../modules/finance/finance-counters';
@@ -40,6 +41,11 @@ export async function runFinanceBootstrapOnStart(): Promise<void> {
 
   try {
     await seedFinanceCounters();
+
+    // The first release built the voucher-number index as sparse, which lets only one unnumbered
+    // draft of each kind exist. `syncIndexes` drops it and builds the partial one in its place.
+    // Touches the vouchers collection only; a no-op once the indexes already match.
+    await VoucherModel.syncIndexes();
 
     const existing = await LedgerModel.countDocuments().exec();
     if (existing === 0) {

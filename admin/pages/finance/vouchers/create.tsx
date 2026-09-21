@@ -80,7 +80,7 @@ const CreateVoucherPage: React.FC = () => {
 
         <div className={`${finance.banner} ${finance.bannerInfo}`}>
           <span className={finance.bannerTitle}>Nothing posts from this screen</span>
-          A voucher is raised here, approved by somebody else, and posted after that. It gets its
+          A voucher is raised here, approved, and posted after that. It gets its
           number when it posts.
         </div>
 

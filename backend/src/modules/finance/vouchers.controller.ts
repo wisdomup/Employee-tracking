@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { VoucherCategory } from '../../models/voucher.model';
+import { ROLES } from '../../constants/global';
 import * as vouchers from './vouchers.service';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
@@ -70,7 +71,11 @@ export async function submit(req: Request, res: Response, next: NextFunction) {
 
 export async function approve(req: Request, res: Response, next: NextFunction) {
   try {
-    res.json(await vouchers.approveVoucher(req.params.id, req.user!.userId));
+    res.json(
+      await vouchers.approveVoucher(req.params.id, req.user!.userId, {
+        isAdmin: req.user!.roles.includes(ROLES.ADMIN),
+      }),
+    );
   } catch (err) {
     next(err);
   }

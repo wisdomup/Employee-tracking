@@ -380,8 +380,9 @@ unfreeze queue: who is frozen, when, why, and whether it was the system or an ad
 Unfreeze prompts for an optional note. A **Run late-start check now** button re-runs the
 sweep manually.
 
-`FreezeFinesAdminBanner` renders on **every** admin screen (for `account-freeze:view`
-holders only, and only when something is frozen or fined today): how many accounts are
+`FreezeFinesAdminBanner` renders on the **dashboard only** (for `account-freeze:view` holders,
+and only when something is frozen or fined today), and can be dismissed — it returns only when
+the news changes: another freeze, another fine, or a new day. (On every screen it became wallpaper nobody read.) It shows how many accounts are
 frozen, what today's fines come to, and what is outstanding overall, with a link to the
 queue. Without it an admin learns about a freeze only by opening Frozen Accounts — the one
 screen nobody opens on a day they do not already suspect a problem.

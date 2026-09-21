@@ -13,6 +13,7 @@ import VoucherForm, {
 } from '../../../components/Finance/VoucherForm';
 import { money } from '../../../components/Finance/BillForm';
 import { can } from '../../../utils/permissions';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   financeService,
   voucherService,
@@ -39,6 +40,9 @@ const API_BASE = typeof window !== 'undefined'
 const VoucherPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
+  // The admin holds every control, so the two-person rule does not bind them.
+  const isAdmin = user?.role === 'admin' || (user?.roles ?? []).includes('admin');
 
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [values, setValues] = useState<VoucherFormValues | null>(null);
@@ -132,7 +136,9 @@ const VoucherPage: React.FC = () => {
     if (!window.confirm(
       `Submit this voucher for approval?\n\n${voucher.categoryLabel}\n`
         + `${voucher.narration}\n${money(voucher.amount)}\n\n`
-        + 'Somebody else has to approve it, and posting is a separate step after that.',
+        + (isAdmin
+          ? 'You can approve and post it next.'
+          : 'Somebody else has to approve it, and posting is a separate step after that.'),
     )) {
       return;
     }
@@ -228,7 +234,10 @@ const VoucherPage: React.FC = () => {
         {voucher.status === 'draft' && (
           <div className={`${finance.banner} ${finance.bannerInfo}`}>
             <span className={finance.bannerTitle}>Not submitted yet</span>
-            Nothing has reached the accounts. Submitting sends it to somebody else to approve.
+            Nothing has reached the accounts.{' '}
+            {isAdmin
+              ? 'Submit it, then approve and post it yourself.'
+              : 'Submitting sends it to somebody else to approve.'}
           </div>
         )}
 
@@ -245,7 +254,8 @@ const VoucherPage: React.FC = () => {
         {voucher.status === 'submitted' && (
           <div className={`${finance.banner} ${finance.bannerInfo}`}>
             <span className={finance.bannerTitle}>Waiting for approval</span>
-            Nothing has reached the accounts. Whoever raised it cannot approve it.
+            Nothing has reached the accounts.{' '}
+            {isAdmin ? 'You can approve it.' : 'Whoever raised it cannot approve it.'}
             {voucher.rejectionReason && (
               <p className={finance.readonlyNote} style={{ marginBottom: 0 }}>
                 Sent back once before: {voucher.rejectionReason}
@@ -265,7 +275,7 @@ const VoucherPage: React.FC = () => {
         {voucher.status === 'posted' && (
           <div className={`${finance.banner} ${finance.bannerOk}`}>
             <span className={finance.bannerTitle}>Posted</span>
-            {money(voucher.amount)}, approved by a second person.{' '}
+            {money(voucher.amount)}, approved.{' '}
             {voucher.journalEntryId && (
               <a href={`/finance/journal/${voucher.journalEntryId}`}>See the entry it wrote</a>
             )}

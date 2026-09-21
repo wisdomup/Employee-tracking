@@ -171,7 +171,7 @@ const VouchersPage: React.FC = () => {
               approval · {money(waitingValue)}
             </span>
             {can(undefined, 'finance-vouchers:change')
-              ? 'Open each one to approve it or send it back. You cannot approve one you raised yourself.'
+              ? 'Open each one to approve it or send it back.'
               : 'Somebody allowed to approve vouchers needs to look at these.'}{' '}
             <a
               href="#"
