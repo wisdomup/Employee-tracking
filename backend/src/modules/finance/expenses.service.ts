@@ -1095,8 +1095,15 @@ export async function submitExpense(id: string, actorId?: string): Promise<Expen
  *
  * Refused to whoever submitted it. An approval the submitter can give themselves is not a second
  * pair of eyes; it is the same pair looking twice.
+ *
+ * The admin is the exception, as on vouchers: they hold every control and have nobody above them
+ * to ask. Their approval is still recorded against their own name.
  */
-export async function approveExpense(id: string, actorId: string): Promise<ExpenseView> {
+export async function approveExpense(
+  id: string,
+  actorId: string,
+  options: { isAdmin?: boolean } = {},
+): Promise<ExpenseView> {
   if (!Types.ObjectId.isValid(id)) throw notFound('Expense not found');
 
   return withFinanceLocks([`expense:${id}`], async () => {
@@ -1111,7 +1118,7 @@ export async function approveExpense(id: string, actorId: string): Promise<Expen
           + 'be approved.',
       );
     }
-    if (expense.submittedBy && String(expense.submittedBy) === actorId) {
+    if (expense.submittedBy && String(expense.submittedBy) === actorId && !options.isAdmin) {
       throw badRequest(
         'You submitted this expense, so somebody else has to approve it. A second person looking '
           + 'at it is the whole point of it waiting.',

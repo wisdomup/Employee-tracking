@@ -212,7 +212,7 @@ const ExpensesPage: React.FC = () => {
               approval · {money(waitingValue)}
             </span>
             {can(undefined, 'finance-expenses:change')
-              ? 'Open each one to approve it or send it back. You cannot approve one you submitted yourself.'
+              ? 'Open each one to approve it or send it back.'
               : 'Somebody allowed to approve expenses needs to look at these.'}{' '}
             <a
               href="#"

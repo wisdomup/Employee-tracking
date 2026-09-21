@@ -490,7 +490,28 @@ async function main(): Promise<void> {
   await test('there is no switch for expenses — approval is the gate', async () => {
     assert.equal((POSTING_EVENT_KEYS as readonly string[]).includes('expense'), false);
   });
-}
+
+  await test('the admin may approve an expense they submitted themselves', async () => {
+    const draft = await expenses.createExpense(
+      {
+        categoryId: await categoryId('Rent'),
+        expenseDate: now,
+        description: 'Office rent, raised by the admin',
+        amount: 1000,
+        method: 'bank_transfer',
+        paidFromLedgerId: bank,
+        transferReference: 'IBFT-ADMIN',
+        attachments: receipt,
+      },
+      SUBMITTER,
+    );
+    const submitted = await expenses.submitExpense(draft.id, SUBMITTER);
+    assert.equal(submitted.status, 'pending_approval');
+
+    const approved = await expenses.approveExpense(draft.id, SUBMITTER, { isAdmin: true });
+    assert.equal(approved.status, 'posted');
+    assert.equal(approved.approvedBy, SUBMITTER, 'the approval is still recorded against the admin');
+  });}
 
 main()
   .then(async () => {

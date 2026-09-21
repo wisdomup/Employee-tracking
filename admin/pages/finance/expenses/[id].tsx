@@ -10,6 +10,7 @@ import ExpenseForm, {
 } from '../../../components/Finance/ExpenseForm';
 import { money } from '../../../components/Finance/BillForm';
 import { can } from '../../../utils/permissions';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   expenseCategoryService,
   expenseService,
@@ -58,6 +59,9 @@ function expenseToForm(expense: Expense): ExpenseFormValues {
 const ExpensePage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
+  // The admin holds every control, so the two-person rule does not bind them.
+  const isAdmin = user?.role === 'admin' || (user?.roles ?? []).includes('admin');
 
   const [expense, setExpense] = useState<Expense | null>(null);
   const [values, setValues] = useState<ExpenseFormValues | null>(null);
@@ -161,7 +165,7 @@ const ExpensePage: React.FC = () => {
       return;
     }
     const message = expense.approvalNeeded
-      ? `Submit for approval?\n\n${expense.approvalNeeded}\n\nNothing reaches the accounts until a second person approves it.`
+      ? `Submit for approval?\n\n${expense.approvalNeeded}\n\n${isAdmin ? 'You can approve it yourself next.' : 'Nothing reaches the accounts until a second person approves it.'}`
       : `Submit and post?\n\n${expense.categoryName}: ${expense.description}\n`
         + `Paid out: ${money(expense.totalAmount)}\n`
         + `${PAYMENT_METHOD_LABELS[expense.method]} from ${expense.paidFromName}\n\n`
@@ -291,7 +295,7 @@ const ExpensePage: React.FC = () => {
               {expense.isChequeUncleared ? 'Posted — cheque not yet cleared' : 'Posted'}
             </span>
             {money(expense.totalAmount)} spent
-            {expense.approvedAt ? ', approved by a second person' : ''}.{' '}
+            {expense.approvedAt ? ', approved' : ''}.{' '}
             {expense.journalEntryId && (
               <a href={`/finance/journal/${expense.journalEntryId}`}>See the entry it wrote</a>
             )}

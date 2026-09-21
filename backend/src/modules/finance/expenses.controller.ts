@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ExpenseStatus } from '../../models/expense.model';
 import { PaymentMethod } from '../../models/supplier-payment.model';
+import { ROLES } from '../../constants/global';
 import * as expenses from './expenses.service';
 
 // ---------------------------------------------------------------------------
@@ -109,7 +110,11 @@ export async function submit(req: Request, res: Response, next: NextFunction) {
 
 export async function approve(req: Request, res: Response, next: NextFunction) {
   try {
-    res.json(await expenses.approveExpense(req.params.id, req.user!.userId));
+    res.json(
+      await expenses.approveExpense(req.params.id, req.user!.userId, {
+        isAdmin: req.user!.roles.includes(ROLES.ADMIN),
+      }),
+    );
   } catch (err) {
     next(err);
   }
