@@ -1,3 +1,5 @@
+@use 'ui' as *;
+
 /* Full width: a table should use the screen it is given. A 1400px cap left a band of empty
  * space beside every list on a wide monitor while the table itself scrolled sideways. */
 .page {
@@ -6,12 +8,10 @@
 }
 
 .header {
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 
   h1 {
-    margin: 0;
-    font-size: 2rem;
-    color: var(--admin-primary);
+    @include ui-page-title;
   }
 }
 
@@ -121,12 +121,11 @@
 }
 
 .detailHeader {
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 
   h1 {
-    margin: 0.4rem 0 0;
-    font-size: 1.8rem;
-    color: var(--admin-primary);
+    @include ui-page-title;
+    margin-top: 0.4rem;
   }
 }
 
@@ -160,16 +159,11 @@
 }
 
 .section {
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  padding: 1rem;
+  @include ui-card;
   margin-bottom: 1rem;
 
   h2 {
-    margin: 0 0 0.75rem;
-    font-size: 1.1rem;
-    color: #1f2937;
+    @include ui-section-title;
   }
 }
 
@@ -182,46 +176,9 @@
   padding: 0.5rem;
 }
 
+/* Scroll container only. The table inside draws its own frame; a border here doubled it. */
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  background: #fff;
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  th,
-  td {
-    text-align: left;
-    padding: 0.75rem 0.6rem;
-    border-bottom: 1px solid #e5e7eb;
-    font-size: 0.9rem;
-  }
-
-  th {
-    color: var(--admin-primary);
-    font-weight: 600;
-    background: #f3f4f6;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-
-  td {
-    color: #1f2937;
-    font-weight: 500;
-  }
-
-  tbody tr:nth-child(even) {
-    background: #f9fafb;
-  }
-
-  tbody tr:hover {
-    background: #eff6ff;
-  }
 }
 
 .emptyState {

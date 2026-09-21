@@ -1,3 +1,5 @@
+@use '../../styles/ui' as *;
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -112,29 +114,10 @@
 }
 
 .secondaryButton,
-.cancelButton,
-.submitButton {
-  padding: 0.55rem 1.1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
-.secondaryButton,
 .cancelButton {
-  background: #fff;
-  border-color: #d1d5db;
-  color: #374151;
+  @include ui-button(secondary);
 }
 
 .submitButton {
-  background: var(--admin-primary);
-  color: #fff;
+  @include ui-button(primary);
 }

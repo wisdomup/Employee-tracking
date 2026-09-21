@@ -1,0 +1,248 @@
+// Shared UI primitives: buttons, inputs, page headers and cards.
+//
+// Every screen had grown its own copy of these — five primary-button sizes between 36px and 48px
+// tall, four page-title sizes, cards with three radii and two border colours, and form inputs 10px
+// taller than the dropdowns beside them. The modules now include these mixins instead, so a change
+// here reaches every page and the pages cannot drift apart again.
+//
+// Desktop sizes are compact; at 900px and below every control grows back to a 44px+ touch target
+// with 16px+ text, which is also what stops iOS zooming the page when a field takes focus.
+
+$ui-touch-breakpoint: 900px;
+
+$ui-border: #d1d5db;
+$ui-border-subtle: #e5e7eb;
+$ui-text: #111827;
+$ui-text-body: #374151;
+$ui-text-muted: #6b7280;
+$ui-radius: 0.5rem;
+$ui-radius-card: 0.75rem;
+
+@mixin ui-touch {
+  @media (max-width: $ui-touch-breakpoint) {
+    @content;
+  }
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────
+
+@mixin ui-button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: $ui-radius;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  @include ui-touch {
+    min-height: 2.75rem;
+    font-size: 0.9375rem;
+  }
+}
+
+/// Compact button for table rows, toolbars and the export control.
+@mixin ui-button-small {
+  min-height: 1.875rem;
+  padding: 0 0.625rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+
+  @include ui-touch {
+    min-height: 2.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+/// `$variant`: primary | secondary | danger | success | soft-info | soft-success | soft-danger
+@mixin ui-button($variant: secondary, $size: md) {
+  @include ui-button-base;
+
+  @if $size == sm {
+    @include ui-button-small;
+  }
+
+  @if $variant == primary {
+    background: var(--admin-primary);
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: var(--admin-primary-hover);
+    }
+  } @else if $variant == secondary {
+    background: #fff;
+    color: $ui-text-body;
+    border-color: $ui-border;
+
+    &:hover:not(:disabled) {
+      background: #f9fafb;
+      border-color: #9ca3af;
+    }
+  } @else if $variant == danger {
+    background: #fff;
+    color: #b91c1c;
+    border-color: #fecaca;
+
+    &:hover:not(:disabled) {
+      background: #fef2f2;
+      border-color: #fca5a5;
+    }
+  } @else if $variant == success {
+    background: #16a34a;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: #15803d;
+    }
+  } @else if $variant == soft-info {
+    background: #dbeafe;
+    color: #1e40af;
+
+    &:hover:not(:disabled) {
+      background: #bfdbfe;
+    }
+  } @else if $variant == soft-success {
+    background: #dcfce7;
+    color: #166534;
+
+    &:hover:not(:disabled) {
+      background: #bbf7d0;
+    }
+  } @else if $variant == soft-danger {
+    background: #fee2e2;
+    color: #991b1b;
+
+    &:hover:not(:disabled) {
+      background: #fecaca;
+    }
+  }
+}
+
+// ── Inputs ─────────────────────────────────────────────────────────────────
+
+/// Text input, textarea and native select. Matches `SearchableSelect`'s control box exactly, so a
+/// row of mixed fields lines up.
+@mixin ui-input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid $ui-border;
+  border-radius: $ui-radius;
+  background: #fff;
+  color: $ui-text;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: #9ca3af;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
+  }
+
+  &:disabled {
+    background: #f3f4f6;
+    color: $ui-text-muted;
+    cursor: not-allowed;
+  }
+
+  @include ui-touch {
+    min-height: 3rem;
+    padding: 0.625rem 0.75rem;
+    font-size: max(18px, 1.125rem);
+  }
+}
+
+@mixin ui-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: $ui-text-body;
+}
+
+// ── Page header ────────────────────────────────────────────────────────────
+
+@mixin ui-page-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: $ui-text;
+
+  @media (max-width: 480px) {
+    font-size: 1.5rem;
+  }
+}
+
+/// Title on the left, actions on the right. One size of page title across the app.
+@mixin ui-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+
+  h1 {
+    @include ui-page-title;
+  }
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 1rem;
+  }
+}
+
+// ── Cards ──────────────────────────────────────────────────────────────────
+
+@mixin ui-card($padding: 1.25rem) {
+  background: #fff;
+  border: 1px solid $ui-border-subtle;
+  border-radius: $ui-radius-card;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: $padding;
+
+  // A card whose body pads itself (the list card) passes 0 and keeps it at every width.
+  @if $padding != 0 {
+    @media (max-width: 480px) {
+      padding: 1rem;
+    }
+  }
+}
+
+@mixin ui-section-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: $ui-text;
+}

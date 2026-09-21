@@ -1,3 +1,5 @@
+@use 'ui' as *;
+
 /*
  * A plain form keeps a reading width: a name field stretched across a wide monitor is harder to
  * fill, not easier. A form that holds a table — order and return line items, stock-in, transfer,
@@ -15,83 +17,28 @@
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-
-  h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin: 0;
-  }
-
-  @media (max-width: 480px) {
-    flex-direction: column;
-    align-items: stretch;
-    margin-bottom: 1.5rem;
-
-    h1 {
-      font-size: 1.5rem;
-    }
-  }
+  @include ui-page-header;
 }
 
 .backButton {
-  padding: 0.75rem 1.5rem;
-  background-color: #e5e7eb;
-  color: #1f2937;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: #d1d5db;
-  }
+  @include ui-button(secondary);
 }
 
 .form {
-  background: white;
-  padding: 2rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-
-  @media (max-width: 480px) {
-    padding: 1rem;
-  }
+  @include ui-card(1.5rem);
 }
 
 .formGroup {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.125rem;
 
   label {
-    display: block;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 0.5rem;
+    @include ui-label;
   }
 }
 
 .input,
 .textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  background: white;
-  color: black;
-
-  &:focus {
-    outline: none;
-    border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
-  }
+  @include ui-input;
 }
 
 /*
@@ -160,51 +107,26 @@
 
 .formActions {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   justify-content: flex-end;
-  margin-top: 2rem;
-  padding-top: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
   border-top: 1px solid #e5e7eb;
   flex-wrap: wrap;
 
   @media (max-width: 480px) {
-    flex-direction: column;
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
+    flex-direction: column-reverse;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
   }
-}
-
-.submitButton,
-.cancelButton {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
 }
 
 .submitButton {
-  background-color: var(--admin-primary);
-  color: white;
-
-  &:hover:not(:disabled) {
-    background-color: var(--admin-primary-hover);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+  @include ui-button(primary);
 }
 
 .cancelButton {
-  background-color: #e5e7eb;
-  color: #1f2937;
-
-  &:hover {
-    background-color: #d1d5db;
-  }
+  @include ui-button(secondary);
 }
 
 .desktopOnly {
@@ -223,7 +145,7 @@
 
 .lineItemCard {
   border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
+  border-radius: $ui-radius-card;
   padding: 0.875rem;
   background: #ffffff;
   display: flex;

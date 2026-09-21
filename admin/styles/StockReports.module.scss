@@ -1,3 +1,5 @@
+@use 'ui' as *;
+
 /* Full width: a table should use the screen it is given. A 1400px cap left a band of empty
  * space beside every list on a wide monitor while the table itself scrolled sideways. */
 .page {
@@ -5,19 +7,7 @@
 }
 
 .header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-
-  h1 {
-    margin: 0;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #1f2937;
-  }
+  @include ui-page-header;
 }
 
 .headerActions {
@@ -27,22 +17,7 @@
 }
 
 .printButton {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background 0.15s;
-
-  &:hover {
-    background: #e5e7eb;
-  }
+  @include ui-button(secondary);
 }
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -73,19 +48,7 @@
 }
 
 .filterInput {
-  width: 100%;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  background: white;
-  color: #1f2937;
-
-  &:focus {
-    outline: none;
-    border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px var(--admin-primary-focus-ring);
-  }
+  @include ui-input;
 }
 
 .filterActions {
@@ -95,35 +58,11 @@
 }
 
 .applyButton {
-  padding: 0.55rem 1.25rem;
-  background: var(--admin-primary);
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background 0.15s;
-
-  &:hover {
-    background: var(--admin-primary-hover);
-  }
+  @include ui-button(primary);
 }
 
 .resetButton {
-  padding: 0.55rem 1rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background 0.15s;
-
-  &:hover {
-    background: #e5e7eb;
-  }
+  @include ui-button(secondary);
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────

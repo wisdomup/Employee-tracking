@@ -1,3 +1,5 @@
+@use 'ui' as *;
+
 /* Full width: a table should use the screen it is given. A 1400px cap left a band of empty
  * space beside every list on a wide monitor while the table itself scrolled sideways. */
 .dashboard {
@@ -5,15 +7,8 @@
 }
 
 .title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 2rem;
-
-  @media (max-width: 480px) {
-    font-size: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
+  @include ui-page-title;
+  margin-bottom: 1.25rem;
 }
 
 .statsGrid {
@@ -392,33 +387,9 @@
 }
 
 .inboxPrimaryBtn {
-  border: none;
-  background: var(--admin-primary);
-  color: #fff;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-
-  &:hover:not(:disabled) {
-    background: var(--admin-primary-hover);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+  @include ui-button(primary);
 }
 
 .inboxSecondaryBtn {
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #374151;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
+  @include ui-button(secondary);
 }

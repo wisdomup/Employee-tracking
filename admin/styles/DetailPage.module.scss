@@ -1,3 +1,5 @@
+@use 'ui' as *;
+
 /* Full width: a table should use the screen it is given. A 1400px cap left a band of empty
  * space beside every list on a wide monitor while the table itself scrolled sideways. */
 .container {
@@ -5,34 +7,12 @@
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-
-  h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin: 0;
-  }
-
-  @media (max-width: 480px) {
-    flex-direction: column;
-    align-items: stretch;
-    margin-bottom: 1.5rem;
-
-    h1 {
-      font-size: 1.5rem;
-    }
-  }
+  @include ui-page-header;
 }
 
 .headerActions {
   display: flex;
-  gap: 1rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 
   @media (max-width: 480px) {
@@ -45,55 +25,21 @@
   }
 }
 
-.editButton,
-.approveButton,
-.backButton {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
 .editButton {
-  background-color: var(--admin-primary);
-  color: white;
-
-  &:hover {
-    background-color: var(--admin-primary-hover);
-  }
+  @include ui-button(primary);
 }
 
 .approveButton {
-  background-color: #22c55e;
-  color: white;
-
-  &:hover {
-    background-color: #16a34a;
-  }
+  @include ui-button(success);
 }
 
 .backButton {
-  background-color: #e5e7eb;
-  color: #1f2937;
-
-  &:hover {
-    background-color: #d1d5db;
-  }
+  @include ui-button(secondary);
 }
 
+/* Teal is kept on purpose: it is the colour "Navigate" wears everywhere, row links included. */
 .navigateButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s, opacity 0.2s;
+  @include ui-button-base;
   background-color: #0f766e;
   color: white;
 
@@ -117,26 +63,16 @@
 .content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .section {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
+  @include ui-card;
 
   h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
+    @include ui-section-title;
+    padding-bottom: 0.625rem;
     border-bottom: 1px solid #e5e7eb;
-  }
-
-  @media (max-width: 480px) {
-    padding: 1rem;
   }
 }
 
@@ -148,8 +84,8 @@
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.625rem;
   border-bottom: 1px solid #e5e7eb;
 
   h2 {
