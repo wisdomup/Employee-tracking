@@ -4,6 +4,9 @@ import Layout from '../../components/Layout/Layout';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Loader from '../../components/UI/Loader';
 import FinanceNav from '../../components/Finance/FinanceNav';
+import TrailPanel from '../../components/Finance/TrailPanel';
+import TrailAmount from '../../components/Finance/TrailAmount';
+import { useTrail } from '../../hooks/useTrail';
 import { can } from '../../utils/permissions';
 import {
   healthService,
@@ -36,6 +39,7 @@ function humanise(key: string): string {
 }
 
 const HealthPage: React.FC = () => {
+  const { stack: trailStack, openTrail, pushTrail, goToTrail, closeTrail } = useTrail();
   const [checks, setChecks] = useState<ControlCheck[]>([]);
   const [day, setDay] = useState('');
   const [switches, setSwitches] = useState<PostingSwitch[]>([]);
@@ -193,9 +197,25 @@ const HealthPage: React.FC = () => {
                               </div>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <span className={styles.amount}>{money(check.ledgerBalance)}</span>
+                              {/*
+                                The books side of the comparison, openable. This screen's whole job
+                                is to say the two sides disagree; the next question is always which
+                                postings made up the books figure.
+                              */}
+                              <TrailAmount
+                                value={check.ledgerBalance}
+                                trail={check.ledgerId ? { kind: 'ledger', ledgerId: check.ledgerId } : null}
+                                onOpen={openTrail}
+                                format={money}
+                                title={`Every posting on account ${check.ledgerCode}`}
+                              />
                             </td>
                             <td style={{ textAlign: 'right' }}>
+                              {/*
+                                The operational side is counted from orders, collections, stock and
+                                payroll rather than from journal lines, so there is no trail to open —
+                                the working below names the parts it was summed from.
+                              */}
                               <span className={styles.amount}>
                                 {money(check.operationalValue)}
                               </span>
@@ -371,6 +391,13 @@ const HealthPage: React.FC = () => {
           </>
         )}
       </div>
+
+      <TrailPanel
+        stack={trailStack}
+        onPush={pushTrail}
+        onGoTo={goToTrail}
+        onClose={closeTrail}
+      />
     </Layout>
   );
 };

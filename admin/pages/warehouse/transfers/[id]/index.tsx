@@ -24,6 +24,7 @@ import { can } from '../../../../utils/permissions';
 import { useAuth } from '../../../../contexts/AuthContext';
 import styles from '../../../../styles/DetailPage.module.scss';
 import modalStyles from '../../../../styles/Modal.module.scss';
+import PostedEntries from '../../../../components/Finance/PostedEntries';
 
 /** Mirrors the on-screen Products table, including the sent-vs-received difference. */
 const transferExportColumns: TableExportColumn[] = [
@@ -580,6 +581,12 @@ function TransferDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this transfer did to the accounts" />
       )}
     </Layout>
   );

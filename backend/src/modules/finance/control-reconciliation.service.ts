@@ -44,6 +44,17 @@ export interface ControlCheck {
   checkId: string;
   label: string;
   ledgerCode: string;
+  /**
+   * The control account itself.
+   *
+   * Only the code was carried before, which is enough to print and not enough to open. This screen
+   * exists to say that the books and the operational side disagree; the first useful thing after
+   * reading that is to look at the postings, and a code cannot be followed.
+   *
+   * Empty when the engine role is not mapped, which is the same condition that leaves the check out
+   * of the list entirely.
+   */
+  ledgerId: string;
   ledgerBalance: number;
   operationalValue: number;
   drift: number;
@@ -53,7 +64,9 @@ export interface ControlCheck {
 }
 
 /** A ledger's balance by the engine role it plays, so a renamed account still resolves. */
-async function balanceOfRole(role: string): Promise<{ code: string; balance: number } | null> {
+async function balanceOfRole(
+  role: string,
+): Promise<{ id: string; code: string; balance: number } | null> {
   const settings = await FinanceSettingsModel.findOne({ key: 'singleton' })
     .select('ledgerMap')
     .lean()
@@ -64,13 +77,13 @@ async function balanceOfRole(role: string): Promise<{ code: string; balance: num
 
   const ledger = await LedgerModel.findById(id).select('code cachedBalance').lean().exec();
   if (!ledger) return null;
-  return { code: ledger.code, balance: round2(ledger.cachedBalance) };
+  return { id: String(ledger._id), code: ledger.code, balance: round2(ledger.cachedBalance) };
 }
 
 function makeCheck(
   checkId: string,
   label: string,
-  ledger: { code: string; balance: number },
+  ledger: { id: string; code: string; balance: number },
   operationalValue: number,
   breakdown: Record<string, number>,
   note?: string,
@@ -80,6 +93,7 @@ function makeCheck(
     checkId,
     label,
     ledgerCode: ledger.code,
+    ledgerId: ledger.id,
     ledgerBalance: ledger.balance,
     operationalValue: round2(operationalValue),
     drift,
@@ -578,10 +592,26 @@ export async function latestControlChecks(): Promise<ReconciliationResult> {
   }
 
   const rows = await ControlReconciliationModel.find({ day: latest.day }).lean().exec();
+
+  /*
+   * The account id is resolved from the stored CODE rather than stored alongside it.
+   *
+   * A stored id would need a schema field and would leave every row written before today without
+   * one, so the screen would offer a trail on new rows and not on last week's. Resolving by code
+   * costs one query and works for every row ever written. A re-coded account resolves to whatever
+   * holds that code now, which is the same account the balance came from.
+   */
+  const ledgers = await LedgerModel.find({ code: { $in: rows.map((r) => r.ledgerCode) } })
+    .select('_id code')
+    .lean()
+    .exec();
+  const idByCode = new Map(ledgers.map((l) => [l.code, String(l._id)]));
+
   const checks: ControlCheck[] = rows.map((r) => ({
     checkId: r.checkId,
     label: r.label,
     ledgerCode: r.ledgerCode,
+    ledgerId: idByCode.get(r.ledgerCode) ?? '',
     ledgerBalance: r.ledgerBalance,
     operationalValue: r.operationalValue,
     drift: r.drift,

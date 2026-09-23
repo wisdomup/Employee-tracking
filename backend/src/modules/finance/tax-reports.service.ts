@@ -71,6 +71,16 @@ export interface TaxSummary {
   inputTaxCode: string;
   outputTaxCode: string;
   withheldTaxCode: string;
+  /**
+   * The three tax accounts these totals came from.
+   *
+   * The codes were already here for display; the ids are what lets a reader open the account and see
+   * the postings that produced the figure. Empty when the role is not mapped, which is the same
+   * condition the codes already report as an empty string.
+   */
+  inputTaxLedgerId: string;
+  outputTaxLedgerId: string;
+  withheldTaxLedgerId: string;
   /** Supplier by supplier, from the documents — the purchase side of a return. */
   purchases: TaxPartyRow[];
   purchasesTaxTotal: number;
@@ -306,6 +316,9 @@ export async function taxSummary(input: { from?: string; to?: string } = {}): Pr
     withheldTaxCode: withheldRole?.code ?? '',
     inputTaxCode: inputRole?.code ?? '',
     outputTaxCode: outputRole?.code ?? '',
+    inputTaxLedgerId: inputRole ? String(inputRole.id) : '',
+    outputTaxLedgerId: outputRole ? String(outputRole.id) : '',
+    withheldTaxLedgerId: withheldRole ? String(withheldRole.id) : '',
     purchases,
     purchasesTaxTotal,
     unattributedInputTax,

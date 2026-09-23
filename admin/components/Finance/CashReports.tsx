@@ -1,7 +1,19 @@
 import React from 'react';
-import { CashFlow, CashFlowSection, CashPosition } from '../../services/financeService';
+import { CashFlow, CashFlowSection, CashPosition, TrailRef } from '../../services/financeService';
+import TrailAmount from './TrailAmount';
 import { statementMoney } from './StatementTable';
 import styles from '../../styles/Finance.module.scss';
+
+/**
+ * The window these reports cover, as days.
+ *
+ * Passed down so a figure opens the same period on the account behind it. Cash flow works in months
+ * and cash position in days, so only the caller knows which it has.
+ */
+interface TrailProps {
+  onTrail?: (ref: TrailRef) => void;
+  window?: { from?: string; to?: string };
+}
 
 /**
  * The two cash reports, rendered.
@@ -26,7 +38,7 @@ const FlowSection: React.FC<{
   hint: string;
   section: CashFlowSection;
   onLedger?: (ledgerId: string) => void;
-}> = ({ title, hint, section, onLedger }) => (
+} & TrailProps> = ({ title, hint, section, onLedger, onTrail, window }) => (
   <>
     <tr>
       <td colSpan={2} style={{ fontWeight: 600, paddingTop: '0.9rem' }}>
@@ -59,9 +71,14 @@ const FlowSection: React.FC<{
           )}
         </td>
         <td style={{ textAlign: 'right' }}>
-          <span className={`${styles.amount} ${r.amount < 0 ? styles.amountNegative : ''}`}>
-            {statementMoney(r.amount)}
-          </span>
+          <TrailAmount
+            value={r.amount}
+            trail={{ kind: 'ledger', ledgerId: r.ledgerId, from: window?.from, to: window?.to }}
+            onOpen={onTrail}
+            format={statementMoney}
+            className={r.amount < 0 ? styles.amountNegative : undefined}
+            title={`Every movement between cash and ${r.name}`}
+          />
         </td>
       </tr>
     ))}
@@ -74,10 +91,10 @@ const FlowSection: React.FC<{
   </>
 );
 
-export const CashFlowReport: React.FC<{ report: CashFlow; onLedger?: (ledgerId: string) => void }> = ({
-  report,
-  onLedger,
-}) => (
+export const CashFlowReport: React.FC<{
+  report: CashFlow;
+  onLedger?: (ledgerId: string) => void;
+} & TrailProps> = ({ report, onLedger, onTrail, window }) => (
   <>
     <div className={`${styles.banner} ${report.netChange >= 0 ? styles.bannerOk : styles.bannerBad}`}>
       <span className={styles.bannerTitle}>
@@ -120,18 +137,24 @@ export const CashFlowReport: React.FC<{ report: CashFlow; onLedger?: (ledgerId: 
             hint="Selling, collecting, buying stock, paying bills and running costs."
             section={report.operating}
             onLedger={onLedger}
+            onTrail={onTrail}
+            window={window}
           />
           <FlowSection
             title="Investing"
             hint="Buying or selling things the business keeps — vehicles, equipment."
             section={report.investing}
             onLedger={onLedger}
+            onTrail={onTrail}
+            window={window}
           />
           <FlowSection
             title="Financing"
             hint="Money put in or taken out by the owner, and loans taken or repaid."
             section={report.financing}
             onLedger={onLedger}
+            onTrail={onTrail}
+            window={window}
           />
         </tbody>
         <tfoot>
@@ -160,10 +183,10 @@ export const CashFlowReport: React.FC<{ report: CashFlow; onLedger?: (ledgerId: 
   </>
 );
 
-export const CashPositionReport: React.FC<{ report: CashPosition; onLedger?: (ledgerId: string) => void }> = ({
-  report,
-  onLedger,
-}) => (
+export const CashPositionReport: React.FC<{
+  report: CashPosition;
+  onLedger?: (ledgerId: string) => void;
+} & TrailProps> = ({ report, onLedger, onTrail, window }) => (
   <>
     <div className={styles.settingsGrid}>
       <div className={styles.settingCard}>
@@ -225,18 +248,36 @@ export const CashPositionReport: React.FC<{ report: CashPosition; onLedger?: (le
                 )}
               </td>
               <td style={{ textAlign: 'right' }}>
+                {/* The opening figure is a position carried in from before the window, so the rows
+                    inside the window could never add up to it. It stays text. */}
                 <span className={styles.amount}>{statementMoney(a.opening)}</span>
               </td>
               <td style={{ textAlign: 'right' }}>
-                <span className={styles.amount}>{statementMoney(a.moneyIn)}</span>
+                <TrailAmount
+                  value={a.moneyIn}
+                  trail={{ kind: 'ledger', ledgerId: a.ledgerId, from: window?.from, to: window?.to }}
+                  onOpen={onTrail}
+                  format={statementMoney}
+                  title={`What came into ${a.name}`}
+                />
               </td>
               <td style={{ textAlign: 'right' }}>
-                <span className={styles.amount}>{statementMoney(a.moneyOut)}</span>
+                <TrailAmount
+                  value={a.moneyOut}
+                  trail={{ kind: 'ledger', ledgerId: a.ledgerId, from: window?.from, to: window?.to }}
+                  onOpen={onTrail}
+                  format={statementMoney}
+                  title={`What went out of ${a.name}`}
+                />
               </td>
               <td style={{ textAlign: 'right' }}>
-                <span className={`${styles.amount} ${a.closing < 0 ? styles.amountNegative : ''}`}>
-                  {statementMoney(a.closing)}
-                </span>
+                <TrailAmount
+                  value={a.closing}
+                  trail={{ kind: 'ledger', ledgerId: a.ledgerId, to: window?.to }}
+                  onOpen={onTrail}
+                  format={statementMoney}
+                  className={a.closing < 0 ? styles.amountNegative : undefined}
+                />
               </td>
             </tr>
           ))}

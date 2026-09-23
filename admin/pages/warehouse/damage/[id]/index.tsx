@@ -22,6 +22,7 @@ import { printWarehouseSlip, damageSlipDoc } from '../../../../utils/warehouseSl
 import { can } from '../../../../utils/permissions';
 import { useAuth } from '../../../../contexts/AuthContext';
 import styles from '../../../../styles/DetailPage.module.scss';
+import PostedEntries from '../../../../components/Finance/PostedEntries';
 
 type ModalKind = 'reject' | 'cancel' | null;
 
@@ -354,6 +355,12 @@ function DamageDetailPage() {
         }}
         onConfirm={handleReason}
       />
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this claim did to the accounts" />
+      )}
     </Layout>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from '../../../services/financeService';
 import styles from '../../../styles/FormPage.module.scss';
 import finance from '../../../styles/Finance.module.scss';
+import PostedEntries from '../../../components/Finance/PostedEntries';
 
 /**
  * One payment: edited while it is being prepared, read-only once released.
@@ -385,6 +386,12 @@ const PaymentPage: React.FC = () => {
           </p>
         )}
       </div>
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this payment did to the accounts" />
+      )}
     </Layout>
   );
 };

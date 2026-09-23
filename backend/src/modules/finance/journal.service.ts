@@ -408,7 +408,9 @@ export async function ledgerStatement(
 
   const entryIds = [...new Set(lines.map((l) => String(l.journalEntryId)))];
   const entries = await JournalEntryModel.find({ _id: { $in: entryIds } })
-    .select('_id entryNo narration referenceNo sourceType status')
+    // `sourceId`/`sourceModel` ride along so a statement row can open the document that caused
+    // it. Without them the statement is a dead end: the reader sees what moved and not why.
+    .select('_id entryNo narration referenceNo sourceType sourceId sourceModel status')
     .lean()
     .exec();
   const entryById = new Map(entries.map((e) => [String(e._id), e]));
@@ -426,6 +428,13 @@ export async function ledgerStatement(
       referenceNo: entry?.referenceNo ?? null,
       narration: line.lineNarration || entry?.narration || '',
       sourceType: entry?.sourceType ?? 'manual',
+      sourceId: entry?.sourceId ? String(entry.sourceId) : null,
+      sourceModel: entry?.sourceModel ?? null,
+      // Which shop, supplier, rider or employee this line belongs to. Already stored and indexed;
+      // returning it means a control account reads as a list of parties rather than of amounts.
+      subledger: line.subledgerRef
+        ? { type: line.subledgerRef.type, id: String(line.subledgerRef.id) }
+        : null,
       status: line.status,
       debit: line.debit,
       credit: line.credit,
@@ -496,6 +505,9 @@ export async function dayBook(from: string, to?: string) {
       totalDebit: entry.totalDebit,
       totalCredit: entry.totalCredit,
       lines: (linesByEntry.get(String(entry._id)) ?? []).map((l) => ({
+        // The id as well as the code: a line amount is a click target for that account's own
+        // trail, and a code cannot be turned back into an id without another round trip.
+        ledgerId: String(l.ledgerId),
         ledgerCode: ledgerById.get(String(l.ledgerId))?.code ?? '—',
         ledgerName: ledgerById.get(String(l.ledgerId))?.name ?? 'Deleted account',
         debit: l.debit,
@@ -578,6 +590,9 @@ export async function entriesForSource(sourceId: string) {
       reversedByEntryId: entry.reversedByEntryId ? String(entry.reversedByEntryId) : null,
       reversalOf: entry.reversalOf ? String(entry.reversalOf) : null,
       lines: (linesByEntry.get(String(entry._id)) ?? []).map((l) => ({
+        // The id as well as the code: a line amount is a click target for that account's own
+        // trail, and a code cannot be turned back into an id without another round trip.
+        ledgerId: String(l.ledgerId),
         ledgerCode: ledgerById.get(String(l.ledgerId))?.code ?? '—',
         ledgerName: ledgerById.get(String(l.ledgerId))?.name ?? 'Deleted account',
         debit: l.debit,

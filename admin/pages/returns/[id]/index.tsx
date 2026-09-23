@@ -16,6 +16,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import styles from '../../../styles/DetailPage.module.scss';
+import PostedEntries from '../../../components/Finance/PostedEntries';
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   pending: { bg: '#fef3c7', color: '#92400e' },
@@ -348,6 +349,12 @@ const ReturnDetailPage: React.FC = () => {
             style={{ maxHeight: '90vh', maxWidth: '90vw', borderRadius: 8 }}
           />
         </div>
+      )}
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this return did to the accounts" />
       )}
     </Layout>
   );

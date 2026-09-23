@@ -103,10 +103,34 @@ async function main(): Promise<void> {
     const result = await controls.runControlReconciliation();
     for (const check of result.checks) {
       assert.ok(check.ledgerCode, `${check.checkId} does not say which account it checked`);
+      // The id, not only the code: the code can be printed and cannot be followed, and the first
+      // thing anybody does with a drift is go and look at the postings.
+      assert.match(
+        check.ledgerId,
+        /^[0-9a-f]{24}$/,
+        `${check.checkId} names an account that cannot be opened`,
+      );
+      const named = await LedgerModel.findById(check.ledgerId).select('code').lean().exec();
+      assert.equal(named?.code, check.ledgerCode, `${check.checkId}: id and code disagree`);
       assert.equal(typeof check.operationalValue, 'number');
       assert.ok(
         Object.keys(check.breakdown).length > 0,
         `${check.checkId} reports a verdict with no working`,
+      );
+    }
+  });
+
+  await test('a stored run still names an openable account, not only a code', async () => {
+    // The id is resolved from the stored code on read rather than persisted, so rows written before
+    // this existed still drill. Reading the LATEST run is what the screen actually does.
+    await controls.runControlReconciliation();
+    const latest = await controls.latestControlChecks();
+    assert.ok(latest.checks.length > 0);
+    for (const check of latest.checks) {
+      assert.match(
+        check.ledgerId,
+        /^[0-9a-f]{24}$/,
+        `${check.checkId} came back from storage with no account id`,
       );
     }
   });

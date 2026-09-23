@@ -103,7 +103,20 @@ const PostedEntries: React.FC<Props> = ({ sourceId, title = 'In the accounts' })
                 {entry.lines.map((line, i) => (
                   <tr key={i}>
                     <td>
-                      <span className={styles.code}>{line.ledgerCode}</span> {line.ledgerName}
+                      {/*
+                        The account, openable. Someone reading "what did this document do" almost
+                        always asks "and what else is on that account" next, and until now that meant
+                        going to the reports page and searching for it by name.
+                      */}
+                      {line.ledgerId ? (
+                        <Link href={{ pathname: '/finance/reports', query: { tab: 'ledger-statement', ledgerId: line.ledgerId } }}>
+                          <span className={styles.code}>{line.ledgerCode}</span> {line.ledgerName}
+                        </Link>
+                      ) : (
+                        <>
+                          <span className={styles.code}>{line.ledgerCode}</span> {line.ledgerName}
+                        </>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right', width: '8rem' }}>
                       <span className={styles.amount}>

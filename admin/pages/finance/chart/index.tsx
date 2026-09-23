@@ -5,6 +5,9 @@ import Layout from '../../../components/Layout/Layout';
 import ProtectedRoute from '../../../components/Auth/ProtectedRoute';
 import Table from '../../../components/UI/Table';
 import FinanceNav from '../../../components/Finance/FinanceNav';
+import TrailPanel from '../../../components/Finance/TrailPanel';
+import TrailAmount from '../../../components/Finance/TrailAmount';
+import { useTrail } from '../../../hooks/useTrail';
 import { can } from '../../../utils/permissions';
 import {
   financeService,
@@ -55,6 +58,7 @@ function collectSubtreeIds(groups: AccountGroup[], rootId: string): Set<string> 
 
 const ChartOfAccountsPage: React.FC = () => {
   const router = useRouter();
+  const { stack: trailStack, openTrail, pushTrail, goToTrail, closeTrail } = useTrail();
 
   const [groups, setGroups] = useState<AccountGroup[]>([]);
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
@@ -204,10 +208,15 @@ const ChartOfAccountsPage: React.FC = () => {
     {
       key: 'naturalBalance',
       title: 'Balance',
-      render: (value: number) => (
-        <span className={`${styles.amount} ${value < 0 ? styles.amountNegative : ''}`}>
-          {value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
+      // The chart is where somebody goes to ask what an account is; the balance is the first thing
+      // they question, and it is the one figure on this page that has postings behind it.
+      render: (value: number, row: Ledger) => (
+        <TrailAmount
+          value={value}
+          trail={{ kind: 'ledger', ledgerId: row.id }}
+          onOpen={openTrail}
+          title={`Every posting on ${row.name}`}
+        />
       ),
     },
     {
@@ -358,6 +367,13 @@ const ChartOfAccountsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <TrailPanel
+        stack={trailStack}
+        onPush={pushTrail}
+        onGoTo={goToTrail}
+        onClose={closeTrail}
+      />
     </Layout>
   );
 };

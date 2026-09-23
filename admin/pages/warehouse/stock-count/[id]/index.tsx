@@ -23,6 +23,7 @@ import type { TableExportColumn } from '../../../../utils/tableExport';
 import formStyles from '../../../../styles/FormPage.module.scss';
 import detailStyles from '../../../../styles/DetailPage.module.scss';
 import reportStyles from '../../../../styles/StockReports.module.scss';
+import PostedEntries from '../../../../components/Finance/PostedEntries';
 
 /**
  * The count sheet itself. While it is a draft the counted columns are editable; once submitted the
@@ -590,6 +591,12 @@ function StockCountDetailPage() {
         }}
         onConfirm={handleReason}
       />
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this count did to the accounts" />
+      )}
     </Layout>
   );
 }

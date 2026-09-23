@@ -223,6 +223,8 @@ export interface JournalLine {
   credit: number;
   lineNarration?: string;
   balanceAfter?: number;
+  /** Whose money this line is, on a control account. Always sent; null off a control account. */
+  subledgerRef?: { type: SubledgerType; id: string } | null;
 }
 
 export interface JournalEntry {
@@ -233,6 +235,15 @@ export interface JournalEntry {
   referenceNo?: string;
   narration?: string;
   sourceType: string;
+  /**
+   * The document that caused the entry, and which collection it lives in.
+   *
+   * Both have been stored since the posting engine was built; typing them here is what lets the
+   * entry screen say "this came from goods receipt GRN-118" instead of printing an enum value and
+   * leaving the reader to go looking.
+   */
+  sourceId?: string | null;
+  sourceModel?: string | null;
   status: EntryStatus;
   isSystemGenerated: boolean;
   totalDebit: number;
@@ -390,6 +401,17 @@ export const journalService = {
     const response = await api.post('/finance/periods/reopen', { period, reason });
     return response.data;
   },
+
+  /**
+   * Seal this month and every month before it. Returns the months it actually sealed.
+   *
+   * There is no unlock: `reopenPeriod` refuses a locked month. Callers must say which months
+   * are about to go, because the endpoint takes one month and acts on all of them.
+   */
+  async lockThrough(period: string): Promise<{ locked: string[] }> {
+    const response = await api.post('/finance/periods/lock-through', { period });
+    return response.data;
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -400,6 +422,8 @@ export interface ControlCheck {
   checkId: string;
   label: string;
   ledgerCode: string;
+  /** The control account, so the books side of the comparison can be opened. */
+  ledgerId: string;
   ledgerBalance: number;
   operationalValue: number;
   drift: number;
@@ -514,7 +538,10 @@ export const SOURCE_TYPE_LABELS: Record<string, string> = {
   payment_received: 'Payment received',
   payment_made: 'Payment made',
   expense: 'Expense',
+  voucher: 'Voucher',
   payroll_accrual: 'Salaries',
+  salary_payment: 'Salaries paid',
+  staff_advance: 'Advance to staff',
   bad_debt_writeoff: 'Debt written off',
   year_end_close: 'Year-end close',
 };
@@ -524,6 +551,8 @@ export function sourceTypeLabel(sourceType: string): string {
 }
 
 export interface SourceEntryLine {
+  /** Present so a line can open the account it sits on. */
+  ledgerId: string;
   ledgerCode: string;
   ledgerName: string;
   debit: number;
@@ -1275,6 +1304,8 @@ export interface AgeingBucket {
 }
 
 export interface ReceivablesAgeing {
+  /** The Accounts Receivable control account these figures were aged from. */
+  ledgerId: string;
   asOf: string;
   buckets: AgeingBucket[];
   rows: {
@@ -1295,6 +1326,8 @@ export interface ReceivablesAgeing {
 }
 
 export interface PayablesAgeing {
+  /** The Accounts Payable control account each row is compared against. */
+  ledgerId: string;
   asOf: string;
   buckets: AgeingBucket[];
   rows: {
@@ -1871,6 +1904,10 @@ export interface TaxSummary {
   /** Positive is payable to the revenue office, negative is reclaimable. */
   net: number;
   inputTaxCode: string;
+  /** The three tax accounts the totals came from, so each can be opened. */
+  inputTaxLedgerId: string;
+  outputTaxLedgerId: string;
+  withheldTaxLedgerId: string;
   outputTaxCode: string;
   purchases: TaxPartyRow[];
   purchasesTaxTotal: number;
@@ -2147,4 +2184,192 @@ export const voucherService = {
     const response = await api.patch(`/finance/vouchers/${id}/cancel`, { reason });
     return response.data;
   },
+};
+
+// ---------------------------------------------------------------------------
+// Money trails
+// ---------------------------------------------------------------------------
+
+/**
+ * A reference to any figure that can be explained.
+ *
+ * Mirrors `TrailRef` in `backend/src/modules/finance/trail.service.ts`. Serialisable on purpose:
+ * it is held in component state, put in the URL so a level can be shared, and handed straight
+ * back to the endpoint. Because each row of a trail carries the reference for the level below it,
+ * the panel that renders one needs no knowledge of which report it was opened from.
+ */
+export type TrailRef =
+  | { kind: 'ledger'; ledgerId: string; from?: string; to?: string }
+  | { kind: 'group'; groupId: string; from?: string; to?: string }
+  | {
+    kind: 'party';
+    partyType: SubledgerType;
+    partyId: string;
+    ledgerId?: string;
+    from?: string;
+    to?: string;
+  }
+  | { kind: 'entry'; entryId: string }
+  | { kind: 'source'; sourceId: string }
+  /**
+   * A figure worked out in code rather than held on an account — gross profit, net profit, total
+   * assets, total equity. `figure` is the field name on that report's response, so the two cannot
+   * drift apart without the server refusing it by name.
+   *
+   * `from`/`to` are MONTHS here, not days, because that is what a statement works in.
+   */
+  | {
+    kind: 'derived';
+    report: 'profit-and-loss' | 'balance-sheet' | 'cash-flow' | 'tax-summary';
+    figure: string;
+    from?: string;
+    to?: string;
+  };
+
+export interface TrailDocumentRef {
+  sourceType: string;
+  sourceModel: string | null;
+  sourceId: string;
+  /** Null where this kind of document has no screen of its own. Rendered as text, never a link. */
+  href: string | null;
+}
+
+export interface TrailRow {
+  date: string | null;
+  label: string;
+  reference: string | null;
+  entryNo: number | null;
+  party: { type: SubledgerType; id: string; name: string } | null;
+  debit: number;
+  credit: number;
+  amount: number;
+  runningBalance: number | null;
+  status: string;
+  drill: TrailRef | null;
+  document: TrailDocumentRef | null;
+}
+
+export interface TrailPart {
+  label: string;
+  amount: number;
+  operator: '+' | '-' | '=';
+  drill: TrailRef | null;
+}
+
+export interface TrailCounterpart {
+  ledgerId: string;
+  code: string;
+  name: string;
+  amount: number;
+  drill: TrailRef;
+}
+
+export interface Trail {
+  ref: TrailRef;
+  title: string;
+  subtitle: string;
+  total: number;
+  signedTotal: number | null;
+  opening: number | null;
+  rows: TrailRow[];
+  parts: TrailPart[];
+  counterparts: TrailCounterpart[];
+  parent: TrailRef | null;
+  truncated: boolean;
+  note: string | null;
+}
+
+export const trailService = {
+  async get(ref: TrailRef): Promise<Trail> {
+    const response = await api.get(`/finance/trail?${trailToQuery(ref)}`);
+    return response.data;
+  },
+};
+
+/** A reference as a query string, for the endpoint and for the address bar alike. */
+export function trailToQuery(ref: TrailRef): string {
+  const params = new URLSearchParams();
+  Object.entries(ref).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.append(key, String(value));
+  });
+  return params.toString();
+}
+
+/**
+ * Read a reference back out of a query string, or null when there is not a complete one.
+ *
+ * Deliberately strict: a half-formed reference from a hand-edited or truncated URL must come back
+ * as "no trail" rather than as a request the endpoint will refuse, which would greet the reader
+ * with an error they did not cause.
+ */
+export function trailFromQuery(query: Record<string, unknown>): TrailRef | null {
+  const str = (key: string): string | undefined => {
+    const value = query[key];
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  };
+  const kind = str('kind');
+  const from = str('from');
+  const to = str('to');
+
+  switch (kind) {
+    case 'ledger': {
+      const ledgerId = str('ledgerId');
+      return ledgerId ? { kind: 'ledger', ledgerId, from, to } : null;
+    }
+    case 'group': {
+      const groupId = str('groupId');
+      return groupId ? { kind: 'group', groupId, from, to } : null;
+    }
+    case 'party': {
+      const partyId = str('partyId');
+      const partyType = str('partyType') as SubledgerType | undefined;
+      if (!partyId || !partyType) return null;
+      return { kind: 'party', partyType, partyId, ledgerId: str('ledgerId'), from, to };
+    }
+    case 'entry': {
+      const entryId = str('entryId');
+      return entryId ? { kind: 'entry', entryId } : null;
+    }
+    case 'source': {
+      const sourceId = str('sourceId');
+      return sourceId ? { kind: 'source', sourceId } : null;
+    }
+    case 'derived': {
+      const report = str('report');
+      const figure = str('figure');
+      if (!figure) return null;
+      if (
+        report !== 'profit-and-loss'
+        && report !== 'balance-sheet'
+        && report !== 'cash-flow'
+        && report !== 'tax-summary'
+      ) {
+        return null;
+      }
+      return { kind: 'derived', report, figure, from, to };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Two references pointing at the same figure — used to avoid pushing a duplicate breadcrumb. */
+export function sameTrail(a: TrailRef | null, b: TrailRef | null): boolean {
+  if (!a || !b) return a === b;
+  return trailToQuery(a) === trailToQuery(b);
+}
+
+/**
+ * What ONE party is, for a row that names it.
+ *
+ * Held apart from `SUBLEDGER_LABELS`, which describes how an ACCOUNT is kept ("Per client / shop")
+ * and belongs on the ledger form. Reusing that here would print "Per client / shop" beside a
+ * particular shop's name, which reads as a setting rather than as who the money belongs to.
+ */
+export const PARTY_TYPE_LABELS: Record<SubledgerType, string> = {
+  dealer: 'Shop',
+  vendor: 'Supplier',
+  rider: 'Rider',
+  warehouse: 'Warehouse',
+  employee: 'Employee',
 };

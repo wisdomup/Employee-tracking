@@ -520,6 +520,16 @@ export const REPORTS: readonly ReportDefinition[] = [
   { id: 'finance.cash-position',    label: 'Cash & Bank',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/cash-position' },
   { id: 'finance.tax-summary',      label: 'Tax Summary',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/tax-summary' },
   { id: 'finance.health',           label: 'Finance Health',   surface: REPORT_SURFACES.FINANCE, path: '/finance/health' },
+  /*
+   * The back-trail behind any figure: which lines make it up, what the other side of each entry
+   * was, and which document caused it.
+   *
+   * Its own row rather than a rider on each report, because it crosses every report and reaches
+   * further than any of them — a trail that starts on the Cash Flow can end on a shop's delivery.
+   * Anyone who can open a report can read the figures; reading what a figure is MADE of is the
+   * separate grant. Without it every amount still renders, as plain text.
+   */
+  { id: 'finance.trail',            label: 'Money Trails',     surface: REPORT_SURFACES.FINANCE, path: '/finance/reports' },
 ];
 
 const REPORT_BY_ID = new Map(REPORTS.map((r) => [r.id, r]));

@@ -1,5 +1,6 @@
 import React from 'react';
-import { StatementSection } from '../../services/financeService';
+import { StatementSection, TrailRef } from '../../services/financeService';
+import TrailAmount from './TrailAmount';
 import styles from '../../styles/Finance.module.scss';
 
 /**
@@ -8,6 +9,11 @@ import styles from '../../styles/Finance.module.scss';
  *
  * Negative figures are shown in brackets, the way a printed statement shows them, rather than with
  * a minus sign that is easy to miss in a column of numbers.
+ *
+ * Every figure here is a click target. The account name stays a link as well — it was the only one
+ * before and people will have learned it — but the amount is the one that matters: the question is
+ * always asked of the number, not of the label beside it. A group subtotal opens the accounts under
+ * it, one level at a time, so the structure the reader is navigating by stays visible.
  */
 
 export function statementMoney(value: number | undefined): string {
@@ -25,6 +31,15 @@ interface Props {
   showCompare?: boolean;
   /** Click-through to an account's statement. */
   onLedger?: (ledgerId: string) => void;
+  /** Opens the back-trail panel. */
+  onTrail?: (ref: TrailRef) => void;
+  /**
+   * The window the statement covers, as days.
+   *
+   * Passed in rather than derived here: a P&L covers a range of months and a Balance Sheet is a
+   * position at one date, and only the caller knows which it is looking at.
+   */
+  window?: { from?: string; to?: string };
 }
 
 const Section: React.FC<{
@@ -32,7 +47,9 @@ const Section: React.FC<{
   depth: number;
   showCompare: boolean;
   onLedger?: (ledgerId: string) => void;
-}> = ({ section, depth, showCompare, onLedger }) => {
+  onTrail?: (ref: TrailRef) => void;
+  window?: { from?: string; to?: string };
+}> = ({ section, depth, showCompare, onLedger, onTrail, window }) => {
   const indent = { paddingLeft: `${0.5 + depth * 1.1}rem` };
 
   return (
@@ -63,12 +80,21 @@ const Section: React.FC<{
             )}
           </td>
           <td style={{ textAlign: 'right' }}>
-            <span className={`${styles.amount} ${line.amount < 0 ? styles.amountNegative : ''}`}>
-              {statementMoney(line.amount)}
-            </span>
+            <TrailAmount
+              value={line.amount}
+              trail={{ kind: 'ledger', ledgerId: line.ledgerId, from: window?.from, to: window?.to }}
+              onOpen={onTrail}
+              format={statementMoney}
+              title={`What makes up ${line.name}`}
+            />
           </td>
           {showCompare && (
             <td style={{ textAlign: 'right' }}>
+              {/*
+                The comparison column is inert on purpose. Its figures belong to a different window
+                from the one the page is showing, and a trail opened from here would silently be
+                about those other months — the kind of wrong answer nobody checks.
+              */}
               <span className={`${styles.amount} ${styles.muted}`}>{statementMoney(line.compare)}</span>
             </td>
           )}
@@ -82,13 +108,21 @@ const Section: React.FC<{
           depth={depth + 1}
           showCompare={showCompare}
           onLedger={onLedger}
+          onTrail={onTrail}
+          window={window}
         />
       ))}
 
       <tr>
         <td style={{ ...indent, fontStyle: 'italic' }}>Total {section.name}</td>
         <td style={{ textAlign: 'right', borderTop: '1px solid #e5e7eb' }}>
-          <span className={styles.amount}>{statementMoney(section.total)}</span>
+          <TrailAmount
+            value={section.total}
+            trail={{ kind: 'group', groupId: section.groupId, from: window?.from, to: window?.to }}
+            onOpen={onTrail}
+            format={statementMoney}
+            title={`The accounts that make up ${section.name}`}
+          />
         </td>
         {showCompare && (
           <td style={{ textAlign: 'right', borderTop: '1px solid #e5e7eb' }}>
@@ -102,7 +136,13 @@ const Section: React.FC<{
   );
 };
 
-const StatementTable: React.FC<Props> = ({ sections, showCompare = false, onLedger }) => (
+const StatementTable: React.FC<Props> = ({
+  sections,
+  showCompare = false,
+  onLedger,
+  onTrail,
+  window,
+}) => (
   <>
     {sections.map((section) => (
       <Section
@@ -111,6 +151,8 @@ const StatementTable: React.FC<Props> = ({ sections, showCompare = false, onLedg
         depth={0}
         showCompare={showCompare}
         onLedger={onLedger}
+        onTrail={onTrail}
+        window={window}
       />
     ))}
   </>

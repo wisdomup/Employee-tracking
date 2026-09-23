@@ -26,6 +26,7 @@ import {
 import { warehouseService, Warehouse } from '../../../services/warehouseService';
 import styles from '../../../styles/FormPage.module.scss';
 import finance from '../../../styles/Finance.module.scss';
+import PostedEntries from '../../../components/Finance/PostedEntries';
 
 /**
  * One expense, through its whole life: corrected while it is a draft or has been sent back,
@@ -388,6 +389,12 @@ const ExpensePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this expense did to the accounts" />
+      )}
     </Layout>
   );
 };

@@ -24,6 +24,7 @@ import {
 } from '../../../services/financeService';
 import styles from '../../../styles/FormPage.module.scss';
 import finance from '../../../styles/Finance.module.scss';
+import PostedEntries from '../../../components/Finance/PostedEntries';
 
 /**
  * One voucher, through its whole life.
@@ -439,6 +440,12 @@ const VoucherPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this voucher did to the accounts" />
+      )}
     </Layout>
   );
 };

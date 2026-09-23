@@ -143,6 +143,14 @@ export interface ReceivablesAgeingRow {
 
 export interface ReceivablesAgeing {
   asOf: string;
+  /**
+   * The Accounts Receivable control account this report is built from.
+   *
+   * Returned so a figure on it can open the very account it was aged from. Without it a caller can
+   * only guess at which account to open, and a trail opened on the wrong one would quietly explain
+   * a different number.
+   */
+  ledgerId: string;
   buckets: AgeingBucket[];
   rows: ReceivablesAgeingRow[];
   bucketTotals: number[];
@@ -247,6 +255,7 @@ export async function receivablesAgeing(input: { asOf?: string } = {}): Promise<
 
   return {
     asOf,
+    ledgerId: String(map.arTrade),
     buckets,
     rows,
     bucketTotals,
@@ -280,6 +289,14 @@ export interface PayablesAgeingRow {
 
 export interface PayablesAgeing {
   asOf: string;
+  /**
+   * The Accounts Payable control account each row is compared against.
+   *
+   * This report is built from DOCUMENTS — posted bills against their due dates — while
+   * `ledgerBalance` comes from the account. Returning the account id lets a reader open the side of
+   * the comparison the documents disagree with, which is the whole point of showing both.
+   */
+  ledgerId: string;
   buckets: AgeingBucket[];
   rows: PayablesAgeingRow[];
   totals: {
@@ -302,7 +319,7 @@ export interface PayablesAgeing {
  */
 export async function payablesAgeing(): Promise<PayablesAgeing> {
   const asOf = localDayKey(new Date());
-  const { limits } = await settingsFor();
+  const { limits, map } = await settingsFor();
   const buckets = bucketsFrom(limits, 1);
 
   const [bills, payments] = await Promise.all([
@@ -390,6 +407,7 @@ export async function payablesAgeing(): Promise<PayablesAgeing> {
 
   return {
     asOf,
+    ledgerId: String(map.apTrade ?? ''),
     buckets,
     rows,
     totals: {

@@ -7,8 +7,15 @@ import Loader from '../../components/UI/Loader';
 import FinanceNav from '../../components/Finance/FinanceNav';
 import StatementTable, { statementMoney } from '../../components/Finance/StatementTable';
 import { CashFlowReport, CashPositionReport } from '../../components/Finance/CashReports';
+import TrailPanel from '../../components/Finance/TrailPanel';
+import TrailAmount from '../../components/Finance/TrailAmount';
+import { useTrail } from '../../hooks/useTrail';
 import { canViewReport } from '../../utils/permissions';
 import {
+  PARTY_TYPE_LABELS,
+  sourceTypeLabel,
+  SubledgerType,
+  TrailRef,
   cashReportService,
   taxReportService,
   financeService,
@@ -101,6 +108,8 @@ function lastDayOf(period: string): string {
 const FinanceReportsPage: React.FC = () => {
   const router = useRouter();
   const visibleTabs = TABS.filter((t) => canViewReport(t.reportId));
+  // The back-trail panel. Every figure below that can be explained hands it a reference.
+  const { stack: trailStack, openTrail, pushTrail, goToTrail, closeTrail } = useTrail();
   const [tab, setTab] = useState<Tab>(visibleTabs[0]?.id ?? 'trial-balance');
 
   const [loading, setLoading] = useState(false);
@@ -142,6 +151,16 @@ const FinanceReportsPage: React.FC = () => {
   const [cf, setCf] = useState<CashFlow | null>(null);
   const [cp, setCp] = useState<CashPosition | null>(null);
   const [taxSum, setTaxSum] = useState<TaxSummary | null>(null);
+
+  /*
+   * The windows the statements cover, as DAYS.
+   *
+   * A statement works in whole months; an account trail filters lines by date. Converting here
+   * rather than inside the trail means a figure on the Balance Sheet and the account behind it
+   * always describe the same period, which is the whole basis of the figures agreeing.
+   */
+  const plWindow = pl ? { from: `${pl.from}-01`, to: lastDayOf(pl.to) } : undefined;
+  const bsWindow = bs ? { to: lastDayOf(bs.asOf) } : undefined;
 
   // Deep links: ?tab=…&ledgerId=…&from=…&to=…&partyType=…&partyId=…
   useEffect(() => {
@@ -519,20 +538,22 @@ const FinanceReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <StatementTable sections={pl.income} showCompare={Boolean(pl.compare)} onLedger={openLedger(pl.from, pl.to)} />
-                      <SummaryRow label="Total income" value={pl.incomeTotal} compare={pl.compare?.incomeTotal} />
+                      <StatementTable sections={pl.income} showCompare={Boolean(pl.compare)} onLedger={openLedger(pl.from, pl.to)} onTrail={openTrail} window={plWindow} />
+                      <SummaryRow label="Total income" value={pl.incomeTotal} compare={pl.compare?.incomeTotal} trail={{ kind: 'derived', report: 'profit-and-loss', figure: 'incomeTotal', from: pl.from, to: pl.to }} onTrail={openTrail} />
 
-                      <StatementTable sections={pl.costOfSales} showCompare={Boolean(pl.compare)} onLedger={openLedger(pl.from, pl.to)} />
-                      <SummaryRow label="Gross profit" value={pl.grossProfit} compare={pl.compare?.grossProfit} strong />
+                      <StatementTable sections={pl.costOfSales} showCompare={Boolean(pl.compare)} onLedger={openLedger(pl.from, pl.to)} onTrail={openTrail} window={plWindow} />
+                      <SummaryRow label="Gross profit" value={pl.grossProfit} compare={pl.compare?.grossProfit} strong trail={{ kind: 'derived', report: 'profit-and-loss', figure: 'grossProfit', from: pl.from, to: pl.to }} onTrail={openTrail} />
 
-                      <StatementTable sections={pl.operatingExpenses} showCompare={Boolean(pl.compare)} onLedger={openLedger(pl.from, pl.to)} />
-                      <SummaryRow label="Total operating expenses" value={pl.operatingExpensesTotal} compare={pl.compare?.operatingExpensesTotal} />
+                      <StatementTable sections={pl.operatingExpenses} showCompare={Boolean(pl.compare)} onLedger={openLedger(pl.from, pl.to)} onTrail={openTrail} window={plWindow} />
+                      <SummaryRow label="Total operating expenses" value={pl.operatingExpensesTotal} compare={pl.compare?.operatingExpensesTotal} trail={{ kind: 'derived', report: 'profit-and-loss', figure: 'operatingExpensesTotal', from: pl.from, to: pl.to }} onTrail={openTrail} />
                     </tbody>
                     <tfoot>
                       <SummaryRow
                         label={pl.netProfit >= 0 ? 'Net profit' : 'Net loss'}
                         value={pl.netProfit}
                         compare={pl.compare?.netProfit}
+                        trail={{ kind: 'derived', report: 'profit-and-loss', figure: 'netProfit', from: pl.from, to: pl.to }}
+                        onTrail={openTrail}
                         strong
                         totals
                       />
@@ -575,13 +596,13 @@ const FinanceReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <StatementTable sections={bs.assets} onLedger={openLedger(bs.fiscalYearStart, bs.asOf)} />
-                      <SummaryRow label="Total assets" value={bs.totalAssets} strong />
+                      <StatementTable sections={bs.assets} onLedger={openLedger(bs.fiscalYearStart, bs.asOf)} onTrail={openTrail} window={bsWindow} />
+                      <SummaryRow label="Total assets" value={bs.totalAssets} strong trail={{ kind: 'derived', report: 'balance-sheet', figure: 'totalAssets', to: bs.asOf }} onTrail={openTrail} />
 
-                      <StatementTable sections={bs.liabilities} onLedger={openLedger(bs.fiscalYearStart, bs.asOf)} />
-                      <SummaryRow label="Total liabilities" value={bs.totalLiabilities} />
+                      <StatementTable sections={bs.liabilities} onLedger={openLedger(bs.fiscalYearStart, bs.asOf)} onTrail={openTrail} window={bsWindow} />
+                      <SummaryRow label="Total liabilities" value={bs.totalLiabilities} trail={{ kind: 'derived', report: 'balance-sheet', figure: 'totalLiabilities', to: bs.asOf }} onTrail={openTrail} />
 
-                      <StatementTable sections={bs.equity} onLedger={openLedger(bs.fiscalYearStart, bs.asOf)} />
+                      <StatementTable sections={bs.equity} onLedger={openLedger(bs.fiscalYearStart, bs.asOf)} onTrail={openTrail} window={bsWindow} />
                       <tr>
                         <td style={{ paddingLeft: '1.6rem' }}>Profit brought forward from earlier years</td>
                         <td style={{ textAlign: 'right' }}>
@@ -593,10 +614,10 @@ const FinanceReportsPage: React.FC = () => {
                           Profit for {bs.fiscalYear} so far
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <span className={styles.amount}>{statementMoney(bs.profitThisYear)}</span>
+                          <TrailAmount value={bs.profitThisYear} trail={{ kind: 'derived', report: 'profit-and-loss', figure: 'netProfit', from: bs.fiscalYearStart, to: bs.asOf }} onOpen={openTrail} format={statementMoney} title="The Profit &amp; Loss this figure comes from" />
                         </td>
                       </tr>
-                      <SummaryRow label="Total equity" value={bs.totalEquity} />
+                      <SummaryRow label="Total equity" value={bs.totalEquity} trail={{ kind: 'derived', report: 'balance-sheet', figure: 'totalEquity', to: bs.asOf }} onTrail={openTrail} />
                     </tbody>
                     <tfoot>
                       <SummaryRow
@@ -663,17 +684,31 @@ const FinanceReportsPage: React.FC = () => {
                           </td>
                           {r.amounts.map((a, i) => (
                             <td key={i} style={{ textAlign: 'right' }}>
-                              <span
-                                className={`${styles.amount} ${
-                                  i === r.amounts.length - 1 && a > 0 ? styles.amountNegative : ''
-                                }`}
-                              >
-                                {money(a)}
-                              </span>
+                              {/*
+                                A bucket is what is left after every recovery and return has been
+                                applied to the OLDEST credit first, so there is no set of lines that
+                                sums to this one cell. It opens the shop's whole account instead —
+                                the panel names the shop and its own total, so nothing claims to be
+                                a breakdown of the bucket.
+                              */}
+                              <TrailAmount
+                                value={a}
+                                trail={{ kind: 'party', partyType: 'dealer', partyId: r.dealerId, ledgerId: ar.ledgerId, to: ar.asOf }}
+                                onOpen={openTrail}
+                                format={money}
+                                className={i === r.amounts.length - 1 && a > 0 ? styles.amountNegative : undefined}
+                                title={`${r.shopName || r.name} on Accounts Receivable`}
+                              />
                             </td>
                           ))}
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount} style={{ fontWeight: 600 }}>{money(r.total)}</span>
+                            <TrailAmount
+                              value={r.total}
+                              trail={{ kind: 'party', partyType: 'dealer', partyId: r.dealerId, ledgerId: ar.ledgerId, to: ar.asOf }}
+                              onOpen={openTrail}
+                              format={money}
+                              className={styles.amountStrong}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -690,11 +725,22 @@ const FinanceReportsPage: React.FC = () => {
                         <td>Total</td>
                         {ar.bucketTotals.map((t, i) => (
                           <td key={i} style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(t)}</span>
+                            <TrailAmount
+                              value={t}
+                              trail={{ kind: 'ledger', ledgerId: ar.ledgerId, to: ar.asOf }}
+                              onOpen={openTrail}
+                              format={money}
+                              title="Accounts Receivable in full"
+                            />
                           </td>
                         ))}
                         <td style={{ textAlign: 'right' }}>
-                          <span className={styles.amount}>{money(ar.totalOwed)}</span>
+                          <TrailAmount
+                            value={ar.totalOwed}
+                            trail={{ kind: 'ledger', ledgerId: ar.ledgerId, to: ar.asOf }}
+                            onOpen={openTrail}
+                            format={money}
+                          />
                         </td>
                       </tr>
                     </tfoot>
@@ -724,7 +770,12 @@ const FinanceReportsPage: React.FC = () => {
                               </a>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <span className={styles.amount}>{money(c.amount)}</span>
+                              <TrailAmount
+                                value={c.amount}
+                                trail={{ kind: 'party', partyType: 'dealer', partyId: c.dealerId, ledgerId: ar.ledgerId, to: ar.asOf }}
+                                onOpen={openTrail}
+                                format={money}
+                              />
                             </td>
                           </tr>
                         ))}
@@ -803,25 +854,36 @@ const FinanceReportsPage: React.FC = () => {
                             </a>
                             {!r.agrees && (
                               <div className={styles.amountNegative} style={{ fontSize: '0.76rem' }}>
-                                Ledger says {money(r.ledgerBalance)}
+                                Ledger says{' '}
+                                <TrailAmount
+                                  value={r.ledgerBalance}
+                                  trail={{ kind: 'party', partyType: 'vendor', partyId: r.vendorId, ledgerId: ap.ledgerId }}
+                                  onOpen={openTrail}
+                                  format={money}
+                                  title="What the account itself says, line by line"
+                                />
                               </div>
                             )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(r.notDue)}</span>
+                            <TrailAmount value={r.notDue} trail={{ kind: 'party', partyType: 'vendor', partyId: r.vendorId, ledgerId: ap.ledgerId }} onOpen={openTrail} format={money} />
                           </td>
                           {r.overdue.map((a, i) => (
                             <td key={i} style={{ textAlign: 'right' }}>
-                              <span className={`${styles.amount} ${a > 0 ? styles.amountNegative : ''}`}>
-                                {money(a)}
-                              </span>
+                              <TrailAmount
+                                value={a}
+                                trail={{ kind: 'party', partyType: 'vendor', partyId: r.vendorId, ledgerId: ap.ledgerId }}
+                                onOpen={openTrail}
+                                format={money}
+                                className={a > 0 ? styles.amountNegative : undefined}
+                              />
                             </td>
                           ))}
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{statementMoney(r.onAccount)}</span>
+                            <TrailAmount value={r.onAccount} trail={{ kind: 'party', partyType: 'vendor', partyId: r.vendorId, ledgerId: ap.ledgerId }} onOpen={openTrail} format={statementMoney} />
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount} style={{ fontWeight: 600 }}>{statementMoney(r.total)}</span>
+                            <TrailAmount value={r.total} trail={{ kind: 'party', partyType: 'vendor', partyId: r.vendorId, ledgerId: ap.ledgerId }} onOpen={openTrail} format={statementMoney} className={styles.amountStrong} />
                           </td>
                         </tr>
                       ))}
@@ -837,18 +899,18 @@ const FinanceReportsPage: React.FC = () => {
                       <tr className={styles.reportTotals}>
                         <td>Total</td>
                         <td style={{ textAlign: 'right' }}>
-                          <span className={styles.amount}>{money(ap.totals.notDue)}</span>
+                          <TrailAmount value={ap.totals.notDue} trail={{ kind: 'ledger', ledgerId: ap.ledgerId }} onOpen={openTrail} format={money} title="Accounts Payable in full" />
                         </td>
                         {ap.totals.overdue.map((t, i) => (
                           <td key={i} style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(t)}</span>
+                            <TrailAmount value={t} trail={{ kind: 'ledger', ledgerId: ap.ledgerId }} onOpen={openTrail} format={money} title="Accounts Payable in full" />
                           </td>
                         ))}
                         <td style={{ textAlign: 'right' }}>
-                          <span className={styles.amount}>{statementMoney(ap.totals.onAccount)}</span>
+                          <TrailAmount value={ap.totals.onAccount} trail={{ kind: 'ledger', ledgerId: ap.ledgerId }} onOpen={openTrail} format={statementMoney} />
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <span className={styles.amount}>{statementMoney(ap.totals.total)}</span>
+                          <TrailAmount value={ap.totals.total} trail={{ kind: 'ledger', ledgerId: ap.ledgerId }} onOpen={openTrail} format={statementMoney} />
                         </td>
                       </tr>
                     </tfoot>
@@ -908,19 +970,27 @@ const FinanceReportsPage: React.FC = () => {
                         <tr key={i}>
                           <td>{dayName(row.day)}</td>
                           <td>
-                            <a className={styles.code} href={`/finance/journal/${row.entryId}`}>
-                              {row.entryNo ?? '—'}
-                            </a>
+                            {/* The panel rather than the page: the statement behind it stays
+                                loaded, and the entry is one hop rather than a navigation. */}
+                            <button
+                              type="button"
+                              className={styles.trailCrumb}
+                              onClick={() => openTrail({ kind: 'entry', entryId: row.entryId })}
+                            >
+                              <span className={styles.code}>{row.entryNo ?? '—'}</span>
+                            </button>
                           </td>
                           <td className={styles.muted}>{row.referenceNo || '—'}</td>
                           <td>{row.narration || '—'}</td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(row.debit)}</span>
+                            <TrailAmount value={row.debit} trail={{ kind: 'entry', entryId: row.entryId }} onOpen={openTrail} format={money} />
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(row.credit)}</span>
+                            <TrailAmount value={row.credit} trail={{ kind: 'entry', entryId: row.entryId }} onOpen={openTrail} format={money} />
                           </td>
                           <td style={{ textAlign: 'right' }}>
+                            {/* The running balance is a position, not a movement — there is no set
+                                of lines behind it, so it stays text. */}
                             <span className={`${styles.amount} ${row.balance < 0 ? styles.amountNegative : ''}`}>
                               {statementMoney(row.balance)}
                             </span>
@@ -945,11 +1015,21 @@ const FinanceReportsPage: React.FC = () => {
 
             {/* --- Cash flow and cash & bank --- */}
             {!loading && tab === 'cash-flow' && cf && (
-              <CashFlowReport report={cf} onLedger={openLedger(cf.from, cf.to)} />
+              <CashFlowReport
+                report={cf}
+                onLedger={openLedger(cf.from, cf.to)}
+                onTrail={openTrail}
+                window={{ from: `${cf.from}-01`, to: lastDayOf(cf.to) }}
+              />
             )}
 
             {!loading && tab === 'cash-position' && cp && (
-              <CashPositionReport report={cp} onLedger={openLedgerDays(cp.from, cp.to)} />
+              <CashPositionReport
+                report={cp}
+                onLedger={openLedgerDays(cp.from, cp.to)}
+                onTrail={openTrail}
+                window={{ from: cp.from, to: cp.to }}
+              />
             )}
 
             {/* --- Tax summary --- */}
@@ -966,11 +1046,25 @@ const FinanceReportsPage: React.FC = () => {
                 <div className={styles.totalsBar}>
                   <div className={styles.totalsItem}>
                     <span className={styles.totalsLabel}>Tax paid on purchases</span>
-                    <span className={styles.totalsValue}>{money(taxSum.inputTax)}</span>
+                    <TrailAmount
+                      value={taxSum.inputTax}
+                      trail={taxSum.inputTaxLedgerId ? { kind: 'ledger', ledgerId: taxSum.inputTaxLedgerId, from: taxFrom, to: taxTo } : null}
+                      onOpen={openTrail}
+                      format={money}
+                      className={styles.totalsValue}
+                      title="Every posting to the input tax account"
+                    />
                   </div>
                   <div className={styles.totalsItem}>
                     <span className={styles.totalsLabel}>Tax charged on sales</span>
-                    <span className={styles.totalsValue}>{money(taxSum.outputTax)}</span>
+                    <TrailAmount
+                      value={taxSum.outputTax}
+                      trail={taxSum.outputTaxLedgerId ? { kind: 'ledger', ledgerId: taxSum.outputTaxLedgerId, from: taxFrom, to: taxTo } : null}
+                      onOpen={openTrail}
+                      format={money}
+                      className={styles.totalsValue}
+                      title="Every posting to the output tax account"
+                    />
                   </div>
                   <div className={styles.totalsItem}>
                     <span className={styles.totalsLabel}>
@@ -987,7 +1081,14 @@ const FinanceReportsPage: React.FC = () => {
                   {taxSum.taxWithheld !== 0 && (
                     <div className={styles.totalsItem}>
                       <span className={styles.totalsLabel}>Withheld from suppliers</span>
-                      <span className={styles.totalsValue}>{money(taxSum.taxWithheld)}</span>
+                      <TrailAmount
+                        value={taxSum.taxWithheld}
+                        trail={taxSum.withheldTaxLedgerId ? { kind: 'ledger', ledgerId: taxSum.withheldTaxLedgerId, from: taxFrom, to: taxTo } : null}
+                        onOpen={openTrail}
+                        format={money}
+                        className={styles.totalsValue}
+                        title="Tax withheld from suppliers, payment by payment"
+                      />
                     </div>
                   )}
                   <div className={styles.totalsVerdict}>
@@ -1045,10 +1146,22 @@ const FinanceReportsPage: React.FC = () => {
                             </td>
                             <td style={{ textAlign: 'right' }}>{row.documentCount}</td>
                             <td style={{ textAlign: 'right' }}>
-                              <span className={styles.amount}>{money(row.taxableAmount)}</span>
+                              <TrailAmount
+                                value={row.taxableAmount}
+                                trail={row.vendorId ? { kind: 'party', partyType: 'vendor', partyId: row.vendorId } : null}
+                                onOpen={openTrail}
+                                format={money}
+                                title={`Everything posted against ${row.name}`}
+                              />
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <span className={styles.amount}>{money(row.taxAmount)}</span>
+                              <TrailAmount
+                                value={row.taxAmount}
+                                trail={row.vendorId ? { kind: 'party', partyType: 'vendor', partyId: row.vendorId } : null}
+                                onOpen={openTrail}
+                                format={money}
+                                title={`Everything posted against ${row.name}`}
+                              />
                             </td>
                           </tr>
                         ))}
@@ -1107,10 +1220,20 @@ const FinanceReportsPage: React.FC = () => {
                           <td>{row.name}</td>
                           <td className={styles.muted}>{row.groupName}</td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(row.closingDebit)}</span>
+                            <TrailAmount
+                              value={row.closingDebit}
+                              trail={{ kind: 'ledger', ledgerId: row.ledgerId, to: asOf }}
+                              onOpen={openTrail}
+                              format={money}
+                            />
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(row.closingCredit)}</span>
+                            <TrailAmount
+                              value={row.closingCredit}
+                              trail={{ kind: 'ledger', ledgerId: row.ledgerId, to: asOf }}
+                              onOpen={openTrail}
+                              format={money}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -1148,7 +1271,14 @@ const FinanceReportsPage: React.FC = () => {
                           marginBottom: '0.5rem',
                         }}
                       >
-                        <span className={styles.code}>#{entry.entryNo ?? '—'}</span>
+                        <button
+                          type="button"
+                          className={styles.trailCrumb}
+                          onClick={() => openTrail({ kind: 'entry', entryId: entry.id })}
+                          title="Open both sides of this entry"
+                        >
+                          <span className={styles.code}>#{entry.entryNo ?? '—'}</span>
+                        </button>
                         <strong>{entry.narration || '—'}</strong>
                         <span className={styles.muted}>
                           {new Date(entry.date).toLocaleDateString()}
@@ -1162,14 +1292,21 @@ const FinanceReportsPage: React.FC = () => {
                           {entry.lines.map((line: any, i: number) => (
                             <tr key={i}>
                               <td>
-                                <span className={styles.code}>{line.ledgerCode}</span>{' '}
-                                {line.ledgerName}
+                                <button
+                                  type="button"
+                                  className={styles.trailCrumb}
+                                  onClick={() => openTrail({ kind: 'ledger', ledgerId: line.ledgerId })}
+                                  title="Open this account's own trail"
+                                >
+                                  <span className={styles.code}>{line.ledgerCode}</span>{' '}
+                                  {line.ledgerName}
+                                </button>
                               </td>
                               <td style={{ textAlign: 'right', width: '9rem' }}>
-                                <span className={styles.amount}>{money(line.debit)}</span>
+                                <TrailAmount value={line.debit} trail={{ kind: 'entry', entryId: entry.id }} onOpen={openTrail} format={money} />
                               </td>
                               <td style={{ textAlign: 'right', width: '9rem' }}>
-                                <span className={styles.amount}>{money(line.credit)}</span>
+                                <TrailAmount value={line.credit} trail={{ kind: 'entry', entryId: entry.id }} onOpen={openTrail} format={money} />
                               </td>
                             </tr>
                           ))}
@@ -1205,6 +1342,12 @@ const FinanceReportsPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/*
+                  Every column here used to be inert text, which made the account statement the
+                  deepest view in the module and also a dead end. The entry number now opens the
+                  entry, the amounts open the trail behind them, the party column names whose money
+                  it is, and the last column leaves finance for the document that caused it.
+                */}
                 <div style={{ overflowX: 'auto' }}>
                   <table className={styles.roleTable}>
                     <thead>
@@ -1212,9 +1355,11 @@ const FinanceReportsPage: React.FC = () => {
                         <th>Date</th>
                         <th>#</th>
                         <th>Description</th>
+                        <th>Who</th>
                         <th style={{ textAlign: 'right' }}>Debit</th>
                         <th style={{ textAlign: 'right' }}>Credit</th>
                         <th style={{ textAlign: 'right' }}>Balance</th>
+                        <th>Caused by</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1222,14 +1367,68 @@ const FinanceReportsPage: React.FC = () => {
                         <tr key={i}>
                           <td>{new Date(row.date).toLocaleDateString()}</td>
                           <td>
-                            <span className={styles.code}>{row.entryNo ?? '—'}</span>
+                            {row.entryId ? (
+                              <button
+                                type="button"
+                                className={styles.trailCrumb}
+                                onClick={() => openTrail({ kind: 'entry', entryId: row.entryId })}
+                                title="Open both sides of this entry"
+                              >
+                                <span className={styles.code}>{row.entryNo ?? 'view'}</span>
+                              </button>
+                            ) : (
+                              <span className={styles.code}>{row.entryNo ?? '—'}</span>
+                            )}
                           </td>
-                          <td>{row.narration || '—'}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(row.debit)}</span>
+                          <td>
+                            {row.narration || '—'}
+                            {row.status === 'reversed' && (
+                              <>
+                                {' '}
+                                <span className={`${styles.status} ${styles.status_reversed}`}>
+                                  reversed
+                                </span>
+                              </>
+                            )}
+                          </td>
+                          <td className={styles.muted}>
+                            {row.subledger ? (
+                              <button
+                                type="button"
+                                className={styles.trailCrumb}
+                                onClick={() =>
+                                  openTrail({
+                                    kind: 'party',
+                                    partyType: row.subledger.type,
+                                    partyId: row.subledger.id,
+                                    ledgerId,
+                                    from,
+                                    to,
+                                  })
+                                }
+                                title="Everything this party did on this account"
+                              >
+                                {PARTY_TYPE_LABELS[row.subledger.type as SubledgerType]}
+                              </button>
+                            ) : (
+                              '—'
+                            )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <span className={styles.amount}>{money(row.credit)}</span>
+                            <TrailAmount
+                              value={row.debit}
+                              trail={row.entryId ? { kind: 'entry', entryId: row.entryId } : null}
+                              onOpen={openTrail}
+                              format={money}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <TrailAmount
+                              value={row.credit}
+                              trail={row.entryId ? { kind: 'entry', entryId: row.entryId } : null}
+                              onOpen={openTrail}
+                              format={money}
+                            />
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <span
@@ -1243,6 +1442,26 @@ const FinanceReportsPage: React.FC = () => {
                               })}
                             </span>
                           </td>
+                          <td>
+                            {row.sourceId ? (
+                              <button
+                                type="button"
+                                className={styles.trailCrumb}
+                                onClick={() =>
+                                  openTrail({ kind: 'source', sourceId: row.sourceId })
+                                }
+                                title="Everything that document did to the accounts"
+                              >
+                                <span className={styles.trailDocLink}>
+                                  {sourceTypeLabel(row.sourceType)}
+                                </span>
+                              </button>
+                            ) : (
+                              <span className={styles.trailDocPlain}>
+                                {sourceTypeLabel(row.sourceType)}
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1253,24 +1472,50 @@ const FinanceReportsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/*
+        Outside the report's own markup so the panel is not clipped by a scrolling table, and so
+        the report stays mounted behind it — a reader who spent a minute on filters must not lose
+        them to ask one question.
+      */}
+      <TrailPanel
+        stack={trailStack}
+        onPush={pushTrail}
+        onGoTo={goToTrail}
+        onClose={closeTrail}
+      />
     </Layout>
   );
 };
 
-/** A totals line inside a statement: gross profit, total assets, net profit. */
+/**
+ * A totals line inside a statement: gross profit, total assets, net profit.
+ *
+ * These are the figures people question first and the only ones with no account behind them — they
+ * are worked out in code from the sections above. `trail` gives them a `derived` reference, which
+ * comes back as the arithmetic rather than as a list of accounts, so the reader sees which side
+ * each part is on.
+ */
 const SummaryRow: React.FC<{
   label: string;
   value: number;
   compare?: number;
   strong?: boolean;
   totals?: boolean;
-}> = ({ label, value, compare, strong, totals }) => (
+  trail?: TrailRef;
+  onTrail?: (ref: TrailRef) => void;
+}> = ({ label, value, compare, strong, totals, trail, onTrail }) => (
   <tr className={totals ? styles.reportTotals : undefined}>
     <td style={{ fontWeight: strong ? 700 : 600 }}>{label}</td>
     <td style={{ textAlign: 'right', borderTop: '2px solid #d1d5db' }}>
-      <span className={`${styles.amount} ${value < 0 ? styles.amountNegative : ''}`} style={{ fontWeight: strong ? 700 : 600 }}>
-        {statementMoney(value)}
-      </span>
+      <TrailAmount
+        value={value}
+        trail={trail}
+        onOpen={onTrail}
+        format={statementMoney}
+        className={strong ? styles.amountStrong : undefined}
+        title={`How ${label.toLowerCase()} was worked out`}
+      />
     </td>
     {compare !== undefined && (
       <td style={{ textAlign: 'right', borderTop: '2px solid #d1d5db' }}>

@@ -96,6 +96,43 @@ const PeriodsPage: React.FC = () => {
     await act(() => journalService.reopenPeriod(period, reason.trim()), `${period} reopened`);
   };
 
+  /**
+   * Seal this month and everything before it.
+   *
+   * The endpoint takes ONE month and locks every month up to it, so the button cannot be read
+   * as acting on its own row. The months it is about to take are listed before it runs, and any
+   * that are still open are named separately — those have not passed their close checks and
+   * sealing skips them. There is no unlock: a locked month refuses a reversal too.
+   */
+  const seal = async (period: string) => {
+    const affected = periods
+      .filter((p) => p.period <= period && p.status !== 'locked')
+      .sort((a, b) => a.period.localeCompare(b.period));
+    if (affected.length === 0) {
+      toast.info('Everything up to that month is already sealed.');
+      return;
+    }
+    const stillOpen = affected.filter((p) => p.status === 'open');
+
+    const warning = `Seal every month through ${monthLabel(period)}?\n\n`
+      + `This permanently locks ${affected.length} month${affected.length === 1 ? '' : 's'}: `
+      + `${affected.map((p) => p.period).join(', ')}.\n\n`
+      + 'A locked month refuses every entry, including a correction or a reversal, and it cannot '
+      + 'be reopened afterwards. This cannot be undone.'
+      + (stillOpen.length > 0
+        ? `\n\nWARNING: ${stillOpen.length} of them ${stillOpen.length === 1 ? 'is' : 'are'} `
+          + `still open and ${stillOpen.length === 1 ? 'has' : 'have'} not been closed or passed `
+          + `the close checks: ${stillOpen.map((p) => p.period).join(', ')}.`
+        : '');
+
+    if (!window.confirm(warning)) return;
+
+    await act(async () => {
+      const result = await journalService.lockThrough(period);
+      return result;
+    }, `Sealed ${affected.length} month${affected.length === 1 ? '' : 's'} through ${period}`);
+  };
+
   const canChange = can(undefined, 'finance-period:change');
 
   return (
@@ -112,6 +149,16 @@ const PeriodsPage: React.FC = () => {
           A month with no record here refuses entries. That is deliberate: a mistyped year is
           turned away rather than quietly filed in a year nobody looks at again.
         </div>
+
+        {canChange && (
+          <div className={`${styles.banner} ${styles.bannerBad}`}>
+            <span className={styles.bannerTitle}>Sealing a month cannot be undone</span>
+            &ldquo;Seal through here&rdquo; locks that month and every month before it. A locked
+            month refuses every entry, a correction and a reversal included, and there is no way
+            to reopen it. Use it at cutover to close off everything that happened before the books
+            were opened. Closing a month is the everyday action; sealing is not.
+          </div>
+        )}
 
         {canChange && (
           <div className={formStyles.form} style={{ marginBottom: '1.25rem' }}>
@@ -233,6 +280,19 @@ const PeriodsPage: React.FC = () => {
                                   onClick={() => reopen(period.period)}
                                 >
                                   Reopen
+                                </button>
+                              )}
+                              {period.status !== 'locked' && canChange && (
+                                <button
+                                  className={listStyles.deleteButton}
+                                  disabled={busy}
+                                  onClick={() => seal(period.period)}
+                                  title={
+                                    'Permanently locks this month and every month before it. '
+                                    + 'A locked month cannot be reopened.'
+                                  }
+                                >
+                                  Seal through here
                                 </button>
                               )}
                             </div>

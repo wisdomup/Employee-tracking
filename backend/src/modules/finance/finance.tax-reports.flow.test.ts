@@ -272,6 +272,21 @@ async function main(): Promise<void> {
     );
   });
 
+  await test('the three tax accounts are named by id, not only by code', async () => {
+    // The codes were always here for display. The ids are what lets a reader open the account and
+    // see the postings behind the figure, instead of being told a number and having to trust it.
+    const summary = await taxSummary({ from: FROM, to: TO });
+    for (const [id, code] of [
+      [summary.inputTaxLedgerId, summary.inputTaxCode],
+      [summary.outputTaxLedgerId, summary.outputTaxCode],
+      [summary.withheldTaxLedgerId, summary.withheldTaxCode],
+    ] as const) {
+      assert.match(id, /^[0-9a-f]{24}$/, `${code} has no account id`);
+      const ledger = await LedgerModel.findById(id).select('code').lean().exec();
+      assert.equal(ledger?.code, code, 'the id and the code must name the same account');
+    }
+  });
+
   await test('cancelling later does not restate a period already filed', async () => {
     /*
      * A reversal is dated the day it is made, never the original's date — deliberately, so that

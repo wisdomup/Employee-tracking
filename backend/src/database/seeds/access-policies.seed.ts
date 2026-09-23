@@ -455,6 +455,9 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       // The screen that says whether the books still agree with the warehouse and the
       // collections module. Both finance roles need it — it is the first thing to look at.
       'finance.health',
+      // Reading what a figure is made of. Both finance roles get it: an accountant asked where a
+      // number came from cannot answer without it, and answering that is the job.
+      'finance.trail',
     ],
   },
 
@@ -578,6 +581,9 @@ const ROLE_SEEDS: Record<string, RoleSeed> = {
       // The screen that says whether the books still agree with the warehouse and the
       // collections module. Both finance roles need it — it is the first thing to look at.
       'finance.health',
+      // Reading what a figure is made of. Both finance roles get it: an accountant asked where a
+      // number came from cannot answer without it, and answering that is the job.
+      'finance.trail',
     ],
   },
 };

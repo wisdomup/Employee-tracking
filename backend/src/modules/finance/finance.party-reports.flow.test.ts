@@ -341,6 +341,20 @@ async function main(): Promise<void> {
     assert.equal(ageing.disagreements, 1);
   });
 
+  await test('both ageing reports name the control account they were built from', async () => {
+    // Without this a figure on either report cannot open the account it was aged from, and a
+    // caller guessing the account would quietly explain a different number.
+    const ar = await reports.receivablesAgeing({ asOf: '2026-08-31' });
+    assert.match(ar.ledgerId, /^[0-9a-f]{24}$/, 'receivables must name the AR account');
+    const ledger = await LedgerModel.findById(ar.ledgerId).select('code').lean().exec();
+    assert.equal(ledger?.code, '1140', 'and it must be Accounts Receivable, not some other account');
+
+    const ap = await reports.payablesAgeing();
+    assert.match(ap.ledgerId, /^[0-9a-f]{24}$/, 'payables must name the AP account');
+    const apLedger = await LedgerModel.findById(ap.ledgerId).select('code').lean().exec();
+    assert.equal(apLedger?.code, '2110');
+  });
+
   await test('the supplier picker lists suppliers with something on their account', async () => {
     const list = await reports.partiesWithActivity('vendor');
     assert.deepEqual(list.map((p) => p.name), ['Acme Traders']);

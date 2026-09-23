@@ -17,6 +17,7 @@ import {
 import formStyles from '../../../styles/FormPage.module.scss';
 import listStyles from '../../../styles/ListPage.module.scss';
 import styles from '../../../styles/Finance.module.scss';
+import PostedEntries from '../../../components/Finance/PostedEntries';
 
 /**
  * One month's payroll.
@@ -497,6 +498,12 @@ const PayrollRunPage: React.FC = () => {
           </p>
         )}
       </div>
+
+      {/* Renders nothing until this document has actually posted something, so it does not
+          sit empty while automatic posting is still being switched on event by event. */}
+      {typeof id === 'string' && (
+        <PostedEntries sourceId={id} title="What this payroll run did to the accounts" />
+      )}
     </Layout>
   );
 };

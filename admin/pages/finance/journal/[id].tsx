@@ -8,8 +8,18 @@ import EntryLineEditor, {
   EditorLine,
   EMPTY_LINE,
 } from '../../../components/Finance/EntryLineEditor';
+import TrailPanel from '../../../components/Finance/TrailPanel';
+import TrailAmount from '../../../components/Finance/TrailAmount';
+import { useTrail } from '../../../hooks/useTrail';
 import { can } from '../../../utils/permissions';
-import { financeService, journalService, JournalEntry, Ledger } from '../../../services/financeService';
+import {
+  PARTY_TYPE_LABELS,
+  financeService,
+  journalService,
+  sourceTypeLabel,
+  JournalEntry,
+  Ledger,
+} from '../../../services/financeService';
 import styles from '../../../styles/FormPage.module.scss';
 import listStyles from '../../../styles/ListPage.module.scss';
 import finance from '../../../styles/Finance.module.scss';
@@ -29,6 +39,7 @@ function money(value: number): string {
 const EntryPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { stack: trailStack, openTrail, pushTrail, goToTrail, closeTrail } = useTrail();
 
   const [entry, setEntry] = useState<JournalEntry | null>(null);
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
@@ -209,6 +220,28 @@ const EntryPage: React.FC = () => {
           </div>
         )}
 
+        {/*
+          What caused this entry.
+          The screen used to print `sourceType` as a bare enum value with a `sourceId` nobody could
+          reach. This is the hop out of the accounts and into the order, receipt, bill or payroll
+          run that moved the money — and the one most people are looking for.
+        */}
+        {entry.sourceId && (
+          <div className={`${finance.banner} ${finance.bannerInfo}`}>
+            <span className={finance.bannerTitle}>
+              This entry was raised by a {sourceTypeLabel(entry.sourceType).toLowerCase()}
+            </span>
+            Nobody typed it. It was posted automatically when the document was recorded.{' '}
+            <button
+              type="button"
+              className={finance.trailCrumb}
+              onClick={() => openTrail({ kind: 'source', sourceId: entry.sourceId! })}
+            >
+              See everything that document did to the accounts
+            </button>
+          </div>
+        )}
+
         <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
@@ -253,6 +286,11 @@ const EntryPage: React.FC = () => {
 
           <h2 style={{ fontSize: '1rem', margin: '1.5rem 0 0.75rem' }}>Lines</h2>
 
+          {/*
+            On a posted entry each line opens the account it sits on and each amount opens the
+            trail behind it. A posted entry is the natural place to ask "and what else is on that
+            account?", and until now the answer needed the reports page and a fresh search.
+          */}
           {isDraft ? (
             <EntryLineEditor
               ledgers={ledgers}
@@ -266,6 +304,7 @@ const EntryPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Account</th>
+                    <th>Who</th>
                     <th>Note</th>
                     <th style={{ textAlign: 'right' }}>Debit</th>
                     <th style={{ textAlign: 'right' }}>Credit</th>
@@ -275,25 +314,60 @@ const EntryPage: React.FC = () => {
                   {(entry.lines ?? []).map((line, i) => (
                     <tr key={i}>
                       <td>
-                        <span className={finance.code}>{line.ledgerCode}</span> {line.ledgerName}
+                        <button
+                          type="button"
+                          className={finance.trailCrumb}
+                          onClick={() => openTrail({ kind: 'ledger', ledgerId: line.ledgerId })}
+                          title="Open this account's own trail"
+                        >
+                          <span className={finance.code}>{line.ledgerCode}</span> {line.ledgerName}
+                        </button>
+                      </td>
+                      <td className={finance.muted}>
+                        {line.subledgerRef ? (
+                          <button
+                            type="button"
+                            className={finance.trailCrumb}
+                            onClick={() =>
+                              openTrail({
+                                kind: 'party',
+                                partyType: line.subledgerRef!.type,
+                                partyId: line.subledgerRef!.id,
+                                ledgerId: line.ledgerId,
+                              })
+                            }
+                            title="Everything this party did on this account"
+                          >
+                            {PARTY_TYPE_LABELS[line.subledgerRef.type]}
+                          </button>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className={finance.muted}>{line.lineNarration || '—'}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <span className={finance.amount}>
-                          {line.debit ? money(line.debit) : '—'}
-                        </span>
+                        <TrailAmount
+                          value={line.debit}
+                          trail={{ kind: 'ledger', ledgerId: line.ledgerId }}
+                          onOpen={openTrail}
+                          format={(v) => (v ? money(v) : '—')}
+                        />
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <span className={finance.amount}>
-                          {line.credit ? money(line.credit) : '—'}
-                        </span>
+                        <TrailAmount
+                          value={line.credit}
+                          trail={{ kind: 'ledger', ledgerId: line.ledgerId }}
+                          onOpen={openTrail}
+                          format={(v) => (v ? money(v) : '—')}
+                        />
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className={finance.reportTotals}>
-                    <td colSpan={2}>Totals</td>
+                    {/* Three, not two — the Who column was added above this. */}
+                    <td colSpan={3}>Totals</td>
                     <td style={{ textAlign: 'right' }}>
                       <span className={finance.amount}>{money(entry.totalDebit)}</span>
                     </td>
@@ -384,6 +458,13 @@ const EntryPage: React.FC = () => {
           </div>
         </form>
       </div>
+
+      <TrailPanel
+        stack={trailStack}
+        onPush={pushTrail}
+        onGoTo={goToTrail}
+        onClose={closeTrail}
+      />
     </Layout>
   );
 };
