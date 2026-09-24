@@ -84,13 +84,14 @@ export function useTrail(): TrailController {
 
   const goToTrail = useCallback(
     (index: number) => {
-      setStack((prev) => {
-        const next = prev.slice(0, index + 1);
-        writeUrl(next[next.length - 1] ?? null);
-        return next;
-      });
+      // Computed from the current stack rather than inside the updater. A state updater must be
+      // pure: React calls it twice in development, which fired `router.replace` twice from here.
+      const next = stack.slice(0, index + 1);
+      if (next.length === 0) return;
+      setStack(next);
+      writeUrl(next[next.length - 1]);
     },
-    [writeUrl],
+    [stack, writeUrl],
   );
 
   const closeTrail = useCallback(() => {

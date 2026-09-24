@@ -310,22 +310,30 @@ async function counterpartsFor(
 
   const entryIds = [...new Set(lines.map((l) => String(l.journalEntryId)))]
     .map((id) => new Types.ObjectId(id));
-  const ownLineIds = new Set(lines.map((l) => String(l._id)));
+  const ownLineIds = lines.map((l) => l._id);
 
-  const siblings = await JournalLineModel.find({
-    journalEntryId: { $in: entryIds },
-    status: { $in: LIVE_STATUSES },
-  })
-    .select('_id ledgerId signedAmount')
-    .lean()
-    .exec();
+  /*
+   * Summed by the database rather than by loading the sibling lines.
+   *
+   * The row cap bounds how many rows are SHOWN; it does not bound how many lines those rows'
+   * entries hold between them. Loading them to add them up put an unbounded fetch behind a bounded
+   * screen. Grouping in Mongo returns at most one document per account however many lines there
+   * were, so nothing here grows with the size of the entries.
+   */
+  const grouped = await JournalLineModel.aggregate<{ _id: Types.ObjectId; flow: number }>([
+    {
+      $match: {
+        journalEntryId: { $in: entryIds },
+        _id: { $nin: ownLineIds },
+        status: { $in: LIVE_STATUSES as unknown as string[] },
+      },
+    },
+    { $group: { _id: '$ledgerId', flow: { $sum: '$signedAmount' } } },
+  ]).exec();
 
-  const byLedger = new Map<string, number>();
-  for (const sibling of siblings) {
-    if (ownLineIds.has(String(sibling._id))) continue;
-    const id = String(sibling.ledgerId);
-    byLedger.set(id, round2((byLedger.get(id) ?? 0) + sibling.signedAmount));
-  }
+  const byLedger = new Map<string, number>(
+    grouped.map((row) => [String(row._id), round2(row.flow)]),
+  );
   if (byLedger.size === 0) return [];
 
   const ledgers = await LedgerModel.find({
@@ -800,13 +808,20 @@ async function sourceTrail(ref: Extract<TrailRef, { kind: 'source' }>): Promise<
     linesByEntry.get(key)!.push(line);
   }
 
-  const rows: TrailRow[] = entries.map((entry) => {
+  /*
+   * A reversal is `status: 'posted'` and COPIES the original's `sourceId`, so it arrives here as
+   * one of this document's own entries. `isReversal` is what keeps it out of the total: filtering
+   * on status alone counts the cancellation instead of the thing it cancelled, which lands on the
+   * same magnitude with the opposite meaning and makes a cancelled document look like a live one.
+   */
+  const rows: (TrailRow & { isReversal: boolean })[] = entries.map((entry) => {
     const own = linesByEntry.get(String(entry._id)) ?? [];
     const debit = round2(own.reduce((s, l) => s + l.debit, 0));
     const accounts = own
       .map((l) => ledgerById.get(String(l.ledgerId))?.code)
       .filter(Boolean)
       .join(', ');
+    const isReversal = Boolean(entry.reversalOf);
     return {
       date: entry.date ?? null,
       label: entry.narration || 'No description',
@@ -815,36 +830,45 @@ async function sourceTrail(ref: Extract<TrailRef, { kind: 'source' }>): Promise<
       party: null,
       debit,
       credit: debit,
-      amount: debit,
+      // A reversal took the money back out, so it reads negative against the document it undoes.
+      amount: isReversal ? round2(-debit) : debit,
       runningBalance: null,
       status: entry.status,
       drill: { kind: 'entry', entryId: String(entry._id) },
       document: null,
+      isReversal,
     };
   });
 
   const first = entries[0];
   const label = documentLabel(first.sourceModel ?? null) ?? 'Document';
+  const cancelled = rows.filter((r) => r.isReversal).length;
 
   return {
     ref,
     title: `${label} · what it did to the accounts`,
     subtitle: `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`,
-    // Only live entries count toward the figure: a reversed pair nets to nil and adding both
-    // halves would overstate what the document did by exactly double.
+    /*
+     * What this document is still doing to the books: posted, and not itself a reversal.
+     *
+     * A cancelled document therefore totals nil, which is what its accounts read. The halves are
+     * both listed below because both happened; neither counts, because together they cancel.
+     */
     total: round2(
-      rows.filter((r) => r.status === 'posted').reduce((s, r) => s + r.debit, 0),
+      rows
+        .filter((r) => r.status === 'posted' && !r.isReversal)
+        .reduce((s, r) => s + r.debit, 0),
     ),
     signedTotal: null,
     opening: null,
-    rows,
+    rows: rows.map(({ isReversal, ...row }) => row),
     parts: [],
     counterparts: [],
     parent: null,
     truncated: false,
-    note: rows.some((r) => r.status === 'reversed')
-      ? 'Some of these entries were reversed. They are listed because they happened, and they are '
-        + 'left out of the total because their reversal cancelled them.'
+    note: cancelled > 0
+      ? 'Some of this was reversed. Both halves are listed because both happened, and neither is '
+        + 'in the total because together they cancel — which is why the accounts read nil for them.'
       : null,
   };
 }

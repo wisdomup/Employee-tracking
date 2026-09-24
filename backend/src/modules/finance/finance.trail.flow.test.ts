@@ -335,20 +335,44 @@ async function main(): Promise<void> {
     assert.match(trail.note ?? '', /switched on one event at a time/);
   });
 
-  await test('a reversed document lists both halves and counts neither', async () => {
+  await test('a cancelled document totals nil, and agrees with the account it touched', async () => {
+    /*
+     * The regression this exists for.
+     *
+     * A reversal is `status: 'posted'` and COPIES the original's `sourceId`, so filtering the
+     * document's entries on status alone counts the CANCELLATION and reports the same magnitude
+     * with the opposite meaning — a cancelled bill looking exactly like a live one. The check that
+     * catches it is comparing the document against the account, not against itself.
+     */
     const billId = String(new Types.ObjectId());
-    const entry = await post('2026-08-15', '6120', '2115', 6000, {
+    const entry = await post('2026-08-15', '6140', '2115', 6000, {
       sourceType: 'bill',
       sourceId: billId,
       sourceModel: 'PurchaseBill',
       idempotencyKey: `trail-test-bill-${billId}`,
     });
+
+    const live = await resolveTrail({ kind: 'source', sourceId: billId });
+    assert.equal(live.total, 6000, 'before it is cancelled the document is worth its own figure');
+
     await reverseEntry(String(entry._id), { reason: 'Billed twice', date: on('2026-08-21') }, ACTOR);
 
     const trail = await resolveTrail({ kind: 'source', sourceId: billId });
     assert.equal(trail.rows.length, 2, 'the bill and its cancellation both happened');
-    assert.equal(trail.total, 6000, 'only the live half counts toward what the document did');
+    assert.equal(trail.total, 0, 'together they cancel, so the document is now doing nothing');
     assert.match(trail.note ?? '', /reversed/);
+
+    // The account is the authority. A document trail that disagrees with it is the bug.
+    const account = await resolveTrail({ kind: 'ledger', ledgerId: await ledgerId('6140') });
+    assert.equal(
+      trail.total,
+      account.total,
+      'the document says one thing about the books and the books say another',
+    );
+
+    // The reversal reads negative against the document it undoes, so the rows show the round trip.
+    const amounts = trail.rows.map((r) => r.amount).sort((a, b) => a - b);
+    assert.deepEqual(amounts, [-6000, 6000]);
   });
 
   await test('the routing table covers every sourceModel and names every document', async () => {

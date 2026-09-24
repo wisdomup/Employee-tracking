@@ -321,6 +321,17 @@ export async function payablesAgeing(): Promise<PayablesAgeing> {
   const asOf = localDayKey(new Date());
   const { limits, map } = await settingsFor();
   const buckets = bucketsFrom(limits, 1);
+  /*
+   * Refused rather than answered with a blank account id, matching `receivablesAgeing` above.
+   *
+   * Every row is checked against its share of this account, so without it the comparison this
+   * report exists to make cannot be made. Returning an empty id instead handed the screen a figure
+   * it would offer to explain and then fail to, which reads as the trail being broken rather than
+   * as the chart being unfinished.
+   */
+  if (!map.apTrade) {
+    throw badRequest('No account is set for payables, so there is nothing to age.');
+  }
 
   const [bills, payments] = await Promise.all([
     PurchaseBillModel.find({ status: 'posted' })
@@ -407,7 +418,7 @@ export async function payablesAgeing(): Promise<PayablesAgeing> {
 
   return {
     asOf,
-    ledgerId: String(map.apTrade ?? ''),
+    ledgerId: String(map.apTrade),
     buckets,
     rows,
     totals: {
