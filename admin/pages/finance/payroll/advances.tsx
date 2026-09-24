@@ -54,6 +54,12 @@ const AdvancesPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Ledger[]>([]);
   const [status, setStatus] = useState('all');
   const [form, setForm] = useState<FormState | null>(null);
+  /**
+   * The draft being edited, or null for a new advance. A prepared advance used to have no way to be
+   * corrected: a wrong figure or the wrong person meant deleting it and typing it again, and the
+   * reference number moved on each time.
+   */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -85,15 +91,24 @@ const AdvancesPage: React.FC = () => {
       .catch(() => undefined);
   }, []);
 
-  const act = async (work: () => Promise<unknown>, success: string, failure: string) => {
+  /** Runs one action. Resolves true when it succeeded, so a form knows whether to close. */
+  const act = async (
+    work: () => Promise<unknown>,
+    success: string,
+    failure: string,
+  ): Promise<boolean> => {
     setBusy(true);
     try {
       await work();
       toast.success(success);
       await load();
       payrollService.employees().then(setEmployees).catch(() => undefined);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || failure);
+      return true;
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: unknown } } })
+        ?.response?.data?.message;
+      toast.error(typeof message === 'string' && message ? message : failure);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -115,21 +130,47 @@ const AdvancesPage: React.FC = () => {
       return;
     }
 
-    await act(
-      () =>
-        payrollService.createAdvance({
-          userId: form.userId,
-          advanceDate: form.advanceDate,
-          amount: Number(form.amount),
-          method: form.method,
-          paidFromLedgerId: form.paidFromLedgerId,
-          reference: form.reference.trim() || undefined,
-          reason: form.reason.trim() || undefined,
-        }),
-      'Advance prepared — release it when the money is handed over',
-      'Could not prepare this advance',
-    );
+    const body = {
+      userId: form.userId,
+      advanceDate: form.advanceDate,
+      amount: Number(form.amount),
+      method: form.method,
+      paidFromLedgerId: form.paidFromLedgerId,
+      reference: form.reference.trim() || undefined,
+      reason: form.reason.trim() || undefined,
+    };
+    const ok = editingId
+      ? await act(
+        () => payrollService.updateAdvance(editingId, body),
+        'Advance updated',
+        'Could not save the changes to this advance',
+      )
+      : await act(
+        () => payrollService.createAdvance(body),
+        'Advance prepared — release it when the money is handed over',
+        'Could not prepare this advance',
+      );
+    // Kept open on a failure, so what was typed is not lost to a refusal the person can fix.
+    if (ok) closeForm();
+  };
+
+  const closeForm = () => {
     setForm(null);
+    setEditingId(null);
+  };
+
+  const startEdit = (advance: StaffAdvance) => {
+    setEditingId(advance.id);
+    setForm({
+      userId: advance.userId,
+      advanceDate: advance.advanceDate.slice(0, 10),
+      amount: String(advance.amount),
+      method: advance.method,
+      paidFromLedgerId: advance.paidFromLedgerId,
+      // The typed reference is `paymentReference` on the read; `reference` there is the ADV number.
+      reference: advance.paymentReference ?? '',
+      reason: advance.reason ?? '',
+    });
   };
 
   const release = (advance: StaffAdvance) => {
@@ -188,7 +229,13 @@ const AdvancesPage: React.FC = () => {
               &larr; Payroll
             </button>
             {can(undefined, 'finance-payroll:add') && (
-              <button className={listStyles.addButton} onClick={() => setForm({ ...EMPTY })}>
+              <button
+                className={listStyles.addButton}
+                onClick={() => {
+                  setEditingId(null);
+                  setForm({ ...EMPTY });
+                }}
+              >
                 + New Advance
               </button>
             )}
@@ -241,7 +288,7 @@ const AdvancesPage: React.FC = () => {
 
         {form && (
           <form className={styles.panel} onSubmit={save}>
-            <h2 className={styles.panelTitle}>New advance</h2>
+            <h2 className={styles.panelTitle}>{editingId ? 'Edit advance' : 'New advance'}</h2>
 
             <div className={formStyles.formRow}>
               <div className={formStyles.formGroup}>
@@ -350,13 +397,13 @@ const AdvancesPage: React.FC = () => {
               <button
                 type="button"
                 className={formStyles.cancelButton}
-                onClick={() => setForm(null)}
+                onClick={closeForm}
                 disabled={busy}
               >
                 Cancel
               </button>
               <button type="submit" className={formStyles.submitButton} disabled={busy}>
-                {busy ? 'Saving…' : 'Prepare Advance'}
+                {busy ? 'Saving…' : editingId ? 'Save Changes' : 'Prepare Advance'}
               </button>
             </div>
           </form>
@@ -441,6 +488,15 @@ const AdvancesPage: React.FC = () => {
                               onClick={() => release(a)}
                             >
                               Hand Over
+                            </button>
+                          )}
+                          {a.status === 'draft' && can(undefined, 'finance-payroll:edit') && (
+                            <button
+                              className={listStyles.editButton}
+                              disabled={busy}
+                              onClick={() => startEdit(a)}
+                            >
+                              Edit
                             </button>
                           )}
                           {a.status === 'draft' && can(undefined, 'finance-payroll:delete') && (

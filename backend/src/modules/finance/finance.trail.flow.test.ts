@@ -29,6 +29,7 @@ import { postEntry, reverseEntry, periodKeyFor } from './posting.service';
 import { round2 } from './finance.rules';
 import { dayBook } from './journal.service';
 import * as statements from './financial-statements.service';
+import * as chart from './chart.service';
 import { resolveTrail, KNOWN_SOURCE_MODELS, Trail } from './trail.service';
 
 let passed = 0;
@@ -238,6 +239,35 @@ async function main(): Promise<void> {
     const part = trail.parts.find((p) => /^4110 · /.test(p.label))!;
     const next = await resolveTrail(part.drill!);
     assert.equal(next.total, part.amount, 'the account must report the figure the group credited it with');
+  });
+
+  await test('a group rolls a grandchild account up into the right child, in a fixed number of reads', async () => {
+    /*
+     * The group trail now fetches the whole subtree and sums every account in one aggregate, then
+     * rolls each figure up to the child it sits under. A grandchild's account landing on the wrong
+     * child — or on none — is the mistake that rewrite could make, so this builds exactly that.
+     */
+    const expenses = await AccountGroupModel.findOne({ code: '6000' }).lean().exec();
+    const child = await chart.createGroup({ name: 'Trail nested child', code: '6700', parentGroupId: String(expenses!._id) });
+    const grandchild = await chart.createGroup({ name: 'Trail nested grandchild', code: '6710', parentGroupId: String(child._id) });
+    const deep = await chart.createLedger({ name: 'Trail deep account', code: '6711', groupId: String(grandchild._id) });
+
+    await post('2026-08-27', deep.code, '1110', 850);
+
+    const top = await resolveTrail({ kind: 'group', groupId: String(expenses!._id) });
+    const childPart = top.parts.find((p) => /^6700 · /.test(p.label));
+    assert.ok(childPart, 'the new child group must be listed under its parent');
+    assert.equal(childPart!.amount, 850, 'the grandchild account must roll up into this child');
+    assert.equal(
+      round2(top.parts.reduce((s, p) => s + p.amount, 0)),
+      top.total,
+      'the parts must still add up to the group',
+    );
+
+    // One level down, the same figure is the grandchild group's.
+    const mid = await resolveTrail(childPart!.drill!);
+    assert.equal(mid.total, 850);
+    assert.ok(mid.parts.some((p) => /^6710 · /.test(p.label) && p.amount === 850));
   });
 
   await test('an account names the group it rolls up into', async () => {

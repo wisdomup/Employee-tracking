@@ -32,6 +32,7 @@ import {
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { can, canViewAnyReportOn, isAdmin } from '../../utils/permissions';
+import { canOpenFinance } from '../../utils/financeAccess';
 import styles from './Sidebar.module.scss';
 
 interface SidebarProps {
@@ -67,6 +68,12 @@ interface MenuItem {
    * cannot change from the UI, which is the drift this module exists to remove.
    */
   adminOnly?: boolean;
+  /**
+   * Show when this returns true — for a module reached through several different grants. Finance
+   * is the case: it opens for anyone with any one of its screens, which is a mix of permissions and
+   * reports that neither `permission` nor `reportPrefix` can say alone.
+   */
+  visibleIf?: () => boolean;
 }
 
 const ALL_MENU_ITEMS: MenuItem[] = [
@@ -107,7 +114,9 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   // One entry for the whole finance module. Groups, accounts and settings are reached from
   // inside it — the same constraint as /warehouse and /collection, since `isActive` matches on
   // startsWith and a sibling /finance* entry would break the highlighting.
-  { path: '/finance', label: 'Accounts & Finance', Icon: Bank, permission: 'finance-coa:view' },
+  // Visible to anyone with any finance screen, not only the Chart of Accounts: someone granted just
+  // the journal, or just one report, otherwise had no way into the module at all.
+  { path: '/finance', label: 'Accounts & Finance', Icon: Bank, visibleIf: canOpenFinance },
   { path: '/trash', label: 'Trash', Icon: Trash, permission: 'trash:view' },
   { path: '/broadcast-notifications', label: 'Notifications', Icon: Bell, permission: 'broadcast-notifications:view' },
   // Editing the matrix is deliberately not a matrix cell — see `adminOnly` above.
@@ -129,6 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsedView }) =
     // and testing only the primary would hide the whole panel from them.
     if (isAdmin()) return true;
     if (item.adminOnly) return false;
+    if (item.visibleIf) return item.visibleIf();
     if (item.reportPrefix) return canViewAnyReportOn(item.reportPrefix);
     if (item.permission) return can(role, item.permission);
     return true;

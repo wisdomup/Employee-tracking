@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -278,7 +279,7 @@ const VoucherPage: React.FC = () => {
             <span className={finance.bannerTitle}>Posted</span>
             {money(voucher.amount)}, approved.{' '}
             {voucher.journalEntryId && (
-              <a href={`/finance/journal/${voucher.journalEntryId}`}>See the entry it wrote</a>
+              <Link href={`/finance/journal/${voucher.journalEntryId}`}>See the entry it wrote</Link>
             )}
           </div>
         )}

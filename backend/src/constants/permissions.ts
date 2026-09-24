@@ -504,21 +504,24 @@ export const REPORTS: readonly ReportDefinition[] = [
   // /region-sales
   { id: 'region-sales.daily', label: 'Region-wise Daily Sale', surface: REPORT_SURFACES.REGION, path: '/region-sales' },
 
+  // Every report below lives on ONE page, /finance/reports, as a tab — so each path names the page
+  // and the tab. A path per report (/finance/reports/trial-balance) points at a route that has never
+  // existed, and anything that ever links from this list would land on a 404.
   // /finance/reports — the three that make the posting engine usable. The statements (P&L,
   // Balance Sheet, Cash Flow, ageing) arrive with the step that builds them.
-  { id: 'finance.trial-balance',    label: 'Trial Balance',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/trial-balance' },
-  { id: 'finance.ledger-statement', label: 'Ledger Statement', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/ledger-statement' },
-  { id: 'finance.day-book',         label: 'Day Book',         surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/day-book' },
+  { id: 'finance.trial-balance',    label: 'Trial Balance',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=trial-balance' },
+  { id: 'finance.ledger-statement', label: 'Ledger Statement', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=ledger-statement' },
+  { id: 'finance.day-book',         label: 'Day Book',         surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=day-book' },
   // Separate from the trial balance on purpose: profit and net worth are figures an owner may not
   // want every finance user to see, and holding one report must not imply the others.
-  { id: 'finance.profit-and-loss',  label: 'Profit & Loss',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/profit-and-loss' },
-  { id: 'finance.balance-sheet',    label: 'Balance Sheet',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/balance-sheet' },
-  { id: 'finance.receivables-ageing', label: 'Receivables Ageing', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/receivables-ageing' },
-  { id: 'finance.payables-ageing',  label: 'Payables Ageing',  surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/payables-ageing' },
-  { id: 'finance.party-statement',  label: 'Shop & Supplier Statements', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/party-statement' },
-  { id: 'finance.cash-flow',        label: 'Cash Flow',        surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/cash-flow' },
-  { id: 'finance.cash-position',    label: 'Cash & Bank',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/cash-position' },
-  { id: 'finance.tax-summary',      label: 'Tax Summary',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports/tax-summary' },
+  { id: 'finance.profit-and-loss',  label: 'Profit & Loss',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=profit-and-loss' },
+  { id: 'finance.balance-sheet',    label: 'Balance Sheet',    surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=balance-sheet' },
+  { id: 'finance.receivables-ageing', label: 'Receivables Ageing', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=receivables-ageing' },
+  { id: 'finance.payables-ageing',  label: 'Payables Ageing',  surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=payables-ageing' },
+  { id: 'finance.party-statement',  label: 'Shop & Supplier Statements', surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=party-statement' },
+  { id: 'finance.cash-flow',        label: 'Cash Flow',        surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=cash-flow' },
+  { id: 'finance.cash-position',    label: 'Cash & Bank',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=cash-position' },
+  { id: 'finance.tax-summary',      label: 'Tax Summary',      surface: REPORT_SURFACES.FINANCE, path: '/finance/reports?tab=tax-summary' },
   { id: 'finance.health',           label: 'Finance Health',   surface: REPORT_SURFACES.FINANCE, path: '/finance/health' },
   /*
    * The back-trail behind any figure: which lines make it up, what the other side of each entry

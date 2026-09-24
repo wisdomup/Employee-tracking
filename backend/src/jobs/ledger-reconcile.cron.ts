@@ -15,7 +15,9 @@ import { runControlReconciliation } from '../modules/finance/control-reconciliat
  *
  * Deliberately does NOT repair by default. Drift means something wrote to a balance outside the
  * posting service, and silently correcting it would hide the bug that caused it. The job reports;
- * an admin repairs from the account page or the reconcile endpoint once they know why.
+ * an admin repairs once they know why — every account at once from the Health page ("Check
+ * account balances", then "Rebuild from the postings"), or one account from its row on the Chart
+ * of Accounts ("Recalculate"). Both need `finance-coa:change`.
  *
  * Env:
  *   LEDGER_RECONCILE_CRON            schedule, default '30 1 * * *' (01:30 local)

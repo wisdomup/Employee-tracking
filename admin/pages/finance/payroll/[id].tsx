@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -262,7 +263,7 @@ const PayrollRunPage: React.FC = () => {
             </span>
             {money(run.totals.net)} was owed to {run.employeeCount} people for {run.periodLabel}.{' '}
             {run.accrualEntryId && (
-              <a href={`/finance/journal/${run.accrualEntryId}`}>See the entry it wrote</a>
+              <Link href={`/finance/journal/${run.accrualEntryId}`}>See the entry it wrote</Link>
             )}
           </div>
         )}

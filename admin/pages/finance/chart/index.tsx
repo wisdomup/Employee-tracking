@@ -11,6 +11,7 @@ import { useTrail } from '../../../hooks/useTrail';
 import { can } from '../../../utils/permissions';
 import {
   financeService,
+  healthService,
   AccountGroup,
   AccountType,
   Ledger,
@@ -145,6 +146,32 @@ const ChartOfAccountsPage: React.FC = () => {
     }
   };
 
+  /**
+   * Rebuild one account's cached balance from its postings.
+   *
+   * The per-account half of the repair the nightly check points people to — it reports drift and
+   * never corrects it. Says what it found either way, so a click that changed nothing is not
+   * mistaken for one that did.
+   */
+  const handleRecalculate = async (ledger: Ledger) => {
+    try {
+      const result = await healthService.recalculateLedger(ledger.id);
+      if (Math.abs(result.drift) < 0.005) {
+        toast.success(`${ledger.name} already agreed with its postings`);
+      } else {
+        toast.warn(
+          `${ledger.name} was off by ${result.drift.toLocaleString('en-PK', { minimumFractionDigits: 2 })} `
+            + 'and has been rebuilt from its postings',
+        );
+      }
+      load();
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: unknown } } })
+        ?.response?.data?.message;
+      toast.error(typeof message === 'string' && message ? message : 'Could not recalculate this account');
+    }
+  };
+
   const columns = [
     {
       key: 'code',
@@ -244,6 +271,18 @@ const ChartOfAccountsPage: React.FC = () => {
               }}
             >
               {row.isActive ? 'Deactivate' : 'Reactivate'}
+            </button>
+          )}
+          {can(undefined, 'finance-coa:change') && (
+            <button
+              className={listStyles.editButton}
+              title="Rebuild this account's balance from its postings"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRecalculate(row);
+              }}
+            >
+              Recalculate
             </button>
           )}
           {can(undefined, 'finance-coa:delete') && !row.isSystem && (

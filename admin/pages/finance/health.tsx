@@ -10,7 +10,9 @@ import { useTrail } from '../../hooks/useTrail';
 import { can } from '../../utils/permissions';
 import {
   healthService,
+  BalanceCheckResult,
   ControlCheck,
+  ControlHistoryRow,
   PostingSwitch,
   PostingFailure,
 } from '../../services/financeService';
@@ -47,6 +49,9 @@ const HealthPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  /** Recorded runs per check, fetched the first time its working is opened. */
+  const [history, setHistory] = useState<Record<string, ControlHistoryRow[] | 'failed'>>({});
+  const [balances, setBalances] = useState<BalanceCheckResult | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -114,8 +119,59 @@ const HealthPage: React.FC = () => {
     }
   };
 
+  // Opening a check's working also fetches its history — in the click, never in an effect.
+  const toggleWorking = (checkId: string) => {
+    const opening = expanded !== checkId;
+    setExpanded(opening ? checkId : null);
+    if (!opening || history[checkId]) return;
+    healthService
+      .history(checkId, 30)
+      .then((rows) => setHistory((prev) => ({ ...prev, [checkId]: rows })))
+      .catch(() => setHistory((prev) => ({ ...prev, [checkId]: 'failed' })));
+  };
+
+  /**
+   * Prove every account's cached balance against its postings, and rebuild the ones that drifted.
+   *
+   * The nightly job only REPORTS drift — on purpose, because drift means something wrote to a
+   * balance outside the posting engine, and correcting it silently hides that bug. Until now nothing
+   * in the product could then repair it: the endpoints existed and no screen called them.
+   */
+  const checkBalances = async (repair: boolean) => {
+    if (
+      repair
+      && !window.confirm(
+        'Rebuild the drifted balances from their postings?\n\n'
+          + 'The postings are the truth and nothing about them changes. But a drift means something '
+          + 'wrote to a balance outside the accounts engine. Note which accounts are listed before '
+          + 'you do this, because afterwards the evidence of that is gone.',
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await healthService.checkBalances(repair);
+      if (repair) {
+        const n = result.drifted.length;
+        toast.success(`Rebuilt ${n} account${n === 1 ? '' : 's'} from their postings`);
+        // Check again, so what is shown is the state after the repair rather than the drift before.
+        setBalances(await healthService.checkBalances(false));
+      } else {
+        setBalances(result);
+      }
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: unknown } } })
+        ?.response?.data?.message;
+      toast.error(typeof message === 'string' && message ? message : 'Could not check the balances');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const failing = checks.filter((c) => !c.ok);
   const canOperate = can(undefined, 'finance-period:change');
+  const canRepairBalances = can(undefined, 'finance-coa:change');
 
   return (
     <Layout>
@@ -232,9 +288,7 @@ const HealthPage: React.FC = () => {
                             <td>
                               <button
                                 className={listStyles.editButton}
-                                onClick={() =>
-                                  setExpanded(expanded === check.checkId ? null : check.checkId)
-                                }
+                                onClick={() => toggleWorking(check.checkId)}
                               >
                                 {expanded === check.checkId ? 'Hide' : 'Working'}
                               </button>
@@ -263,6 +317,7 @@ const HealthPage: React.FC = () => {
                                   {check.note && (
                                     <p className={styles.readonlyNote}>{check.note}</p>
                                   )}
+                                  <CheckHistory rows={history[check.checkId]} />
                                 </div>
                               </td>
                             </tr>
@@ -274,6 +329,89 @@ const HealthPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* ---- Cached balances ---- */}
+            {canRepairBalances && (
+              <div className={listStyles.listCard} style={{ marginBottom: '1.5rem' }}>
+                <div className={listStyles.listCardBody}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      flexWrap: 'wrap',
+                      marginBottom: '0.75rem',
+                    }}
+                  >
+                    <h2 className={styles.panelTitle} style={{ margin: 0 }}>
+                      Account balances against their postings
+                    </h2>
+                    <button
+                      className={formStyles.cancelButton}
+                      disabled={busy}
+                      onClick={() => checkBalances(false)}
+                    >
+                      Check account balances
+                    </button>
+                  </div>
+                  <p className={styles.readonlyNote} style={{ marginTop: 0 }}>
+                    Every account keeps a running balance for speed. The postings behind it are the
+                    truth. This proves the two agree; the nightly check reports a difference but never
+                    corrects one.
+                  </p>
+
+                  {balances && balances.drifted.length === 0 && (
+                    <div className={`${styles.banner} ${styles.bannerOk}`} style={{ marginBottom: 0 }}>
+                      All {balances.checked} accounts agree with their postings.
+                    </div>
+                  )}
+
+                  {balances && balances.drifted.length > 0 && (
+                    <>
+                      <div className={`${styles.banner} ${styles.bannerBad}`}>
+                        <span className={styles.bannerTitle}>
+                          {balances.drifted.length} of {balances.checked} accounts disagree with their
+                          postings
+                        </span>
+                        Something changed these balances without going through the accounts engine.
+                        Find out what before rebuilding them.
+                      </div>
+                      <table className={styles.roleTable}>
+                        <thead>
+                          <tr>
+                            <th>Account</th>
+                            <th style={{ textAlign: 'right' }}>Balance is off by</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {balances.drifted.map((d) => (
+                            <tr key={d.code}>
+                              <td>
+                                <span className={styles.code}>{d.code}</span> {d.name}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <span className={`${styles.amount} ${styles.amountNegative}`}>
+                                  {money(d.drift)}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className={formStyles.formActions}>
+                        <button
+                          className={formStyles.submitButton}
+                          disabled={busy}
+                          onClick={() => checkBalances(true)}
+                        >
+                          Rebuild from the postings
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* ---- Failed postings ---- */}
             {failures.length > 0 && (
@@ -399,6 +537,59 @@ const HealthPage: React.FC = () => {
         onClose={closeTrail}
       />
     </Layout>
+  );
+};
+
+/**
+ * One check's recorded runs, newest first.
+ *
+ * Answers the question a drift raises next: is it new, or has it been there for weeks? A drift that
+ * appeared yesterday points at yesterday's work; one that has sat there since the books opened
+ * points somewhere else entirely.
+ */
+const CheckHistory: React.FC<{ rows: ControlHistoryRow[] | 'failed' | undefined }> = ({ rows }) => {
+  if (rows === undefined) return <p className={styles.muted}>Loading the earlier runs…</p>;
+  if (rows === 'failed') return <p className={styles.muted}>The earlier runs could not be loaded.</p>;
+  if (rows.length === 0) return null;
+
+  // The current run of agreeing or disagreeing days, from the newest backwards.
+  let streak = 0;
+  while (streak < rows.length && rows[streak].ok === rows[0].ok) streak += 1;
+  const since = rows[streak - 1].day;
+  const runs = (n: number) => `${n} run${n === 1 ? '' : 's'}`;
+  const summary = rows[0].ok
+    ? streak === rows.length
+      ? `Agreed on every one of the last ${runs(rows.length)}.`
+      : `Has agreed since ${since}.`
+    : streak === rows.length
+      ? `Has disagreed on every one of the last ${runs(rows.length)}.`
+      : `Has disagreed since ${since}, ${runs(streak)} in a row.`;
+
+  return (
+    <>
+      <h3 className={styles.panelTitle} style={{ marginTop: '1rem' }}>Earlier runs</h3>
+      <p className={styles.readonlyNote} style={{ marginTop: 0 }}>{summary}</p>
+      <table className={styles.roleTable}>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th style={{ textAlign: 'right' }}>Difference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.slice(0, 14).map((row) => (
+            <tr key={row.day}>
+              <td>{row.day}</td>
+              <td style={{ textAlign: 'right' }}>
+                <span className={`${styles.amount} ${row.ok ? '' : styles.amountNegative}`}>
+                  {row.ok ? 'Agreed' : money(row.drift)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 };
 

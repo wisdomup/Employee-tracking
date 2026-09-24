@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -266,7 +267,7 @@ const PaymentPage: React.FC = () => {
             </span>
             {money(payment.amount)} paid to {payment.vendorName}.{' '}
             {payment.journalEntryId && (
-              <a href={`/finance/journal/${payment.journalEntryId}`}>See the entry it wrote</a>
+              <Link href={`/finance/journal/${payment.journalEntryId}`}>See the entry it wrote</Link>
             )}
             {payment.isChequeUncleared && (
               <p className={finance.readonlyNote} style={{ marginBottom: 0 }}>
@@ -458,9 +459,9 @@ const ReadOnlyPayment: React.FC<{ payment: PaymentDetail }> = ({ payment }) => (
             {payment.allocations.map((a) => (
               <tr key={a.billId}>
                 <td>
-                  <a className={finance.code} href={`/finance/bills/${a.billId}`}>
+                  <Link className={finance.code} href={`/finance/bills/${a.billId}`}>
                     {a.reference}
-                  </a>
+                  </Link>
                 </td>
                 <td className={finance.muted}>{a.supplierBillNo || '—'}</td>
                 <td>{a.billDate ? new Date(a.billDate).toLocaleDateString('en-PK') : '—'}</td>

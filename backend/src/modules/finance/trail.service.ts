@@ -177,7 +177,7 @@ const DOCUMENT_ROUTES: Record<string, { label: string; path: ((id: string) => st
 /** Every `sourceModel` the posting services stamp. Exported so a test can assert completeness. */
 export const KNOWN_SOURCE_MODELS = Object.keys(DOCUMENT_ROUTES);
 
-function documentFor(entry: {
+export function documentFor(entry: {
   sourceType?: string;
   sourceModel?: string | null;
   sourceId?: Types.ObjectId | null;
@@ -507,71 +507,84 @@ async function groupTrail(ref: Extract<TrailRef, { kind: 'group' }>): Promise<Tr
   const group = await AccountGroupModel.findById(ref.groupId).lean().exec();
   if (!group) throw notFound('Account group not found');
 
-  const [children, ledgers] = await Promise.all([
-    AccountGroupModel.find({ parentGroupId: group._id })
-      .select('_id name code sortOrder')
-      .sort({ sortOrder: 1, code: 1 })
-      .lean()
-      .exec(),
-    LedgerModel.find({ groupId: group._id })
-      .select('_id code name')
-      .sort({ code: 1 })
-      .lean()
-      .exec(),
-  ]);
-
   const debitNatured = group.accountType === 'asset' || group.accountType === 'expense';
   const window = dateWindow(ref.from, ref.to);
 
-  /** Net movement of one group and everything under it, in the group's own direction. */
-  const netOf = async (groupId: Types.ObjectId): Promise<number> => {
-    const groupIds = await descendantGroupIds(groupId);
-    const ledgerIds = await LedgerModel.find({ groupId: { $in: groupIds } })
-      .select('_id')
-      .lean()
-      .exec();
-    if (ledgerIds.length === 0) return 0;
+  /*
+   * A fixed number of queries whatever the size of the group.
+   *
+   * This used to ask for each sub-group's figure separately and each account's separately, in turn:
+   * about three round trips per sub-group and one per account, one after another. Now the whole
+   * subtree is fetched a level at a time (four levels at most), then every account under it, then
+   * ONE aggregate grouped by account — and each figure is rolled up to the sub-group it sits under
+   * in memory.
+   */
+  const tree = await groupTree(group._id);
+  const ledgers = await LedgerModel.find({ groupId: { $in: tree.ids } })
+    .select('_id code name groupId')
+    .sort({ code: 1 })
+    .lean()
+    .exec();
+
+  const netByLedger = new Map<string, number>();
+  if (ledgers.length > 0) {
     const match: Record<string, unknown> = {
-      ledgerId: { $in: ledgerIds.map((l) => l._id) },
+      ledgerId: { $in: ledgers.map((l) => l._id) },
       status: { $in: LIVE_STATUSES as unknown as string[] },
     };
     if (window) match.date = window;
-    const agg = await JournalLineModel.aggregate<{ net: number }>([
+    const sums = await JournalLineModel.aggregate<{ _id: Types.ObjectId; net: number }>([
       { $match: match },
-      { $group: { _id: null, net: { $sum: '$signedAmount' } } },
+      { $group: { _id: '$ledgerId', net: { $sum: '$signedAmount' } } },
     ]).exec();
-    const net = round2(agg[0]?.net ?? 0);
-    return round2(debitNatured ? net : -net);
+    for (const row of sums) {
+      const net = round2(row.net);
+      netByLedger.set(String(row._id), round2(debitNatured ? net : -net));
+    }
+  }
+
+  // Which of this group's own children each descendant group rolls up into.
+  const rootId = String(group._id);
+  const childOf = (groupId: string): string | null => {
+    let current = groupId;
+    for (let guard = 0; guard < 8; guard += 1) {
+      const parent = tree.parentOf.get(current);
+      if (!parent) return null;
+      if (parent === rootId) return current;
+      current = parent;
+    }
+    return null;
   };
 
+  const childTotals = new Map<string, number>();
   const parts: TrailPart[] = [];
-  for (const child of children) {
+  const directLedgerParts: TrailPart[] = [];
+
+  for (const ledger of ledgers) {
+    const amount = netByLedger.get(String(ledger._id)) ?? 0;
+    const home = String(ledger.groupId);
+    if (home === rootId) {
+      directLedgerParts.push({
+        label: `${ledger.code} · ${ledger.name}`,
+        amount,
+        operator: '+',
+        drill: { kind: 'ledger', ledgerId: String(ledger._id), from: ref.from, to: ref.to },
+      });
+      continue;
+    }
+    const child = childOf(home);
+    if (child) childTotals.set(child, round2((childTotals.get(child) ?? 0) + amount));
+  }
+
+  for (const child of tree.children) {
     parts.push({
       label: `${child.code} · ${child.name}`,
-      amount: await netOf(child._id),
+      amount: childTotals.get(String(child._id)) ?? 0,
       operator: '+',
       drill: { kind: 'group', groupId: String(child._id), from: ref.from, to: ref.to },
     });
   }
-  for (const ledger of ledgers) {
-    const agg = await JournalLineModel.aggregate<{ net: number }>([
-      {
-        $match: {
-          ledgerId: ledger._id,
-          status: { $in: LIVE_STATUSES as unknown as string[] },
-          ...(window ? { date: window } : {}),
-        },
-      },
-      { $group: { _id: null, net: { $sum: '$signedAmount' } } },
-    ]).exec();
-    const net = round2(agg[0]?.net ?? 0);
-    parts.push({
-      label: `${ledger.code} · ${ledger.name}`,
-      amount: round2(debitNatured ? net : -net),
-      operator: '+',
-      drill: { kind: 'ledger', ledgerId: String(ledger._id), from: ref.from, to: ref.to },
-    });
-  }
+  parts.push(...directLedgerParts);
 
   const total = round2(parts.reduce((sum, p) => sum + p.amount, 0));
 
@@ -595,19 +608,34 @@ async function groupTrail(ref: Extract<TrailRef, { kind: 'group' }>): Promise<Tr
   };
 }
 
-/** A group and every group beneath it. Four levels deep at most, so recursion is bounded. */
-async function descendantGroupIds(root: Types.ObjectId): Promise<Types.ObjectId[]> {
-  const all = [root];
+/**
+ * A group's whole subtree, fetched one level per query. The chart nests four levels deep at most,
+ * so this is bounded; the guard stops at eight in case a bad write ever made a cycle.
+ */
+async function groupTree(root: Types.ObjectId): Promise<{
+  ids: Types.ObjectId[];
+  parentOf: Map<string, string>;
+  children: { _id: Types.ObjectId; code: string; name: string }[];
+}> {
+  const ids: Types.ObjectId[] = [root];
+  const parentOf = new Map<string, string>();
+  let children: { _id: Types.ObjectId; code: string; name: string }[] = [];
   let frontier = [root];
-  for (let depth = 0; depth < 4 && frontier.length > 0; depth += 1) {
-    const children = await AccountGroupModel.find({ parentGroupId: { $in: frontier } })
-      .select('_id')
+
+  for (let depth = 0; depth < 8 && frontier.length > 0; depth += 1) {
+    const level = await AccountGroupModel.find({ parentGroupId: { $in: frontier } })
+      .select('_id code name parentGroupId sortOrder')
+      .sort({ sortOrder: 1, code: 1 })
       .lean()
       .exec();
-    frontier = children.map((c) => c._id);
-    all.push(...frontier);
+    const fresh = level.filter((g) => !parentOf.has(String(g._id)) && String(g._id) !== String(root));
+    for (const g of fresh) parentOf.set(String(g._id), String(g.parentGroupId));
+    if (depth === 0) children = fresh.map((g) => ({ _id: g._id, code: g.code, name: g.name }));
+    frontier = fresh.map((g) => g._id);
+    ids.push(...frontier);
   }
-  return all;
+
+  return { ids, parentOf, children };
 }
 
 // ---------------------------------------------------------------------------
@@ -816,7 +844,10 @@ async function sourceTrail(ref: Extract<TrailRef, { kind: 'source' }>): Promise<
    */
   const rows: (TrailRow & { isReversal: boolean })[] = entries.map((entry) => {
     const own = linesByEntry.get(String(entry._id)) ?? [];
+    // Each summed from its own lines rather than one copied into the other. They agree for a
+    // balanced entry, which every posted entry is — so a row where they differ is a real finding.
     const debit = round2(own.reduce((s, l) => s + l.debit, 0));
+    const credit = round2(own.reduce((s, l) => s + l.credit, 0));
     const accounts = own
       .map((l) => ledgerById.get(String(l.ledgerId))?.code)
       .filter(Boolean)
@@ -829,8 +860,9 @@ async function sourceTrail(ref: Extract<TrailRef, { kind: 'source' }>): Promise<
       entryNo: entry.entryNo ?? null,
       party: null,
       debit,
-      credit: debit,
-      // A reversal took the money back out, so it reads negative against the document it undoes.
+      credit,
+      // The size of the entry, signed: a reversal took the money back out, so it reads negative
+      // against the document it undoes and the rows show the round trip.
       amount: isReversal ? round2(-debit) : debit,
       runningBalance: null,
       status: entry.status,

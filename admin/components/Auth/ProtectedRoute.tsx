@@ -33,6 +33,12 @@ interface ProtectedRouteProps {
    * contains it. The individual tabs still filter themselves.
    */
   reportPrefix?: string;
+  /**
+   * Open the page when this returns true, for a page whose access is a combination the other props
+   * cannot express — the finance landing page opens for anyone with ANY finance screen, which is a
+   * mix of permissions and reports. Evaluated only once grants have arrived, like the others.
+   */
+  allowIf?: () => boolean;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -41,11 +47,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   permission,
   report,
   reportPrefix,
+  allowIf,
 }) => {
   const { isAuthenticated, loading, accessLoading, user } = useAuth();
   const router = useRouter();
 
-  const gatedOnAccess = Boolean(permission || report || reportPrefix);
+  const gatedOnAccess = Boolean(permission || report || reportPrefix || allowIf);
 
   // "Still loading" is not "denied". Deciding before the grants arrive would bounce every
   // permission-gated page to /login on a hard refresh, which reads as a broken login.
@@ -56,6 +63,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     if (permission) return can(undefined, permission);
     if (report) return canViewReport(report);
     if (reportPrefix) return canViewAnyReportOn(reportPrefix);
+    if (allowIf) return allowIf();
 
     const held = user.roles?.length ? user.roles : user.role ? [user.role] : [];
     return held.some((r) => allowedRoles.includes(r));

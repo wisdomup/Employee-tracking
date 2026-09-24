@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -10,6 +11,7 @@ import EntryLineEditor, {
 } from '../../../components/Finance/EntryLineEditor';
 import TrailPanel from '../../../components/Finance/TrailPanel';
 import TrailAmount from '../../../components/Finance/TrailAmount';
+import TrailLink from '../../../components/Finance/TrailLink';
 import { useTrail } from '../../../hooks/useTrail';
 import { can } from '../../../utils/permissions';
 import {
@@ -189,9 +191,9 @@ const EntryPage: React.FC = () => {
             {entry.reversedByEntryId && (
               <>
                 {' '}
-                <a href={`/finance/journal/${entry.reversedByEntryId}`}>
+                <Link href={`/finance/journal/${entry.reversedByEntryId}`}>
                   Open the reversing entry
-                </a>
+                </Link>
                 .
               </>
             )}
@@ -201,7 +203,7 @@ const EntryPage: React.FC = () => {
         {entry.reversalOf && (
           <div className={`${finance.banner} ${finance.bannerInfo}`}>
             <span className={finance.bannerTitle}>This entry reverses another</span>
-            <a href={`/finance/journal/${entry.reversalOf}`}>Open the original</a>.
+            <Link href={`/finance/journal/${entry.reversalOf}`}>Open the original</Link>.
           </div>
         )}
 
@@ -232,13 +234,9 @@ const EntryPage: React.FC = () => {
               This entry was raised by a {sourceTypeLabel(entry.sourceType).toLowerCase()}
             </span>
             Nobody typed it. It was posted automatically when the document was recorded.{' '}
-            <button
-              type="button"
-              className={finance.trailCrumb}
-              onClick={() => openTrail({ kind: 'source', sourceId: entry.sourceId! })}
-            >
+            <TrailLink trail={{ kind: 'source', sourceId: entry.sourceId! }} onOpen={openTrail}>
               See everything that document did to the accounts
-            </button>
+            </TrailLink>
           </div>
         )}
 
@@ -314,32 +312,20 @@ const EntryPage: React.FC = () => {
                   {(entry.lines ?? []).map((line, i) => (
                     <tr key={i}>
                       <td>
-                        <button
-                          type="button"
-                          className={finance.trailCrumb}
-                          onClick={() => openTrail({ kind: 'ledger', ledgerId: line.ledgerId })}
-                          title="Open this account's own trail"
-                        >
+                        <TrailLink trail={{ kind: 'ledger', ledgerId: line.ledgerId }} onOpen={openTrail} title="Open this account's own trail">
                           <span className={finance.code}>{line.ledgerCode}</span> {line.ledgerName}
-                        </button>
+                        </TrailLink>
                       </td>
                       <td className={finance.muted}>
                         {line.subledgerRef ? (
-                          <button
-                            type="button"
-                            className={finance.trailCrumb}
-                            onClick={() =>
-                              openTrail({
+                          <TrailLink trail={{
                                 kind: 'party',
                                 partyType: line.subledgerRef!.type,
                                 partyId: line.subledgerRef!.id,
                                 ledgerId: line.ledgerId,
-                              })
-                            }
-                            title="Everything this party did on this account"
-                          >
+                              }} onOpen={openTrail} title="Everything this party did on this account">
                             {PARTY_TYPE_LABELS[line.subledgerRef.type]}
-                          </button>
+                          </TrailLink>
                         ) : (
                           '—'
                         )}

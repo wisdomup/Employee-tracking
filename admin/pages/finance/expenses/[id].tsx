@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -300,7 +301,7 @@ const ExpensePage: React.FC = () => {
             {money(expense.totalAmount)} spent
             {expense.approvedAt ? ', approved' : ''}.{' '}
             {expense.journalEntryId && (
-              <a href={`/finance/journal/${expense.journalEntryId}`}>See the entry it wrote</a>
+              <Link href={`/finance/journal/${expense.journalEntryId}`}>See the entry it wrote</Link>
             )}
             {expense.chequeClearedAt && (
               <p className={finance.readonlyNote} style={{ marginBottom: 0 }}>

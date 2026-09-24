@@ -449,6 +449,18 @@ export interface PostingFailure {
   resolved: boolean;
 }
 
+export interface ControlHistoryRow {
+  day: string;
+  drift: number;
+  ok: boolean;
+}
+
+/** Cached balances proved against their postings — see `reconcileLedgerBalances` on the server. */
+export interface BalanceCheckResult {
+  checked: number;
+  drifted: { code: string; name: string; drift: number }[];
+}
+
 export const healthService = {
   async controls(refresh = false): Promise<{
     day: string;
@@ -460,7 +472,8 @@ export const healthService = {
     return response.data;
   },
 
-  async history(checkId: string, days = 30) {
+  /** One check's recorded runs, newest first — whether a drift is new or has been there a while. */
+  async history(checkId: string, days = 30): Promise<ControlHistoryRow[]> {
     const response = await api.get(
       `/finance/health/controls/${checkId}/history?days=${days}`,
     );
@@ -486,6 +499,21 @@ export const healthService = {
 
   async retryFailures(): Promise<{ retried: number; recovered: number }> {
     const response = await api.post('/finance/health/failed-postings/retry');
+    return response.data;
+  },
+
+  /**
+   * Prove every account's cached balance against its postings. With `repair`, rewrite the ones
+   * that drifted from the postings, which are the truth. Needs the Chart of Accounts change right.
+   */
+  async checkBalances(repair = false): Promise<BalanceCheckResult> {
+    const response = await api.post(`/finance/reconcile${repair ? '?repair=true' : ''}`);
+    return response.data;
+  },
+
+  /** Rebuild one account's cached balance from its postings. Returns the drift it corrected. */
+  async recalculateLedger(ledgerId: string): Promise<{ balance: number; drift: number }> {
+    const response = await api.post(`/finance/ledgers/${ledgerId}/recalculate`);
     return response.data;
   },
 };
@@ -1843,11 +1871,6 @@ export interface OpeningEntryResult {
 }
 
 export const openingBalanceService = {
-  async status(): Promise<MigrationStatus> {
-    const response = await api.get('/finance/opening-balances/status');
-    return response.data;
-  },
-
   async worksheet(): Promise<OpeningWorksheet> {
     const response = await api.get('/finance/opening-balances/worksheet');
     return response.data;
@@ -2372,4 +2395,75 @@ export const PARTY_TYPE_LABELS: Record<SubledgerType, string> = {
   rider: 'Rider',
   warehouse: 'Warehouse',
   employee: 'Employee',
+};
+
+// ---------------------------------------------------------------------------
+// Registers: reversals and write-offs
+// ---------------------------------------------------------------------------
+
+export interface ReversalRow {
+  /** The entry that was undone. */
+  entryId: string;
+  entryNo: number | null;
+  /** The entry that undid it. */
+  reversalEntryId: string | null;
+  reversalEntryNo: number | null;
+  date: string;
+  reversedAt: string | null;
+  reversedBy: string | null;
+  reason: string;
+  amount: number;
+  narration: string;
+  sourceType: string;
+  document: TrailDocumentRef | null;
+}
+
+export interface ReversalRegister {
+  rows: ReversalRow[];
+  count: number;
+  total: number;
+  truncated: boolean;
+}
+
+export interface WriteOffRow {
+  settlementId: string;
+  riderId: string;
+  rider: string;
+  mode: 'cash' | 'online';
+  amount: number;
+  reason: string;
+  at: string;
+  by: string | null;
+  voided: boolean;
+  voidReason: string | null;
+  entryId: string | null;
+  entryNo: number | null;
+}
+
+export interface WriteOffRegister {
+  rows: WriteOffRow[];
+  count: number;
+  total: number;
+  unposted: number;
+  truncated: boolean;
+}
+
+function windowQuery(window: { from?: string; to?: string }): string {
+  const params = new URLSearchParams();
+  if (window.from) params.append('from', window.from);
+  if (window.to) params.append('to', window.to);
+  const q = params.toString();
+  return q ? `?${q}` : '';
+}
+
+export const registerService = {
+  async reversals(window: { from?: string; to?: string } = {}): Promise<ReversalRegister> {
+    const response = await api.get(`/finance/registers/reversals${windowQuery(window)}`);
+    return response.data;
+  },
+
+  async writeOffs(window: { from?: string; to?: string } = {}): Promise<WriteOffRegister> {
+    const response = await api.get(`/finance/registers/write-offs${windowQuery(window)}`);
+    return response.data;
+  },
 };

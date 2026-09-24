@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 5001 --webpack",
-    "dev:turbo": "next dev -p 5001 --turbopack",
-    "build": "next build",
+    "dev": "node scripts/next.mjs dev -p 5001 --webpack",
+    "dev:turbo": "node scripts/next.mjs dev -p 5001 --turbopack",
+    "build": "node scripts/next.mjs build",
     "start": "next start -p 5001",
     "lint": "eslint",
     "lint:fix": "eslint --fix"

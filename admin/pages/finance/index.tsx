@@ -3,24 +3,24 @@ import { useRouter } from 'next/router';
 import ProtectedRoute from '../../components/Auth/ProtectedRoute';
 import Layout from '../../components/Layout/Layout';
 import Loader from '../../components/UI/Loader';
-import { can, canViewAnyReportOn } from '../../utils/permissions';
+import { canOpenFinance, visibleFinanceTabs } from '../../utils/financeAccess';
 
 /**
  * The module's landing route. The sidebar links here rather than deep into a sub-page so the
  * nav highlighting works on `startsWith('/finance')`, the same arrangement `/warehouse` and
  * `/collection` use.
  *
- * Redirects to whichever surface the person can actually open. The journal is the day-to-day
- * screen, so it goes first; someone granted only the chart still lands somewhere useful rather
- * than on a refusal.
+ * Sends each person to the first screen they can actually open, in the order the tab bar shows
+ * them — the journal first, as the day-to-day screen. Opens for anyone with any finance screen at
+ * all: it used to require the Chart of Accounts, which stopped the very people this redirect was
+ * written for from ever reaching it.
  */
 const FinanceIndexPage: React.FC = () => {
   const router = useRouter();
 
   useEffect(() => {
-    if (can(undefined, 'finance-journal:view')) router.replace('/finance/journal');
-    else if (canViewAnyReportOn('finance.')) router.replace('/finance/reports');
-    else router.replace('/finance/chart');
+    const first = visibleFinanceTabs()[0];
+    if (first) router.replace(first.href);
   }, [router]);
 
   return (
@@ -32,7 +32,7 @@ const FinanceIndexPage: React.FC = () => {
 
 export default function FinanceIndexPageWrapper() {
   return (
-    <ProtectedRoute permission="finance-coa:view">
+    <ProtectedRoute allowIf={canOpenFinance}>
       <FinanceIndexPage />
     </ProtectedRoute>
   );

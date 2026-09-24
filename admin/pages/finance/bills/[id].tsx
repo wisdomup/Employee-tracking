@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -238,7 +239,7 @@ const BillPage: React.FC = () => {
               </>
             )}
             {bill.journalEntryId && (
-              <a href={`/finance/journal/${bill.journalEntryId}`}>See the entry it wrote</a>
+              <Link href={`/finance/journal/${bill.journalEntryId}`}>See the entry it wrote</Link>
             )}
             <p className={finance.readonlyNote} style={{ marginBottom: 0 }}>
               A posted bill is not edited. If something on it is wrong, cancel it and record the
@@ -459,9 +460,9 @@ const ReadOnlyBill: React.FC<{ bill: BillDetail }> = ({ bill }) => (
               {bill.payments.map((p) => (
                 <tr key={p.paymentId}>
                   <td>
-                    <a className={finance.code} href={`/finance/payments/${p.paymentId}`}>
+                    <Link className={finance.code} href={`/finance/payments/${p.paymentId}`}>
                       {p.reference}
-                    </a>
+                    </Link>
                   </td>
                   <td>{new Date(p.paymentDate).toLocaleDateString('en-PK')}</td>
                   <td>{PAYMENT_METHOD_LABELS[p.method]}</td>

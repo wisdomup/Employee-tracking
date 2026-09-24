@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import Layout from '../../../components/Layout/Layout';
@@ -233,7 +234,7 @@ const VendorsPage: React.FC = () => {
             Until they are, what you have received cannot be totalled by supplier, and purchase
             bills will have nothing to match against.{' '}
             {can(undefined, 'finance-vendors:change') && (
-              <a href="/finance/vendors/cleanup">Match the typed names</a>
+              <Link href="/finance/vendors/cleanup">Match the typed names</Link>
             )}
           </div>
         )}

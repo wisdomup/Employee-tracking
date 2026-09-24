@@ -9,8 +9,10 @@ import StatementTable, { statementMoney } from '../../components/Finance/Stateme
 import { CashFlowReport, CashPositionReport } from '../../components/Finance/CashReports';
 import TrailPanel from '../../components/Finance/TrailPanel';
 import TrailAmount from '../../components/Finance/TrailAmount';
+import TrailLink from '../../components/Finance/TrailLink';
 import { useTrail } from '../../hooks/useTrail';
 import { canViewReport } from '../../utils/permissions';
+import { canViewAnyFinanceReportTab } from '../../utils/financeAccess';
 import {
   PARTY_TYPE_LABELS,
   sourceTypeLabel,
@@ -234,10 +236,14 @@ const FinanceReportsPage: React.FC = () => {
   }, [tab, asOf, from, to, ledgerId, plFrom, plTo, compare, bsAsOf, showZero, arAsOf, partyType, partyId, partyFrom, partyTo, cfFrom, cfTo, cpFrom, cpTo, taxFrom, taxTo]);
 
   useEffect(() => {
+    // No tab this person can open means no report to run. Without this the page defaulted to the
+    // trial balance and requested it anyway, greeting them with an error for a report they were
+    // never given.
+    if (visibleTabs.length === 0) return;
     if (tab === 'ledger-statement' && !ledgerId) return;
     if (tab === 'party-statement' && !partyId) return;
     run();
-  }, [run, tab, ledgerId, partyId]);
+  }, [run, tab, ledgerId, partyId, visibleTabs.length]);
 
   /** From a statement line to that account's statement over the same months. */
   const openLedger = (fromPeriod: string, toPeriod: string) => (id: string) => {
@@ -972,13 +978,9 @@ const FinanceReportsPage: React.FC = () => {
                           <td>
                             {/* The panel rather than the page: the statement behind it stays
                                 loaded, and the entry is one hop rather than a navigation. */}
-                            <button
-                              type="button"
-                              className={styles.trailCrumb}
-                              onClick={() => openTrail({ kind: 'entry', entryId: row.entryId })}
-                            >
+                            <TrailLink trail={{ kind: 'entry', entryId: row.entryId }} onOpen={openTrail}>
                               <span className={styles.code}>{row.entryNo ?? '—'}</span>
-                            </button>
+                            </TrailLink>
                           </td>
                           <td className={styles.muted}>{row.referenceNo || '—'}</td>
                           <td>{row.narration || '—'}</td>
@@ -1271,14 +1273,9 @@ const FinanceReportsPage: React.FC = () => {
                           marginBottom: '0.5rem',
                         }}
                       >
-                        <button
-                          type="button"
-                          className={styles.trailCrumb}
-                          onClick={() => openTrail({ kind: 'entry', entryId: entry.id })}
-                          title="Open both sides of this entry"
-                        >
+                        <TrailLink trail={{ kind: 'entry', entryId: entry.id }} onOpen={openTrail} title="Open both sides of this entry">
                           <span className={styles.code}>#{entry.entryNo ?? '—'}</span>
-                        </button>
+                        </TrailLink>
                         <strong>{entry.narration || '—'}</strong>
                         <span className={styles.muted}>
                           {new Date(entry.date).toLocaleDateString()}
@@ -1292,15 +1289,10 @@ const FinanceReportsPage: React.FC = () => {
                           {entry.lines.map((line: any, i: number) => (
                             <tr key={i}>
                               <td>
-                                <button
-                                  type="button"
-                                  className={styles.trailCrumb}
-                                  onClick={() => openTrail({ kind: 'ledger', ledgerId: line.ledgerId })}
-                                  title="Open this account's own trail"
-                                >
+                                <TrailLink trail={{ kind: 'ledger', ledgerId: line.ledgerId }} onOpen={openTrail} title="Open this account's own trail">
                                   <span className={styles.code}>{line.ledgerCode}</span>{' '}
                                   {line.ledgerName}
-                                </button>
+                                </TrailLink>
                               </td>
                               <td style={{ textAlign: 'right', width: '9rem' }}>
                                 <TrailAmount value={line.debit} trail={{ kind: 'entry', entryId: entry.id }} onOpen={openTrail} format={money} />
@@ -1368,14 +1360,9 @@ const FinanceReportsPage: React.FC = () => {
                           <td>{new Date(row.date).toLocaleDateString()}</td>
                           <td>
                             {row.entryId ? (
-                              <button
-                                type="button"
-                                className={styles.trailCrumb}
-                                onClick={() => openTrail({ kind: 'entry', entryId: row.entryId })}
-                                title="Open both sides of this entry"
-                              >
+                              <TrailLink trail={{ kind: 'entry', entryId: row.entryId }} onOpen={openTrail} title="Open both sides of this entry">
                                 <span className={styles.code}>{row.entryNo ?? 'view'}</span>
-                              </button>
+                              </TrailLink>
                             ) : (
                               <span className={styles.code}>{row.entryNo ?? '—'}</span>
                             )}
@@ -1393,23 +1380,16 @@ const FinanceReportsPage: React.FC = () => {
                           </td>
                           <td className={styles.muted}>
                             {row.subledger ? (
-                              <button
-                                type="button"
-                                className={styles.trailCrumb}
-                                onClick={() =>
-                                  openTrail({
+                              <TrailLink trail={{
                                     kind: 'party',
                                     partyType: row.subledger.type,
                                     partyId: row.subledger.id,
                                     ledgerId,
                                     from,
                                     to,
-                                  })
-                                }
-                                title="Everything this party did on this account"
-                              >
+                                  }} onOpen={openTrail} title="Everything this party did on this account">
                                 {PARTY_TYPE_LABELS[row.subledger.type as SubledgerType]}
-                              </button>
+                              </TrailLink>
                             ) : (
                               '—'
                             )}
@@ -1444,18 +1424,11 @@ const FinanceReportsPage: React.FC = () => {
                           </td>
                           <td>
                             {row.sourceId ? (
-                              <button
-                                type="button"
-                                className={styles.trailCrumb}
-                                onClick={() =>
-                                  openTrail({ kind: 'source', sourceId: row.sourceId })
-                                }
-                                title="Everything that document did to the accounts"
-                              >
+                              <TrailLink trail={{ kind: 'source', sourceId: row.sourceId }} onOpen={openTrail} title="Everything that document did to the accounts">
                                 <span className={styles.trailDocLink}>
                                   {sourceTypeLabel(row.sourceType)}
                                 </span>
-                              </button>
+                              </TrailLink>
                             ) : (
                               <span className={styles.trailDocPlain}>
                                 {sourceTypeLabel(row.sourceType)}
@@ -1527,7 +1500,10 @@ const SummaryRow: React.FC<{
 
 export default function FinanceReportsPageWrapper() {
   return (
-    <ProtectedRoute reportPrefix="finance.">
+    // The page's own tabs, not every report whose id starts "finance." — that prefix also matches
+    // the health check and money trails, neither of which is a tab here, and let someone holding
+    // only those onto a page with nothing on it.
+    <ProtectedRoute allowIf={canViewAnyFinanceReportTab}>
       <FinanceReportsPage />
     </ProtectedRoute>
   );
